@@ -1,3 +1,4 @@
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -5,6 +6,8 @@
 *.so
 *.dylib
 *.test
+Waggle.*
+Waggle
 
 # Output of the Go coverage tool
 *.out

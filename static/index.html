@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Waggle WS Example</title>
+        <style>
+            #messages {
+                border: 1px solid #ccc;
+                padding: 10px;
+                overflow-y: scroll;
+            }
+            .message {
+                padding: 5px;
+                border-bottom: 1px solid #ddd;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Waggle Messages</h1>
+        <div id="messages"></div>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", () => {
+                const messagesDiv = document.getElementById("messages");
+                let socket;
+                const wsUrl = `ws://${window.location.host}/ws`;
+
+                const openSocket = () => {
+                    socket = new WebSocket(wsUrl);
+
+                    socket.onopen = () => {
+                        console.log("WebSocket connection established");
+                    };
+
+                    socket.onmessage = (event) => {
+                        const messageDiv = document.createElement("div");
+                        messageDiv.className = "message";
+                        messageDiv.textContent = event.data;
+                        messagesDiv.insertBefore(
+                            messageDiv,
+                            messagesDiv.firstChild,
+                        );
+                    };
+
+                    socket.onerror = (error) => {
+                        console.error("WebSocket error:", error);
+                    };
+
+                    socket.onclose = () => {
+                        console.log("WebSocket connection closed");
+                        setTimeout(openSocket, 500); // Try to reopen after 5 seconds
+                    };
+                };
+
+                openSocket();
+            });
+        </script>
+    </body>
+</html>

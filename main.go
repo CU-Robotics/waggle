@@ -24,6 +24,11 @@ func main() {
 	var PORT = 8080
 	http.HandleFunc("/set", setterHandler)
 	http.HandleFunc("/get", getterHandler)
+	http.HandleFunc("/ws", wsHandler)
+
+	fs := http.FileServer(http.Dir("./static"))
+	http.Handle("/", fs)
+
 	fmt.Printf("Server is listening on port %d...", PORT)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", PORT), nil))
 }
@@ -49,20 +54,26 @@ func setterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mu.Lock()
+	defer mu.Unlock()
 	for key, value := range jsonData {
-		if prevData, exists := dataStore[key]; !exists || prevData.Updated < updatedTime {
-			dataStore[key] = DataItem{
-				Value:   value,
-				Updated: updatedTime,
-			}
+		if prevData, exists := dataStore[key]; exists && prevData.Updated > updatedTime {
+			w.WriteHeader(http.StatusConflict)
+			return //newer data on server already
 		}
-	}
-	mu.Unlock()
 
+		newData := DataItem{
+			Value:   value,
+			Updated: updatedTime,
+		}
+		dataStore[key] = newData
+
+		updateWSClients(map[string]interface{}{key: newData})
+
+	}
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Data stored successfully")
 }
 
+// This isn't actually needed for the display client, it just could be helpful for debugging purposes
 func getterHandler(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	defer mu.Unlock()
