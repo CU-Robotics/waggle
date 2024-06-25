@@ -7,22 +7,29 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 )
 
 var (
-	dataStore = make(map[string]interface{})
+	dataStore = make(map[string]DataItem)
 	mu        sync.Mutex
 )
 
+type DataItem struct {
+	Value   interface{} `json:"value"`
+	Updated int64       `json:"updated"`
+}
+
 func main() {
 	var PORT = 8080
-	http.HandleFunc("/set", jsonHandler)
-	http.HandleFunc("/getall", printHandler)
+	http.HandleFunc("/set", setterHandler)
+	http.HandleFunc("/get", getterHandler)
 	fmt.Printf("Server is listening on port %d...", PORT)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", PORT), nil))
 }
 
-func jsonHandler(w http.ResponseWriter, r *http.Request) {
+func setterHandler(w http.ResponseWriter, r *http.Request) {
+	updatedTime := time.Now().UnixMicro()
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
@@ -43,7 +50,12 @@ func jsonHandler(w http.ResponseWriter, r *http.Request) {
 
 	mu.Lock()
 	for key, value := range jsonData {
-		dataStore[key] = value
+		if prevData, exists := dataStore[key]; !exists || prevData.Updated < updatedTime {
+			dataStore[key] = DataItem{
+				Value:   value,
+				Updated: updatedTime,
+			}
+		}
 	}
 	mu.Unlock()
 
@@ -51,7 +63,7 @@ func jsonHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Data stored successfully")
 }
 
-func printHandler(w http.ResponseWriter, r *http.Request) {
+func getterHandler(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	defer mu.Unlock()
 

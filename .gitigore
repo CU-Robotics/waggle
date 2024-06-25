@@ -1,0 +1,43 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Output of the Go coverage tool
+*.out
+
+# Dependency directories (for example, vendored packages)
+vendor/
+Godeps/
+
+# Go workspace file
+go.work
+
+# IDE and editor files
+.zed
+.vscode/
+.idea/
+*.swp
+*~
+
+# macOS specific files
+.DS_Store
+
+# Windows specific files
+Thumbs.db
+
+# Logs
+*.log
+
+# Build directories
+bin/
+build/
+
+# Local env files
+.env
+
+# Module cache
+go.sum
