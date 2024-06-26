@@ -1,8 +1,8 @@
 # Waggle
 
-The hive communicates with a [waggle](https://en.wikipedia.org/wiki/Waggle_dance)
+The hive communicates with a [waggle](https://en.wikipedia.org/wiki/Waggle_dance).
 
 POST json data to `/set`
-GET json data from `/get` or open a websocket connection (preffered) with `/ws`
+Open a websocket connection with `/ws` to recieve data
 
-Build with `go build`, run with `./Waggle`
+Run with `cargo run`

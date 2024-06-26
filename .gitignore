@@ -12,12 +12,6 @@ Waggle
 # Output of the Go coverage tool
 *.out
 
-# Dependency directories (for example, vendored packages)
-vendor/
-Godeps/
-
-# Go workspace file
-go.work
 
 # IDE and editor files
 .zed
@@ -42,5 +36,5 @@ build/
 # Local env files
 .env
 
-# Module cache
-go.sum
+# Added by cargo
+/target
