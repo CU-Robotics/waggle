@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 
@@ -15,20 +13,24 @@ type GraphableNumber struct {
 }
 
 func graphableNumberHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Println(err)
-		return
-	}
+	// body, err := io.ReadAll(r.Body)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	return
+	// }
 
-	var data GraphableNumber
-	err = json.Unmarshal(body, &data)
-	if err != nil {
-		log.Println(err)
-		return
-	}
+	// var data GraphableNumber
+	// err = json.Unmarshal(body, &data)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	return
+	// }
 
-	PrettyPrint(data)
+	// PrettyPrint(data)
+	data := map[string]interface{}{
+		"bob": 7,
+	}
+	updateWSClients(data)
 }
 
 func main() {
@@ -37,6 +39,7 @@ func main() {
 	router := mux.NewRouter().StrictSlash(true)
 
 	router.Methods("POST").Path("/graphable-number").Name("graphableNumberHandler").Handler(LoggerHandler(http.HandlerFunc(graphableNumberHandler), "graphableNumberHandler"))
+	router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))
 
 	staticDir := "./static/"
 	fs := http.FileServer(http.Dir(staticDir))

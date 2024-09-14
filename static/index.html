@@ -31,6 +31,8 @@
             <div id="robot-icon"></div>
         </div>
 
+        <div id="messages"></div>
+
         <script>
             /**
              * Moves the robot icon to the specified (x, y) coordinates on the map. Units is meters
@@ -52,6 +54,41 @@
                 userIcon.style.left = adjustedX + "px";
                 userIcon.style.top = adjustedY + "px";
             }
+
+            document.addEventListener("DOMContentLoaded", () => {
+                const messagesDiv = document.getElementById("messages");
+                let socket;
+                const wsUrl = `ws://${window.location.host}/ws`;
+
+                const openSocket = () => {
+                    socket = new WebSocket(wsUrl);
+
+                    socket.onopen = () => {
+                        console.log("WebSocket connection established");
+                    };
+
+                    socket.onmessage = (event) => {
+                        const messageDiv = document.createElement("div");
+                        messageDiv.className = "message";
+                        messageDiv.textContent = event.data;
+                        messagesDiv.insertBefore(
+                            messageDiv,
+                            messagesDiv.firstChild,
+                        );
+                    };
+
+                    socket.onerror = (error) => {
+                        console.error("WebSocket error:", error);
+                    };
+
+                    socket.onclose = () => {
+                        console.log("WebSocket connection closed");
+                        setTimeout(openSocket, 500); // Try to reopen after 5 seconds
+                    };
+                };
+
+                openSocket();
+            });
         </script>
         <button
             onclick="moveUserIcon(Math.random() * 12.0, Math.random() * 8.0)"
