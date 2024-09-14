@@ -38,6 +38,10 @@ func main() {
 
 	router.Methods("POST").Path("/graphable-number").Name("graphableNumberHandler").Handler(LoggerHandler(http.HandlerFunc(graphableNumberHandler), "graphableNumberHandler"))
 
+	staticDir := "./static/"
+	fs := http.FileServer(http.Dir(staticDir))
+	router.NotFoundHandler = fs
+
 	log.Fatal(http.ListenAndServe(":3000", router))
 
 }

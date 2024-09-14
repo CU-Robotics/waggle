@@ -1,4 +1,4 @@
-module golang-test
+module waggle
 
 go 1.23.0
 
