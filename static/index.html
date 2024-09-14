@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Map with Movable User Icon</title>
+        <style>
+            #map-container {
+                position: relative;
+                width: 60vh;
+                height: 40vh;
+                background-image: url("game_field.png");
+                background-size: cover;
+                border: 1px solid #ccc;
+            }
+
+            #robot-icon {
+                position: absolute;
+                width: 32px;
+                height: 32px;
+                background-image: url("robot_icon1.png");
+                background-size: contain;
+                background-repeat: no-repeat;
+                pointer-events: none;
+                top: -100px; /* Initialize offscreen */
+                left: -100px;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="map-container">
+            <div id="robot-icon"></div>
+        </div>
+
+        <script>
+            /**
+             * Moves the robot icon to the specified (x, y) coordinates on the map. Units is meters
+             * @param {number} x - The x-coordinate on the map.
+             * @param {number} y - The y-coordinate on the map.
+             */
+            function moveRobotIcon(x, y) {
+                let vw = window.innerHeight / 100;
+                x = (x / 12) * 60 * vw;
+                y = (y / 8) * 40 * vw;
+                const userIcon = document.getElementById("robot-icon");
+
+                const iconWidth = userIcon.offsetWidth;
+                const iconHeight = userIcon.offsetHeight;
+
+                const adjustedX = x - iconWidth / 2;
+                const adjustedY = y - iconHeight / 2;
+
+                userIcon.style.left = adjustedX + "px";
+                userIcon.style.top = adjustedY + "px";
+            }
+
+            document.addEventListener("DOMContentLoaded", () => {
+                const messagesDiv = document.getElementById("messages");
+                let socket;
+                const wsUrl = `ws://${window.location.host}/ws`;
+
+                const openSocket = () => {
+                    socket = new WebSocket(wsUrl);
+
+                    socket.onopen = () => {
+                        console.log("WebSocket connection established");
+                    };
+
+                    socket.onmessage = (event) => {
+                        const messageDiv = document.createElement("div");
+                        event.data;
+
+                        let data = JSON.parse(event.data);
+                        if (!("type" in data)) {
+                            return;
+                        }
+                        if (data.type == "robot_position") {
+                            moveRobotIcon(data.data.x, data.data.y);
+                        }
+                        // messageDiv.className = "message";
+                        // messageDiv.textContent = event.data;
+                        // messagesDiv.insertBefore(
+                        //     messageDiv,
+                        //     messagesDiv.firstChild,
+                        // );
+                    };
+
+                    socket.onerror = (error) => {
+                        console.error("WebSocket error:", error);
+                    };
+
+                    socket.onclose = () => {
+                        console.log("WebSocket connection closed");
+                        setTimeout(openSocket, 500); // Try to reopen after 5 seconds
+                    };
+                };
+
+                openSocket();
+            });
+        </script>
+    </body>
+</html>
