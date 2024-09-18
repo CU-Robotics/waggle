@@ -1,65 +1,69 @@
-// Get the canvas context
-const ctx = document.getElementById("myChart").getContext("2d");
+var chartsByName = {};
 
-// Create the chart
-const chart = new Chart(ctx, {
-  type: "line",
-  data: {
-    labels: [], // X-axis labels (e.g., timestamps or intervals)
-    datasets: [
-      {
-        label: "Real-Time Data",
-        data: [], // Initial empty data array for Y-axis
-        borderColor: "blue",
-        fill: false,
-        tension: 0.1, // For slight curve between points
+function addDataToGraph(name, number) {
+  if (!chartsByName[name]) {
+    var container = document.getElementById("graphableNumbersContainer");
+    var canvas = document.createElement("canvas");
+    canvas.height = 50;
+    canvas.id = "chart_" + name.replace(/\s+/g, "_");
+    container.appendChild(canvas);
+
+    var ctx = canvas.getContext("2d");
+    var chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: [0],
+        datasets: [
+          {
+            label: name,
+            data: [number],
+            fill: false,
+            borderColor: "rgba(75, 192, 192, 1)",
+            tension: 0.1,
+          },
+        ],
       },
-    ],
-  },
-  options: {
-    scales: {
-      x: {
-        title: {
-          display: true,
-          text: "Time",
+      options: {
+        animation: false,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: "Data Point Index",
+            },
+          },
+          y: {
+            title: {
+              display: true,
+              text: "Value",
+            },
+          },
         },
       },
-      y: {
-        title: {
-          display: true,
-          text: "Value",
-        },
-        // min: 0,
-        // max: 100,
-      },
-    },
-    animation: false, // Disable animation for real-time updates
-    responsive: true,
-    maintainAspectRatio: false,
-  },
-});
-
-// Function to update chart data
-function updateChart(newDataPoint) {
-  // Add a new label (e.g., time)
-  chart.data.labels.push(`T${chart.data.labels.length + 1}`);
-
-  // Add a new data point for Y-axis
-  chart.data.datasets[0].data.push(newDataPoint);
-
-  // // Keep the chart showing only the last 10 data points
-  // if (chart.data.labels.length > 10) {
-  //   chart.data.labels.shift();
-  //   chart.data.datasets[0].data.shift();
-  // }
-
-  // Update the chart
-  chart.update();
+    });
+    chartsByName[name] = {
+      chart: chart,
+      dataIndex: 1,
+    };
+  } else {
+    var chartObj = chartsByName[name];
+    var chart = chartObj.chart;
+    var index = chartObj.dataIndex;
+    chart.data.labels.push(index);
+    chart.data.datasets[0].data.push(number);
+    chart.update();
+    chartObj.dataIndex += 1;
+  }
 }
 
-//
-var last = 0;
+randomYaw = 0;
 setInterval(() => {
-  last += (Math.random() - 0.5) * 100; // Random data between 0 and 100
-  updateChart(last);
-}, 100);
+  randomYaw += (Math.random() - 0.5) * 100;
+  addDataToGraph("Yaw", randomYaw);
+}, 500);
+
+randomPitch = 0;
+setInterval(() => {
+  randomPitch += (Math.random() - 0.5) * 100;
+  addDataToGraph("Pitch", randomPitch);
+}, 1500);
