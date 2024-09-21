@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -85,22 +83,6 @@ func main() {
 	staticDir := "./static/"
 	fs := http.FileServer(http.Dir(staticDir))
 	router.NotFoundHandler = fs
-
-	go func() {
-		x := 0.0
-		for true {
-			x += (rand.Float64() - 0.5) * 10
-			time.Sleep(time.Millisecond * 100)
-			clientData := ClientData{
-				Type: "graph_number",
-				Data: GraphableNumber{
-					GraphName: "test",
-					Value:     x,
-				},
-			}
-			updateWSClients(clientData)
-		}
-	}()
 
 	log.Fatal(http.ListenAndServe(":3000", router))
 
