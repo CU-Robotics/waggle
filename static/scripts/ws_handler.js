@@ -11,22 +11,17 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     socket.onmessage = (event) => {
-      const messageDiv = document.createElement("div");
-      event.data;
-
       let data = JSON.parse(event.data);
+      console.log(data);
+
       if (!("type" in data)) {
         return;
       }
-      if (data.type == "robot_position") {
+      if (data.type == "set_robot_position") {
         moveRobotIcon(data.data.x, data.data.y);
+      } else if (data.type == "graph_number") {
+        addDataToGraph(data.data.graphName, data.data.value);
       }
-      // messageDiv.className = "message";
-      // messageDiv.textContent = event.data;
-      // messagesDiv.insertBefore(
-      //     messageDiv,
-      //     messagesDiv.firstChild,
-      // );
     };
 
     socket.onerror = (error) => {

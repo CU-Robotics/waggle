@@ -15,13 +15,14 @@ type ClientData struct {
 }
 
 type GraphableNumber struct {
-	FieldName string `json:"fieldName"`
-	Value     int    `json:"value"`
+	GraphName string  `json:"graphName"`
+	Value     float32 `json:"value"`
 }
 
-func graphableNumberHandler(w http.ResponseWriter, r *http.Request) {
+func graphNumberHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
@@ -29,11 +30,16 @@ func graphableNumberHandler(w http.ResponseWriter, r *http.Request) {
 	var data GraphableNumber
 	err = json.Unmarshal(body, &data)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
 
-	PrettyPrint(data)
+	clientData := ClientData{
+		Type: "graph_number",
+		Data: data,
+	}
+	updateWSClients(clientData)
 }
 
 type RobotPosition struct {
@@ -44,6 +50,7 @@ type RobotPosition struct {
 func setRobotPositionHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
@@ -51,12 +58,13 @@ func setRobotPositionHandler(w http.ResponseWriter, r *http.Request) {
 	var data RobotPosition
 	err = json.Unmarshal(body, &data)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
 
 	clientData := ClientData{
-		Type: "robot_position",
+		Type: "set_robot_position",
 		Data: data,
 	}
 	updateWSClients(clientData)
@@ -67,7 +75,7 @@ func main() {
 
 	router := mux.NewRouter().StrictSlash(true)
 
-	router.Methods("POST").Path("/graphable-number").Name("graphableNumberHandler").Handler(LoggerHandler(http.HandlerFunc(graphableNumberHandler), "graphableNumberHandler"))
+	router.Methods("POST").Path("/graph-number").Name("graphNumberHandler").Handler(LoggerHandler(http.HandlerFunc(graphNumberHandler), "graphNumberHandler"))
 	router.Methods("POST").Path("/robot-position").Name("setRobotPositionHandler").Handler(LoggerHandler(http.HandlerFunc(setRobotPositionHandler), "setRobotPositionHandler"))
 
 	router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))

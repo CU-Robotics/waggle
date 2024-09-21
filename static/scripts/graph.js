@@ -60,7 +60,7 @@ randomYaw = 0;
 setInterval(() => {
   randomYaw += (Math.random() - 0.5) * 100;
   addDataToGraph("Yaw", randomYaw);
-}, 500);
+}, 50);
 
 randomPitch = 0;
 setInterval(() => {
