@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -16,7 +18,7 @@ type ClientData struct {
 
 type GraphableNumber struct {
 	GraphName string  `json:"graphName"`
-	Value     float32 `json:"value"`
+	Value     float64 `json:"value"`
 }
 
 func graphNumberHandler(w http.ResponseWriter, r *http.Request) {
@@ -43,8 +45,8 @@ func graphNumberHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type RobotPosition struct {
-	X float32 `json:"x"`
-	Y float32 `json:"y"`
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
 }
 
 func setRobotPositionHandler(w http.ResponseWriter, r *http.Request) {
@@ -83,6 +85,22 @@ func main() {
 	staticDir := "./static/"
 	fs := http.FileServer(http.Dir(staticDir))
 	router.NotFoundHandler = fs
+
+	go func() {
+		x := 0.0
+		for true {
+			x += (rand.Float64() - 0.5) * 10
+			time.Sleep(time.Millisecond * 100)
+			clientData := ClientData{
+				Type: "graph_number",
+				Data: GraphableNumber{
+					GraphName: "test",
+					Value:     x,
+				},
+			}
+			updateWSClients(clientData)
+		}
+	}()
 
 	log.Fatal(http.ListenAndServe(":3000", router))
 

@@ -57,13 +57,3 @@ function addDataToGraph(name, number) {
 }
 
 randomYaw = 0;
-setInterval(() => {
-  randomYaw += (Math.random() - 0.5) * 100;
-  addDataToGraph("Yaw", randomYaw);
-}, 50);
-
-randomPitch = 0;
-setInterval(() => {
-  randomPitch += (Math.random() - 0.5) * 100;
-  addDataToGraph("Pitch", randomPitch);
-}, 1500);
