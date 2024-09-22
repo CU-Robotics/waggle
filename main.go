@@ -71,6 +71,36 @@ func setRobotPositionHandler(w http.ResponseWriter, r *http.Request) {
 	updateWSClients(clientData)
 }
 
+
+type CvMat struct {
+	MatName string `json:"matName"`
+	Base64 string `json:"base64"`
+}
+
+func cvMatHandler(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	var data CvMat
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	clientData := ClientData{
+		Type: "display_cv_mat",
+		Data: data,
+	}
+	updateWSClients(clientData)
+}
+
+
 func main() {
 	println("Started")
 
@@ -78,7 +108,7 @@ func main() {
 
 	router.Methods("POST").Path("/graph-number").Name("graphNumberHandler").Handler(LoggerHandler(http.HandlerFunc(graphNumberHandler), "graphNumberHandler"))
 	router.Methods("POST").Path("/robot-position").Name("setRobotPositionHandler").Handler(LoggerHandler(http.HandlerFunc(setRobotPositionHandler), "setRobotPositionHandler"))
-
+	router.Methods("POST").Path("/cv-mat").Name("cvMatHandler").Handler(LoggerHandler(http.HandlerFunc(cvMatHandler), "cvMatHandler"))
 	router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))
 
 	staticDir := "./static/"

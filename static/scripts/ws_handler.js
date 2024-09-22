@@ -13,7 +13,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     socket.onmessage = (event) => {
       let data = JSON.parse(event.data);
-      console.log(data);
       if(data.timestamp < lastTimeStamp){
         return;
       }
@@ -26,6 +25,10 @@ document.addEventListener("DOMContentLoaded", () => {
         moveRobotIcon(data.data.x, data.data.y);
       } else if (data.type == "graph_number") {
         addDataToGraph(data.data.graphName, data.data.value);
+      }else if (data.type == "display_cv_mat"){
+        updateOrCreateImage(data.data.matName, data.data.base64);
+      }else{
+        console.log(data);
       }
     };
 
