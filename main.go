@@ -10,8 +10,9 @@ import (
 )
 
 type ClientData struct {
-	Type string      `json:"type"`
-	Data interface{} `json:"data"`
+	Type      string      `json:"type"`
+	Timestamp int64       `json:"timestamp"`
+	Data      interface{} `json:"data"`
 }
 
 type GraphableNumber struct {

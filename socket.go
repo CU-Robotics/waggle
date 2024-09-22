@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -64,7 +65,8 @@ func broadcastMessage(message []byte) {
 	}
 }
 
-func updateWSClients(data interface{}) {
+func updateWSClients(data ClientData) {
+	data.Timestamp = time.Now().UnixNano()
 	message, err := json.Marshal(data)
 	if err != nil {
 		log.Println("Error marshalling JSON:", err)

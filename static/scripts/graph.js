@@ -1,5 +1,4 @@
 var chartsByName = {};
-
 function addDataToGraph(name, number) {
   if (!chartsByName[name]) {
     var container = document.getElementById("graphableNumbersContainer");
@@ -49,8 +48,15 @@ function addDataToGraph(name, number) {
     var chartObj = chartsByName[name];
     var chart = chartObj.chart;
     var index = chartObj.dataIndex;
+    
     chart.data.labels.push(index);
     chart.data.datasets[0].data.push(number);
+    
+    if (chart.data.labels.length > 1000) {
+      chart.data.labels.shift();
+      chart.data.datasets[0].data.shift();
+    }
+    
     chart.update();
     chartObj.dataIndex += 1;
   }
