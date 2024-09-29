@@ -10,7 +10,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
+var reqCounter int64 = 0;
+
 func LogRequest(wrappedWriter *ResponseWriterWrapper, r *http.Request, start time.Time, message string, name string, logger *zerolog.Event) {
+	
 	var millis float32 = float32(time.Since(start).Microseconds()) / 1000
 	execTime := fmt.Sprintf("%.3f ms", millis)
 
@@ -25,7 +28,8 @@ func LogRequest(wrappedWriter *ResponseWriterWrapper, r *http.Request, start tim
 	}
 
 	logger.Interface("data", data).Msg(message)
-
+	reqCounter += 1;
+	// println(reqCounter);
 }
 
 // ResponseWriterWrapper is a wrapper around http.ResponseWriter to capture the status code and response body

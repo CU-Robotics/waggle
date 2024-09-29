@@ -3,7 +3,7 @@
  * @param {number} x - The x-coordinate on the map.
  * @param {number} y - The y-coordinate on the map.
  */
-function moveRobotIcon(x, y) {
+async function moveRobotIcon(x, y) {
   let vw = window.innerHeight / 100;
   x = (x / 12) * 60 * vw;
   y = (y / 8) * 40 * vw;

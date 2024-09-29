@@ -1,3 +1,4 @@
+reqCounter = 0
 document.addEventListener("DOMContentLoaded", () => {
   const messagesDiv = document.getElementById("messages");
   let socket;
@@ -9,9 +10,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     socket.onopen = () => {
       console.log("WebSocket connection established");
+      socket.bufferedAmount = 0;
     };
 
-    socket.onmessage = (event) => {
+    socket.onmessage = async (event) => {
+      reqCounter += 1;
       let data = JSON.parse(event.data);
       if(data.timestamp < lastTimeStamp){
         return;
@@ -25,9 +28,11 @@ document.addEventListener("DOMContentLoaded", () => {
         moveRobotIcon(data.data.x, data.data.y);
       } else if (data.type == "graph_number") {
         addDataToGraph(data.data.graphName, data.data.value);
-      }else if (data.type == "display_cv_mat"){
+      }else 
+      if (data.type == "display_cv_mat"){
         updateOrCreateImage(data.data.matName, data.data.base64);
-      }else{
+      }
+      else{
         console.log(data);
       }
     };
@@ -44,3 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   openSocket();
 });
+
+setInterval(()=>{
+  console.log(reqCounter);
+  }, 500); // 

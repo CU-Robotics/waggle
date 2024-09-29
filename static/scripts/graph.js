@@ -1,5 +1,5 @@
 var chartsByName = {};
-function addDataToGraph(name, number) {
+async function addDataToGraph(name, number) {
   if (!chartsByName[name]) {
     var container = document.getElementById("graphableNumbersContainer");
     var canvas = document.createElement("canvas");
@@ -57,9 +57,16 @@ function addDataToGraph(name, number) {
       chart.data.datasets[0].data.shift();
     }
     
-    chart.update();
+    // chart.update();
     chartObj.dataIndex += 1;
   }
 }
 
 randomYaw = 0;
+
+
+setInterval(()=>{
+  for (chartName in chartsByName){
+    chartsByName[chartName].chart.update();
+  }
+}, 50)

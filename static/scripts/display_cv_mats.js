@@ -1,4 +1,4 @@
-function updateOrCreateImage(matName, base64) {
+async function updateOrCreateImage(matName, base64) {
     const container = document.getElementById('cvMatImagesContainer');
   
     if (!container) {
