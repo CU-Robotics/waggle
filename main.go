@@ -1,12 +1,18 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"image"
+	"image/jpeg"
 	"io"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/nfnt/resize"
 )
 
 type ClientData struct {
@@ -78,6 +84,41 @@ type CvMat struct {
 }
 
 
+
+func compressBase64Image(base64Image string, quality int) (string, error) {
+		if quality < 1 || quality > 100 {
+			return "", errors.New("quality must be between 1 and 100")
+		}
+	
+		decoded, err := base64.StdEncoding.DecodeString(base64Image)
+		if err != nil {
+			return "", err
+		}
+	
+		img, format, err := image.Decode(bytes.NewReader(decoded))
+		if err != nil {
+			return "", err
+		}
+	
+		width := uint(img.Bounds().Dx() / 2)
+		height := uint(img.Bounds().Dy() / 2)
+		resizedImg := resize.Resize(width, height, img, resize.Lanczos3)
+	
+		var buf bytes.Buffer
+		if format == "jpeg" || format == "png" {
+			err = jpeg.Encode(&buf, resizedImg, &jpeg.Options{Quality: quality})
+			if err != nil {
+				return "", err
+			}
+		} else {
+			return "", errors.New("unsupported image format")
+		}
+	
+		compressedBase64 := base64.StdEncoding.EncodeToString(buf.Bytes())
+	
+		return compressedBase64, nil
+	}
+
 func cvMatHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -88,6 +129,13 @@ func cvMatHandler(w http.ResponseWriter, r *http.Request) {
 
 	var data CvMat
 	err = json.Unmarshal(body, &data)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	data.Base64, err = compressBase64Image(data.Base64, 20)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)

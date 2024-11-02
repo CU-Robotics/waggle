@@ -69,4 +69,4 @@ setInterval(()=>{
   for (chartName in chartsByName){
     chartsByName[chartName].chart.update();
   }
-}, 50)
+}, 100)

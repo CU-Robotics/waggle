@@ -10,7 +10,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var reqCounter int64 = 0;
 
 func LogRequest(wrappedWriter *ResponseWriterWrapper, r *http.Request, start time.Time, message string, name string, logger *zerolog.Event) {
 	
@@ -27,25 +26,20 @@ func LogRequest(wrappedWriter *ResponseWriterWrapper, r *http.Request, start tim
 		data["error"] = wrappedWriter.Body.String()
 	}
 
-	logger.Interface("data", data).Msg(message)
-	reqCounter += 1;
-	// println(reqCounter);
+
 }
 
-// ResponseWriterWrapper is a wrapper around http.ResponseWriter to capture the status code and response body
 type ResponseWriterWrapper struct {
 	http.ResponseWriter
 	StatusCode int
 	Body       *bytes.Buffer
 }
 
-// WriteHeader captures the status code
 func (rw *ResponseWriterWrapper) WriteHeader(code int) {
 	rw.StatusCode = code
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-// Write captures the response body
 func (rw *ResponseWriterWrapper) Write(b []byte) (int, error) {
 	if rw.Body == nil {
 		rw.Body = &bytes.Buffer{}
@@ -71,10 +65,5 @@ func LoggerHandler(next http.Handler, name string) http.Handler {
 			}
 		}()
 		next.ServeHTTP(wrappedWriter, r)
-
-		if name != "VerifiedGet" { //Don't spam logs while users wait to be verified
-			LogRequest(wrappedWriter, r, start, fmt.Sprintf("%s %s", r.Method, r.RequestURI), name, logger.Info())
-
-		}
 	})
 }
