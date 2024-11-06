@@ -23,7 +23,11 @@
 
 .cvMatImage {
     /* transform: scale(1); */
-    transform: scale(-1, -1);
+    
 
     /* transform-origin: top left;  */
+}
+
+.flipImage {
+    transform: scale(-1, -1);
 }

@@ -81,6 +81,7 @@ func setRobotPositionHandler(w http.ResponseWriter, r *http.Request) {
 type CvMat struct {
 	MatName string `json:"matName"`
 	Base64 string `json:"base64"`
+	Flip bool `json:"flip"`
 }
 
 
@@ -135,7 +136,7 @@ func cvMatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data.Base64, err = compressBase64Image(data.Base64, 20)
+	// data.Base64, err = compressBase64Image(data.Base64, 20)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)

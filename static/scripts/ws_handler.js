@@ -30,7 +30,8 @@ document.addEventListener("DOMContentLoaded", () => {
         addDataToGraph(data.data.graphName, data.data.value);
       }else 
       if (data.type == "display_cv_mat"){
-        updateOrCreateImage(data.data.matName, data.data.base64);
+        updateOrCreateImage(data.data.matName, data.data.base64, data.data.flip);
+        console.log(data.data.flip)
       }
       else{
         console.log(data);
@@ -50,6 +51,3 @@ document.addEventListener("DOMContentLoaded", () => {
   openSocket();
 });
 
-setInterval(()=>{
-  console.log(reqCounter);
-  }, 500); // 
