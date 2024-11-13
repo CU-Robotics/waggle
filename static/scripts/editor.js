@@ -1,8 +1,15 @@
-var folderPath = "/";
-var url = "http://localhost:3000/get-folder?folderPath=" + folderPath;
+var folderPath = "~/Desktop";
+var url = "http://localhost:3000/get-folder";
 
 console.log("Making request: ", url);
-fetch(url)
+
+fetch(url, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ folderPath: folderPath }),
+})
   .then((response) => {
     if (!response.ok) {
       throw new Error(response.statusText);

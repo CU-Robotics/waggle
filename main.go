@@ -107,13 +107,30 @@ type FSItem struct {
 type FolderResponse struct {
 	Items []FSItem `json:"item"`
 }
+type FolderRequest struct {
+	FolderPath string `json:"folderPath"`
+}
 
 func getFolderHandler(w http.ResponseWriter, r *http.Request) {
-	folderPath := r.URL.Query().Get("folderPath")
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	println('1')
+	var data FolderRequest
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
 
 	log.Println("Getting folder")
 
-	entries, err := os.ReadDir(folderPath)
+	entries, err := os.ReadDir(data.FolderPath)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println("entries")
@@ -146,7 +163,7 @@ func main() {
 	router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))
 
 	// File editor
-	router.Methods("GET").Path("/get-folder").Name("getFolderHandler").Handler(LoggerHandler(http.HandlerFunc(getFolderHandler), "getFolderHandler"))
+	router.Methods("POST").Path("/get-folder").Name("getFolderHandler").Handler(LoggerHandler(http.HandlerFunc(getFolderHandler), "getFolderHandler"))
 
 	staticDir := "./static/"
 	fs := http.FileServer(http.Dir(staticDir))
