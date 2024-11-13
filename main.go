@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"io"
@@ -86,6 +87,19 @@ type CvMat struct {
 
 
 
+func batchImagesHandler(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+    defer r.Body.Close() // Ensure the body is closed after reading
+    fmt.Println("Received JSON body:", string(body))
+}
+
+
 func compressBase64Image(base64Image string, quality int) (string, error) {
 		if quality < 1 || quality > 100 {
 			return "", errors.New("quality must be between 1 and 100")
@@ -156,6 +170,7 @@ func main() {
 
 	router := mux.NewRouter().StrictSlash(true)
 
+	router.Methods("POST").Path("/batchImages").Name("batchImagesHandler").Handler(LoggerHandler(http.HandlerFunc(batchImagesHandler), "batchImagesHandler"))
 	router.Methods("POST").Path("/graph-number").Name("graphNumberHandler").Handler(LoggerHandler(http.HandlerFunc(graphNumberHandler), "graphNumberHandler"))
 	router.Methods("POST").Path("/robot-position").Name("setRobotPositionHandler").Handler(LoggerHandler(http.HandlerFunc(setRobotPositionHandler), "setRobotPositionHandler"))
 	router.Methods("POST").Path("/cv-mat").Name("cvMatHandler").Handler(LoggerHandler(http.HandlerFunc(cvMatHandler), "cvMatHandler"))
