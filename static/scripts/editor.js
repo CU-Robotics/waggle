@@ -1,8 +1,8 @@
 var folderPath = "~/Desktop";
 var url = "http://localhost:3000/get-folder";
 
-console.log("Making request: ", url);
-
+console.log("Making request to url:", url);
+console.log("Requesting folder:", folderPath);
 fetch(url, {
   method: "POST",
   headers: {
