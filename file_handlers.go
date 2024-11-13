@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"io"
 	"log"
@@ -74,5 +75,67 @@ func getFolderHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
-
 }
+
+type FileRequest struct {
+	FilePath string `json:"filePath"`
+}
+type FileData struct {
+	Data []byte `json:"data"`
+}
+
+func getFileHandler(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	var data FileRequest
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	f, err := os.Open(data.FilePath)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+	
+	fileMetaData, err := f.Stat()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	fsize := fileMetaData.Size()
+
+	reader := bufio.NewReader(f)
+	resData := make([]byte, fsize)
+	var curIndex int64 = 0
+	
+	for curIndex < fsize {
+		n, err := reader.Read(resData[curIndex:])
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			log.Println(err)
+			return
+		}
+
+		curIndex += int64(n)
+
+	} 
+
+	response := FileData{Data: make([]byte, fsize)}
+	copy(response.Data, resData)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+

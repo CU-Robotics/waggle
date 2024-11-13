@@ -111,6 +111,7 @@ func main() {
 
 	// File editor
 	router.Methods("POST").Path("/get-folder").Name("getFolderHandler").Handler(LoggerHandler(http.HandlerFunc(getFolderHandler), "getFolderHandler"))
+	router.Methods("POST").Path("/get-file").Name("getFileHandler").Handler(LoggerHandler(http.HandlerFunc(getFileHandler), "getFileHandler"))
 
 	staticDir := "./static/"
 	fs := http.FileServer(http.Dir(staticDir))
