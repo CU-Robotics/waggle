@@ -66,8 +66,12 @@ function handleClick(event) {
     getFolder(currentFolder)
   }
   else {
-    console.log("You clicked a file!")
+    loadFile(src.id)
   }
+}
+
+function loadFile(filename) {
+  console.log("Loading: ", filename)
 }
 
 function back() {
