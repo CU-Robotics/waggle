@@ -72,12 +72,10 @@ func setRobotPositionHandler(w http.ResponseWriter, r *http.Request) {
 	updateWSClients(clientData)
 }
 
-
 type CvMat struct {
 	MatName string `json:"matName"`
-	Base64 string `json:"base64"`
+	Base64  string `json:"base64"`
 }
-
 
 func cvMatHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
@@ -102,19 +100,18 @@ func cvMatHandler(w http.ResponseWriter, r *http.Request) {
 	updateWSClients(clientData)
 }
 
-
-type folder struct {
-	FolderPath string `json:"folderPath"`
-}
-type folderResponse struct {
+type FSItem struct {
 	FileName string `json:"filename"`
-	IsDir bool `json:"isdir"`
+	IsDir    bool   `json:"isdir"`
+}
+type FolderResponse struct {
+	Items []FSItem `json:"item"`
 }
 
 func getFolderHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("Getting folder")
-
 	folderPath := r.URL.Query().Get("folderPath")
+
+	log.Println("Getting folder")
 
 	entries, err := os.ReadDir(folderPath)
 	if err != nil {
@@ -125,38 +122,17 @@ func getFolderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	numFiles := len(entries)
-	responseDataArray := make([]folderResponse, numFiles)
-
-	for i:=0; i < numFiles; i++ {
-		responseDataArray[i].FileName = entries[i].Name()
-		responseDataArray[i].IsDir = entries[i].IsDir() 
+	response := FolderResponse{Items: make([]FSItem, numFiles)}
+	for i := 0; i < numFiles; i++ {
+		response.Items[i] = FSItem{
+			FileName: entries[i].Name(),
+			IsDir:    entries[i].IsDir(),
+		}
 	}
 
-	jsonBytes, err := json.Marshal(responseDataArray)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Println("marshalling jsonBytes")
-		log.Println(err)
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonBytes)
-}
+	json.NewEncoder(w).Encode(response)
 
-
-
-func corsHandler(h http.HandlerFunc) http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        log.Print("preflight detected: ", r.Header)
-        w.Header().Add("Connection", "keep-alive")
-        w.Header().Add("Access-Control-Allow-Origin", "http://localhost:3000")
-        w.Header().Add("Access-Control-Allow-Methods", "POST, OPTIONS, GET, DELETE, PUT")
-        w.Header().Add("Access-Control-Allow-Headers", "content-type")
-        w.Header().Add("Access-Control-Max-Age", "86400")
-
-        // continue with my method
-        getFolderHandler(w, r)
-    }
 }
 
 func main() {
@@ -170,7 +146,7 @@ func main() {
 	router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))
 
 	// File editor
-	router.Methods("GET").Path("/getFolder").Name("getFolderHandler").Handler(LoggerHandler(corsHandler(http.HandlerFunc(getFolderHandler)), "getFolderHandler"))
+	router.Methods("GET").Path("/get-folder").Name("getFolderHandler").Handler(LoggerHandler(http.HandlerFunc(getFolderHandler), "getFolderHandler"))
 
 	staticDir := "./static/"
 	fs := http.FileServer(http.Dir(staticDir))

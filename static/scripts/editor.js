@@ -1,22 +1,22 @@
+var folderPath = "/";
+var url = "http://localhost:3000/get-folder?folderPath=" + folderPath;
 
-var folderPath = "/etc"
-// var url = "http://localhost:3000/getFolder?folderPath=" + folderPath
-var url = "http://localhost:3000/getFolder?folderPath=/etc"
+console.log("Making request: ", url);
+fetch(url)
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error(response.statusText);
+    }
+    return response.json();
+  })
+  .then((data) => {
+    console.log(data);
+  })
+  .catch((error) => {
+    console.error(error);
+  });
 
-console.log("Making request: ", url)
-
-
-fetch(url, {mode: "no-cors"}).then((res) => {
-    console.log(res)
-}).catch((err) => {
-    console.log(err)
-})
-fetch(url).then((res) => {
-    console.log(res)
-}).catch((err) => {
-    console.log(err)
-})
-console.log("Made request")
+console.log("Made request");
 
 // // fetch("http://")
 
@@ -34,4 +34,3 @@ console.log("Made request")
 //         }
 //     }
 // }
-
