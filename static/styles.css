@@ -19,3 +19,10 @@
     top: -100px; /* Initialize offscreen */
     left: -100px;
 }
+
+#editor-container {
+    display: grid;
+    grid-template-columns: 30% 70%;
+    border-style: solid; 
+    border-width: 4px;
+}

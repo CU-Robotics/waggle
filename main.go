@@ -102,6 +102,11 @@ func cvMatHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 
+func getFolderHandler(w http.ResponseWriter, r *http.Request) {
+
+}
+
+
 func main() {
 	println("Started")
 
@@ -111,6 +116,9 @@ func main() {
 	router.Methods("POST").Path("/robot-position").Name("setRobotPositionHandler").Handler(LoggerHandler(http.HandlerFunc(setRobotPositionHandler), "setRobotPositionHandler"))
 	router.Methods("POST").Path("/cv-mat").Name("cvMatHandler").Handler(LoggerHandler(http.HandlerFunc(cvMatHandler), "cvMatHandler"))
 	router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))
+
+	// File editor
+	router.Methods("GET").Path("/getFolder").Name("getFolderHandler").Handler(LoggerHandler(http.HandlerFunc(getFolderHandler),"getFolderHandler"))
 
 	staticDir := "./static/"
 	fs := http.FileServer(http.Dir(staticDir))
