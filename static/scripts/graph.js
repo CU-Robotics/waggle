@@ -52,7 +52,7 @@ async function addDataToGraph(name, number) {
     chart.data.labels.push(index);
     chart.data.datasets[0].data.push(number);
     
-    if (chart.data.labels.length > 1000) {
+    if (chart.data.labels.length > 10000) {
       chart.data.labels.shift();
       chart.data.datasets[0].data.shift();
     }
@@ -69,4 +69,4 @@ setInterval(()=>{
   for (chartName in chartsByName){
     chartsByName[chartName].chart.update();
   }
-}, 50)
+}, 100)

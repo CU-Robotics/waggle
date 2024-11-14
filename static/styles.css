@@ -19,3 +19,15 @@
     top: -100px; /* Initialize offscreen */
     left: -100px;
 }
+
+
+.cvMatImage {
+    /* transform: scale(2); */
+    
+
+    /* transform-origin: top left;  */
+}
+
+.flipImage {
+    transform: scale(-1, -1);
+}

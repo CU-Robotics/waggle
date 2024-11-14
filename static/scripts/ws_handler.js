@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       lastTimeStamp = data.timestamp;
       if (!("type" in data)) {
+        console.log("Mising Type")
         return;
       }
       
@@ -28,12 +29,21 @@ document.addEventListener("DOMContentLoaded", () => {
         moveRobotIcon(data.data.x, data.data.y);
       } else if (data.type == "graph_number") {
         addDataToGraph(data.data.graphName, data.data.value);
-      }else 
-      if (data.type == "display_cv_mat"){
-        updateOrCreateImage(data.data.matName, data.data.base64);
-      }
-      else{
+      }else if (data.type == "display_cv_mat"){
+        updateOrCreateImage(data.data.matName, data.data.base64, data.data.flip);
+        console.log(data.data.flip)
+      } else if (data.type == 'batch'){
+        for (const k in data.data['cv-mats']) {
+          updateOrCreateImage(k, data.data['cv-mats'][k], false); 
+        }
+        
+        for(var point of data.data['graphable-numbers']){
+          addDataToGraph(point.graphName, point.value); 
+        }
+
+      }else{
         console.log(data);
+        console.log(data.type);
       }
     };
 
@@ -50,6 +60,3 @@ document.addEventListener("DOMContentLoaded", () => {
   openSocket();
 });
 
-setInterval(()=>{
-  console.log(reqCounter);
-  }, 500); // 

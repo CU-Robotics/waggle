@@ -21,26 +21,26 @@ type GraphableNumber struct {
 }
 
 func graphNumberHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Println(err)
-		return
-	}
+	// body, err := io.ReadAll(r.Body)
+	// if err != nil {
+	// 	w.WriteHeader(http.StatusBadRequest)
+	// 	log.Println(err)
+	// 	return
+	// }
 
-	var data GraphableNumber
-	err = json.Unmarshal(body, &data)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Println(err)
-		return
-	}
+	// var data GraphableNumber
+	// err = json.Unmarshal(body, &data)
+	// if err != nil {
+	// 	w.WriteHeader(http.StatusBadRequest)
+	// 	log.Println(err)
+	// 	return
+	// }
 
-	clientData := ClientData{
-		Type: "graph_number",
-		Data: data,
-	}
-	updateWSClients(clientData)
+	// clientData := ClientData{
+	// 	Type: "graph_number",
+	// 	Data: data,
+	// }
+	// updateWSClients(clientData)
 }
 
 type RobotPosition struct {
@@ -75,6 +75,32 @@ func setRobotPositionHandler(w http.ResponseWriter, r *http.Request) {
 type CvMat struct {
 	MatName string `json:"matName"`
 	Base64 string `json:"base64"`
+	Flip bool `json:"flip"`
+}
+
+
+
+func batchHandler(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	var data interface{}
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	response := ClientData{
+		Type: "batch",
+		Data: data,
+	}
+	updateWSClients(response)
 }
 
 
@@ -94,6 +120,13 @@ func cvMatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// data.Base64, err = compressBase64Image(data.Base64, 20)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
 	clientData := ClientData{
 		Type: "display_cv_mat",
 		Data: data,
@@ -107,6 +140,7 @@ func main() {
 
 	router := mux.NewRouter().StrictSlash(true)
 
+	router.Methods("POST").Path("/batch").Name("batchHandler").Handler(LoggerHandler(http.HandlerFunc(batchHandler), "batchHandler"))
 	router.Methods("POST").Path("/graph-number").Name("graphNumberHandler").Handler(LoggerHandler(http.HandlerFunc(graphNumberHandler), "graphNumberHandler"))
 	router.Methods("POST").Path("/robot-position").Name("setRobotPositionHandler").Handler(LoggerHandler(http.HandlerFunc(setRobotPositionHandler), "setRobotPositionHandler"))
 	router.Methods("POST").Path("/cv-mat").Name("cvMatHandler").Handler(LoggerHandler(http.HandlerFunc(cvMatHandler), "cvMatHandler"))
