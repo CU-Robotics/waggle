@@ -32,16 +32,15 @@ document.addEventListener("DOMContentLoaded", () => {
       }else if (data.type == "display_cv_mat"){
         updateOrCreateImage(data.data.matName, data.data.base64, data.data.flip);
         console.log(data.data.flip)
-      } else if (data.type == 'batch-images'){
-        console.log("Batch!")
-        console.log(data.data['cv-mats'])
+      } else if (data.type == 'batch'){
         for (const k in data.data['cv-mats']) {
           updateOrCreateImage(k, data.data['cv-mats'][k], false); 
         }
-        // data.data['cv-mats'].forEach((key, value) => {
-        //   console.log(key);
-        //   updateOrCreateImage(key, value, false);
-        // });
+        
+        for(var point of data.data['graphable-numbers']){
+          addDataToGraph(point.graphName, point.value); 
+        }
+
       }else{
         console.log(data);
         console.log(data.type);

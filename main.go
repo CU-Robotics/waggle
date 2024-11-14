@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -81,7 +80,7 @@ type CvMat struct {
 
 
 
-func batchImagesHandler(w http.ResponseWriter, r *http.Request) {
+func batchHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -98,12 +97,10 @@ func batchImagesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := ClientData{
-		Type: "batch-images",
+		Type: "batch",
 		Data: data,
 	}
 	updateWSClients(response)
-	println("Sending")
-    fmt.Println("Received JSON body:", string(body))
 }
 
 
@@ -143,7 +140,7 @@ func main() {
 
 	router := mux.NewRouter().StrictSlash(true)
 
-	router.Methods("POST").Path("/batchImages").Name("batchImagesHandler").Handler(LoggerHandler(http.HandlerFunc(batchImagesHandler), "batchImagesHandler"))
+	router.Methods("POST").Path("/batch").Name("batchHandler").Handler(LoggerHandler(http.HandlerFunc(batchHandler), "batchHandler"))
 	router.Methods("POST").Path("/graph-number").Name("graphNumberHandler").Handler(LoggerHandler(http.HandlerFunc(graphNumberHandler), "graphNumberHandler"))
 	router.Methods("POST").Path("/robot-position").Name("setRobotPositionHandler").Handler(LoggerHandler(http.HandlerFunc(setRobotPositionHandler), "setRobotPositionHandler"))
 	router.Methods("POST").Path("/cv-mat").Name("cvMatHandler").Handler(LoggerHandler(http.HandlerFunc(cvMatHandler), "cvMatHandler"))
