@@ -95,7 +95,20 @@ func batchImagesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    defer r.Body.Close() // Ensure the body is closed after reading
+	var data interface{}
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	response := ClientData{
+		Type: "batch-images",
+		Data: data,
+	}
+	updateWSClients(response)
+	println("Sending")
     fmt.Println("Received JSON body:", string(body))
 }
 

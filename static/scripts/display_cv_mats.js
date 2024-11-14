@@ -37,4 +37,5 @@ setInterval(() => {
     // Update the image source
     imgElement.src = `data:image/png;base64,${base64}`;
   });
+  imageMap.clear();
 }, 200);
