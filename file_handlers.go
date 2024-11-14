@@ -100,13 +100,20 @@ func getFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f, err := os.Open(data.FilePath)
+	path, err := expandPath(data.FilePath)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
-	
+
+	f, err := os.Open(path)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
 	fileMetaData, err := f.Stat()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -119,7 +126,7 @@ func getFileHandler(w http.ResponseWriter, r *http.Request) {
 	reader := bufio.NewReader(f)
 	resData := make([]byte, fsize)
 	var curIndex int64 = 0
-	
+
 	for curIndex < fsize {
 		n, err := reader.Read(resData[curIndex:])
 		if err != nil {
@@ -130,7 +137,7 @@ func getFileHandler(w http.ResponseWriter, r *http.Request) {
 
 		curIndex += int64(n)
 
-	} 
+	}
 
 	response := FileData{Data: make([]byte, fsize)}
 	copy(response.Data, resData)
@@ -138,4 +145,3 @@ func getFileHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
-

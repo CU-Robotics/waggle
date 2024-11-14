@@ -15,50 +15,49 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 function getFolder(folderPath) {
-  const explorerContainer = document.getElementById("explorer-container")
+  const explorerContainer = document.getElementById("explorer-container");
   var url = "http://localhost:3000/get-folder";
   // Clears out any previous getFolder requests from DOM
-  explorerContainer.innerHTML = ''
+  explorerContainer.innerHTML = "";
   fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ folderPath: folderPath }),
-  }).then((response) => {
-    if (!response.ok) {
-      throw new Error(response.statusText);
-    }
-    return response.json();
-   }).then((data) => {
-      return data.item
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(response.statusText);
+      }
+      return response.json();
     })
     .then((data) => {
-      var color = true
+      return data.item;
+    })
+    .then((data) => {
+      var color = true;
       for (let i = 0; i < data.length; i++) {
-        var fileContainer = document.createElement("div")
-        fileContainer.classList.add("fileContainer")
-        fileContainer.id = data[i].filename
+        var fileContainer = document.createElement("div");
+        fileContainer.classList.add("fileContainer");
+        fileContainer.id = data[i].filename;
         // Creates alternating colors
-        if (color == true)
-          fileContainer.style.backgroundColor = "silver"
-        else 
-          fileContainer.style.backgroundColor = "whiteSmoke"
-        color = !color
-        
+        if (color == true) fileContainer.style.backgroundColor = "silver";
+        else fileContainer.style.backgroundColor = "whiteSmoke";
+        color = !color;
+
         if (data[i].isdir) {
-          var dirIcon = document.createElement("img")
-          dirIcon.src = "./folder.png" 
-          dirIcon.style.marginRight = "8px"
-          fileContainer.classList.add("folder")
-          fileContainer.appendChild(dirIcon)
+          var dirIcon = document.createElement("img");
+          dirIcon.src = "./folder.png";
+          dirIcon.style.marginRight = "8px";
+          fileContainer.classList.add("folder");
+          fileContainer.appendChild(dirIcon);
         }
         // Adds the fileName to the fileContainer
         fileContainer.appendChild(document.createTextNode(data[i].filename))
         fileContainer.addEventListener("click", fileClickHandler)
         // Add the file container to the explorerContainer
-        explorerContainer.appendChild(fileContainer)
-
+        explorerContainer.appendChild(fileContainer);
       }
     })
     .catch((error) => {
@@ -123,12 +122,62 @@ function fileSubmitHandler() {
 }
 
 function backClickHandler() {
-  pathArray = currentFolder.split("/")
-  currentFolder = ""
-  // Reconstructs path without the last part of the path
-  for (let i = 0; i < pathArray.length -1; i++) {
-    currentFolder += "/" + pathArray[i]
-  }
-  getFolder(currentFolder)
+  //   pathArray = currentFolder.split("/");
+  //   currentFolder = "";
+  //   // Reconstructs path without the last part of the path
+  //   for (let i = 0; i < pathArray.length - 1; i++) {
+  //     if (pathArray[i] == "") {
+  //       continue;
+  //     }
+  //     currentFolder += "/" + pathArray[i];
+  //   }
+  //   if (currentFolder == "" || currentFolder == "/~") {
+  //     currentFolder = "~/";
+  //   }
+  currentFolder = getParentDirectory(currentFolder);
+  console.log(currentFolder);
+  getFolder(currentFolder);
 }
+function getParentDirectory(path) {
+  let isHomePath = false;
+  if (path.startsWith("~")) {
+    isHomePath = true;
+  }
+
+  let normalizedPath = path;
+  if (path.endsWith("/")) {
+    normalizedPath = path.slice(0, -1);
+  }
+
+  const pathParts = normalizedPath.split("/");
+
+  pathParts.pop();
+
+  let parentDirectory = pathParts.join("/");
+  if (isHomePath && parentDirectory !== "") {
+    parentDirectory = "~/" + parentDirectory.slice(2);
+  } else if (isHomePath) {
+    parentDirectory = "~";
+  }
+
+  if (parentDirectory == "" || parentDirectory == "~") {
+    parentDirectory = "~/";
+  }
+
+  return parentDirectory;
+}
+function binaryToText(binaryString) {
+  // Ensure binary string is a multiple of 8
+  let text = "";
+  for (let i = 0; i < binaryString.length; i += 8) {
+    // Extract an 8-bit chunk (byte)
+    let byte = binaryString.substring(i, i + 8);
+    // Convert the binary string to a decimal number
+    let charCode = parseInt(byte, 2);
+    // Convert the character code to a character and append to the text
+    text += String.fromCharCode(charCode);
+  }
+  return text;
+}
+
 
