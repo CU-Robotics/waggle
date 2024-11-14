@@ -1,11 +1,18 @@
 var currentFolder = "/home"
+var currentFile = ""
 
 
 document.addEventListener("DOMContentLoaded", () => {
   getFolder(currentFolder)
+  // Make back button work
   const backButton = document.getElementById("back-button")
   backButton.addEventListener("click", back)
+  // Make submit button work
+  const submitFile = document.getElementById("submit-file")
+  submitFile.addEventListener("submit", fileSubmitHandler)
 });
+
+
 
 function getFolder(folderPath) {
   const explorerContainer = document.getElementById("explorer-container")
@@ -48,7 +55,7 @@ function getFolder(folderPath) {
         }
         // Adds the fileName to the fileContainer
         fileContainer.appendChild(document.createTextNode(data[i].filename))
-        fileContainer.addEventListener("click", handleClick)
+        fileContainer.addEventListener("click", fileClickHandler)
         // Add the file container to the explorerContainer
         explorerContainer.appendChild(fileContainer)
 
@@ -59,7 +66,7 @@ function getFolder(folderPath) {
     });
 }
 
-function handleClick(event) {
+function fileClickHandler(event) {
   var src = event.srcElement
   if (src.classList.contains("folder")) {
     currentFolder = currentFolder + "/" + src.id
@@ -68,11 +75,15 @@ function handleClick(event) {
   else {
     console.log("clicked file")
     loadFile(currentFolder + "/" + src.id)
+    const submitFile = document.getElementById("submit-file")
+    submitFile.value = "Update: " + currentFolder + "/" + src.id
+    currentFile = src.id
   }
 }
 
 function loadFile(filePath) {
-  const notepadContainer = document.getElementById("notepad-container")
+  const notepadText = document.getElementById("notepad-text")
+  notepadText.innerHTML = ''
   url = "http://localhost:3000/get-file"
   console.log("Loading: ", filePath)
   fetch(url, {
@@ -87,15 +98,31 @@ function loadFile(filePath) {
     }
     return response.json();
   }).then((data) => {
-    notepadContainer.innerHTML = ''
     var fileContents = atob(data.data)
-    console.log(fileContents)
-    notepadContainer.appendChild(document.createTextNode(fileContents))
+    notepadText.value = fileContents
   })
-  
 }
 
-function back() {
+function fileSubmitHandler() {
+  const textElement = document.getElementById("notepad-text")
+
+  var text = textElement.value
+  console.log(text)
+  url = "http://localhost:3000/put-file"
+  fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ "data": btoa(text), "filePath": filePath + "/" + currentFile})
+  }).then((response) => {
+    console.log(response)
+  })
+
+
+}
+
+function backClickHandler() {
   pathArray = currentFolder.split("/")
   currentFolder = ""
   // Reconstructs path without the last part of the path
@@ -105,16 +132,3 @@ function back() {
   getFolder(currentFolder)
 }
 
-function binaryToText(binaryString) {
-  // Ensure binary string is a multiple of 8
-  let text = '';
-  for (let i = 0; i < binaryString.length; i += 8) {
-    // Extract an 8-bit chunk (byte)
-    let byte = binaryString.substring(i, i + 8);
-    // Convert the binary string to a decimal number
-    let charCode = parseInt(byte, 2);
-    // Convert the character code to a character and append to the text
-    text += String.fromCharCode(charCode);
-  }
-  return text;
-}

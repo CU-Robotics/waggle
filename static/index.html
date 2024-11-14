@@ -23,7 +23,14 @@
         <script src="scripts/editor.js"></script>
         <div id="editor-container" >
             <div id="explorer-container"></div>
-            <div id="notepad-container"></div>
+            <div id="notepad-container">
+                <form id="notepad-form">
+                    <textarea id="notepad-text"></textarea>
+                    <!-- <input type="text" id="notepad-text"></input> -->
+                    <input type="submit" id="submit-file" value="No File Opened">
+                </form>
+                <p id="form-result"></p>
+            </div>
         </div>
         <button id="back-button">Back</button>
     </body>
