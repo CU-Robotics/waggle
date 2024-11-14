@@ -33,9 +33,8 @@ setInterval(() => {
     } else {
       imgElement.classList.remove('flipImage');
     }
-
     // Update the image source
     imgElement.src = `data:image/png;base64,${base64}`;
   });
   imageMap.clear();
-}, 200);
+}, 1000/65);
