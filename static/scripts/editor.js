@@ -94,21 +94,50 @@ function loadFile(filePath) {
 }
 
 function back() {
-  pathArray = currentFolder.split("/");
-  currentFolder = "";
-  // Reconstructs path without the last part of the path
-  for (let i = 0; i < pathArray.length - 1; i++) {
-    if (pathArray[i] == "") {
-      continue;
-    }
-    currentFolder += "/" + pathArray[i];
-  }
-  if (currentFolder == "" || currentFolder == "/~") {
-    currentFolder = "~/";
-  }
+  //   pathArray = currentFolder.split("/");
+  //   currentFolder = "";
+  //   // Reconstructs path without the last part of the path
+  //   for (let i = 0; i < pathArray.length - 1; i++) {
+  //     if (pathArray[i] == "") {
+  //       continue;
+  //     }
+  //     currentFolder += "/" + pathArray[i];
+  //   }
+  //   if (currentFolder == "" || currentFolder == "/~") {
+  //     currentFolder = "~/";
+  //   }
+  currentFolder = getParentDirectory(currentFolder);
+  console.log(currentFolder);
   getFolder(currentFolder);
 }
+function getParentDirectory(path) {
+  let isHomePath = false;
+  if (path.startsWith("~")) {
+    isHomePath = true;
+  }
 
+  let normalizedPath = path;
+  if (path.endsWith("/")) {
+    normalizedPath = path.slice(0, -1);
+  }
+
+  const pathParts = normalizedPath.split("/");
+
+  pathParts.pop();
+
+  let parentDirectory = pathParts.join("/");
+  if (isHomePath && parentDirectory !== "") {
+    parentDirectory = "~/" + parentDirectory.slice(2);
+  } else if (isHomePath) {
+    parentDirectory = "~";
+  }
+
+  if (parentDirectory == "" || parentDirectory == "~") {
+    parentDirectory = "~/";
+  }
+
+  return parentDirectory;
+}
 function binaryToText(binaryString) {
   // Ensure binary string is a multiple of 8
   let text = "";
