@@ -72,8 +72,8 @@ function fileClickHandler(event) {
   }
   // If what is clicked is a file, load that file and update currentFile
   else {
-    currentFile = src.id;
-    loadFile(currentFolder + "/" + currentFile);
+    currentFile = currentFolder + "/" + src.id;
+    loadFile(currentFile);
     // Changes look of button for updating files
     const submitFile = document.getElementById("submit-file");
     submitFile.innerHTML = "";
@@ -111,7 +111,6 @@ function fileSubmitHandler() {
   const textElement = document.getElementById("notepad-text");
 
   var text = textElement.value;
-  console.log(text);
   url = "http://localhost:3000/put-file";
   fetch(url, {
     method: "POST",
@@ -121,7 +120,7 @@ function fileSubmitHandler() {
     body: JSON.stringify({
       // Converts data to base64
       data: btoa(text),
-      filePath: currentFolder + "/" + currentFile,
+      filePath: currentFile,
     }),
   }).then((response) => {
     if (!response.ok) {
