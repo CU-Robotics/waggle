@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function getFolder(folderPath) {
-  const explorerContainer = document.getElementById("explorer-container");
+  const explorerContainer = document.getElementById("file-explorer");
   // Clears out any previous getFolder requests from DOM
   explorerContainer.innerHTML = "";
   var url = "http://localhost:3000/get-folder";
