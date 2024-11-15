@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 func expandPath(path string) (string, error) {
@@ -144,4 +145,50 @@ func getFileHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+
+type FilePutRequest struct {
+	FilePath string `json:"filePath"`
+	Data []byte `json:"data"`
+}
+
+
+func putFileHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println()
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	var data FilePutRequest
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+	
+	f, err := os.Create(data.FilePath)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	n, err := f.Write(data.Data)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+	log.Println("Wrote " + strconv.Itoa(n) + " bytes to " + data.FilePath)
+	f.Close()
+
+
+
+	w.WriteHeader(http.StatusOK)
 }

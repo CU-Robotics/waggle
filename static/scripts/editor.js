@@ -6,10 +6,10 @@ document.addEventListener("DOMContentLoaded", () => {
   getFolder(currentFolder)
   // Make back button work
   const backButton = document.getElementById("back-button")
-  backButton.addEventListener("click", back)
+  backButton.addEventListener("click", backClickHandler)
   // Make submit button work
   const submitFile = document.getElementById("submit-file")
-  submitFile.addEventListener("submit", fileSubmitHandler)
+  submitFile.addEventListener("click", fileSubmitHandler)
 });
 
 
@@ -72,11 +72,13 @@ function fileClickHandler(event) {
     getFolder(currentFolder)
   }
   else {
-    console.log("clicked file")
-    loadFile(currentFolder + "/" + src.id)
-    const submitFile = document.getElementById("submit-file")
-    submitFile.value = "Update: " + currentFolder + "/" + src.id
     currentFile = src.id
+    loadFile(currentFolder + "/" + currentFile)
+    // Changes look of button for updating files
+    const submitFile = document.getElementById("submit-file")
+    submitFile.innerHTML = ""
+    submitFile.appendChild(document.createTextNode("Update " + currentFile))
+    
   }
 }
 
@@ -113,7 +115,7 @@ function fileSubmitHandler() {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ "data": btoa(text), "filePath": filePath + "/" + currentFile})
+    body: JSON.stringify({ "data": btoa(text), "filePath": currentFolder + "/" + currentFile})
   }).then((response) => {
     console.log(response)
   })
@@ -122,22 +124,11 @@ function fileSubmitHandler() {
 }
 
 function backClickHandler() {
-  //   pathArray = currentFolder.split("/");
-  //   currentFolder = "";
-  //   // Reconstructs path without the last part of the path
-  //   for (let i = 0; i < pathArray.length - 1; i++) {
-  //     if (pathArray[i] == "") {
-  //       continue;
-  //     }
-  //     currentFolder += "/" + pathArray[i];
-  //   }
-  //   if (currentFolder == "" || currentFolder == "/~") {
-  //     currentFolder = "~/";
-  //   }
   currentFolder = getParentDirectory(currentFolder);
   console.log(currentFolder);
   getFolder(currentFolder);
 }
+
 function getParentDirectory(path) {
   let isHomePath = false;
   if (path.startsWith("~")) {
