@@ -171,8 +171,15 @@ func putFileHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	
-	f, err := os.Create(data.FilePath)
+
+	filePath, err := expandPath(data.FilePath)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	f, err := os.Create(filePath)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
@@ -185,7 +192,7 @@ func putFileHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	log.Println("Wrote " + strconv.Itoa(n) + " bytes to " + data.FilePath)
+	log.Println("Wrote " + strconv.Itoa(n) + " bytes to " + filePath)
 	f.Close()
 
 

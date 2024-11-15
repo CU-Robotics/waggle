@@ -1,37 +1,36 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <title>Waggle Dashboard</title>
-        <link rel="stylesheet" type="text/css" href="styles.css" />
-    </head>
-    <body>
-        <div id="map-container">
-            <div id="robot-icon"></div>
-        </div>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Waggle Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="styles.css" />
+  </head>
+  <body>
+    <div id="map-container">
+      <div id="robot-icon"></div>
+    </div>
 
-        <div id="graphableNumbersContainer"></div>
+    <div id="graphableNumbersContainer"></div>
 
-        <div id="cvMatImagesContainer"></div>
+    <div id="cvMatImagesContainer"></div>
 
-        <script src="scripts/chart.js"></script>
+    <script src="scripts/chart.js"></script>
 
-        <script src="scripts/display_cv_mats.js"></script>
-        <script src="scripts/graph.js"></script>
-        <script src="scripts/minimap.js"></script>
-        <script src="scripts/ws_handler.js"></script>
-        <script src="scripts/editor.js"></script>
-        <div id="editor-container" >
-            <div id="explorer-container"></div>
-            <div id="notepad-container">
-                <form id="notepad-form">
-                    <textarea id="notepad-text"></textarea>
-                    <!-- <input type="text" id="notepad-text"></input> -->
-                </form>
-                <button id="submit-file">No File Selected</button>  
-                <p id="form-result"></p>
-            </div>
-        </div>
-        <button id="back-button">Back</button>
-    </body>
+    <script src="scripts/display_cv_mats.js"></script>
+    <script src="scripts/graph.js"></script>
+    <script src="scripts/minimap.js"></script>
+    <script src="scripts/ws_handler.js"></script>
+    <script src="scripts/editor.js"></script>
+    <div id="editor-container">
+      <div id="explorer-container"></div>
+      <div id="notepad-container">
+        <form id="notepad-form">
+          <textarea id="notepad-text"></textarea>
+        </form>
+        <button id="submit-file">No File Selected</button>
+        <p id="form-result"></p>
+      </div>
+    </div>
+    <button id="back-button">Back</button>
+  </body>
 </html>
