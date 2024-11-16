@@ -22,12 +22,12 @@ func expandPath(path string) (string, error) {
 	return path, nil
 }
 
-type FSItem struct {
+type FileSystemItem struct {
 	FileName string `json:"filename"`
 	IsDir    bool   `json:"isdir"`
 }
 type FolderResponse struct {
-	Items []FSItem `json:"item"`
+	Items []FileSystemItem `json:"item"`
 }
 type FolderRequest struct {
 	FolderPath string `json:"folderPath"`
@@ -41,7 +41,6 @@ func getFolderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	println('1')
 	var data FolderRequest
 	err = json.Unmarshal(body, &data)
 	if err != nil {
@@ -66,9 +65,9 @@ func getFolderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	numFiles := len(entries)
-	response := FolderResponse{Items: make([]FSItem, numFiles)}
+	response := FolderResponse{Items: make([]FileSystemItem, numFiles)}
 	for i := 0; i < numFiles; i++ {
-		response.Items[i] = FSItem{
+		response.Items[i] = FileSystemItem{
 			FileName: entries[i].Name(),
 			IsDir:    entries[i].IsDir(),
 		}
@@ -108,27 +107,27 @@ func getFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f, err := os.Open(path)
+	file, err := os.Open(path)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
 
-	fileMetaData, err := f.Stat()
+	fileMetaData, err := file.Stat()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
 
-	fsize := fileMetaData.Size()
+	fileSize := fileMetaData.Size()
 
-	reader := bufio.NewReader(f)
-	resData := make([]byte, fsize)
+	reader := bufio.NewReader(file)
+	resData := make([]byte, fileSize)
 	var curIndex int64 = 0
 
-	for curIndex < fsize {
+	for curIndex < fileSize {
 		n, err := reader.Read(resData[curIndex:])
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -140,19 +139,17 @@ func getFileHandler(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	response := FileData{Data: make([]byte, fsize)}
+	response := FileData{Data: make([]byte, fileSize)}
 	copy(response.Data, resData)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
-
 type FilePutRequest struct {
 	FilePath string `json:"filePath"`
-	Data []byte `json:"data"`
+	Data     []byte `json:"data"`
 }
-
 
 func putFileHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println()
@@ -179,23 +176,21 @@ func putFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f, err := os.Create(filePath)
+	file, err := os.Create(filePath)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
 
-	n, err := f.Write(data.Data)
+	numberOfBytesWritten, err := file.Write(data.Data)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
-	log.Println("Wrote " + strconv.Itoa(n) + " bytes to " + filePath)
-	f.Close()
-
-
+	log.Println("Wrote " + strconv.Itoa(numberOfBytesWritten) + " bytes to " + filePath)
+	file.Close()
 
 	w.WriteHeader(http.StatusOK)
 }
