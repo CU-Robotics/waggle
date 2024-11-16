@@ -72,5 +72,5 @@ func updateWSClients(data ClientData) {
 		log.Println("Error marshalling JSON:", err)
 		return
 	}
-	broadcastMessage(message)
+	go broadcastMessage(message)
 }
