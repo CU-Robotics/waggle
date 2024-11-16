@@ -96,6 +96,7 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	
 	response := ClientData{
 		Type: "batch",
 		Data: data,

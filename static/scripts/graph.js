@@ -1,5 +1,10 @@
 var chartsByName = {};
-async function addDataToGraph(name, number) {
+async function addDataToGraph(name, numbers) {
+  if (!Array.isArray(numbers)) {
+    console.error("Expected an array of numbers");
+    return;
+  }
+
   if (!chartsByName[name]) {
     var container = document.getElementById("graphableNumbersContainer");
     var canvas = document.createElement("canvas");
@@ -11,11 +16,11 @@ async function addDataToGraph(name, number) {
     var chart = new Chart(ctx, {
       type: "line",
       data: {
-        labels: [0],
+        labels: Array.from({ length: numbers.length }, (_, i) => i),
         datasets: [
           {
             label: name,
-            data: [number],
+            data: numbers,
             fill: false,
             borderColor: "rgba(75, 192, 192, 1)",
             tension: 0.1,
@@ -42,23 +47,39 @@ async function addDataToGraph(name, number) {
     });
     chartsByName[name] = {
       chart: chart,
-      dataIndex: 1,
+      dataIndex: numbers.length,
     };
   } else {
     var chartObj = chartsByName[name];
     var chart = chartObj.chart;
-    var index = chartObj.dataIndex;
-    
-    chart.data.labels.push(index);
-    chart.data.datasets[0].data.push(number);
-    
-    if (chart.data.labels.length > 10000) {
-      chart.data.labels.shift();
-      chart.data.datasets[0].data.shift();
+    var startIndex = chartObj.dataIndex;
+
+    // Add new data points to the chart
+    numbers.forEach((number, i) => {
+      chart.data.labels.push(startIndex + i);
+      chart.data.datasets[0].data.push(number);
+    });
+
+    if (chart.data.labels.length > 5000) {
+      chart.data.labels = chart.data.labels.slice(-5000);
+      chart.data.datasets[0].data = chart.data.datasets[0].data.slice(-5000);
     }
     
-    // chart.update();
-    chartObj.dataIndex += 1;
+
+    // Update the chart's data index
+    chartObj.dataIndex += numbers.length;
+
+    // Refresh the chart
+    chart.update();
+  }
+}
+
+
+
+async function batchAddPoints(graphBatch) {
+  for (const graphName in graphBatch) {
+    points = graphBatch[graphName];
+    // addDataToGraph(graphName, points)
   }
 }
 
@@ -69,4 +90,4 @@ setInterval(()=>{
   for (chartName in chartsByName){
     chartsByName[chartName].chart.update();
   }
-}, 100)
+}, 300)
