@@ -37,10 +37,11 @@ document.addEventListener("DOMContentLoaded", () => {
           updateOrCreateImage(k, data.data['cv-mats'][k], false); 
         }
         
-        for(var point of data.data['graphable-numbers']){
-          addDataToGraph(point.graphName, point.value); 
-        }
+        // for(var point of data.data['graphable-numbers']){
+        //   addDataToGraph(point.graphName, point.value); 
+        // }
 
+        batchAddPoints(data.data['graphable-numbers'])
       }else{
         console.log(data);
         console.log(data.type);
