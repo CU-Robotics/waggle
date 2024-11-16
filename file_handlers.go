@@ -113,6 +113,7 @@ func getFileHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
+	defer file.Close()
 
 	fileMetaData, err := file.Stat()
 	if err != nil {
@@ -182,6 +183,7 @@ func putFileHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
+	defer file.Close()
 
 	numberOfBytesWritten, err := file.Write(data.Data)
 	if err != nil {
@@ -190,7 +192,6 @@ func putFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Println("Wrote " + strconv.Itoa(numberOfBytesWritten) + " bytes to " + filePath)
-	file.Close()
 
 	w.WriteHeader(http.StatusOK)
 }

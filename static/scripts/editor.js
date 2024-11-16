@@ -1,6 +1,6 @@
 var currentFolder = "~/";
 var currentFile = "";
-
+var baseUrl = window.location.href
 document.addEventListener("DOMContentLoaded", () => {
   // Load the home directory on DOM load
   getFolder(currentFolder);
@@ -16,7 +16,7 @@ function getFolder(folderPath) {
   const explorerContainer = document.getElementById("file-explorer");
   // Clears out any previous getFolder requests from DOM
   explorerContainer.innerHTML = "";
-  var url = "http://localhost:3000/get-folder";
+  var url = "/get-folder";
   fetch(url, {
     method: "POST",
     headers: {
@@ -85,7 +85,7 @@ function loadFile(filePath) {
   // Erase content of notepad
   const notepadText = document.getElementById("notepad-text");
   notepadText.innerHTML = "";
-  url = "http://localhost:3000/get-file";
+  url = "/get-file";
   console.log("Loading: ", filePath);
   fetch(url, {
     method: "POST",
@@ -111,7 +111,7 @@ function fileSubmitHandler() {
   const textElement = document.getElementById("notepad-text");
 
   var text = textElement.value;
-  url = "http://localhost:3000/put-file";
+  url = "/put-file";
   fetch(url, {
     method: "POST",
     headers: {
