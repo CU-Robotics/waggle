@@ -1,3 +1,7 @@
+const downloadButton = document.getElementById("download");
+const downloadLink = document.getElementById("downloadLink");
+downloadButton.onclick = createCSVs;
+
 var chartsByName = {};
 const file_data = {};
 function createChart(name, numbers) {
@@ -45,7 +49,7 @@ function createChart(name, numbers) {
   };
   file_data[name] = {
     values: numbers,
-    timestamp: labels,
+    timestamps: labels,
   };
 }
 
@@ -64,7 +68,7 @@ function updateChart(name, numbers) {
   data[0] = data[0].concat(newLabels);
   data[1] = data[1].concat(numbers);
 
-  file_data[name]["timestamp"] = data[0];
+  file_data[name]["timestamps"] = data[0];
   file_data[name]["values"] = data[1];
   // Keep data size manageable
   // const maxPoints = 5000;
@@ -92,6 +96,23 @@ async function batchAddPoints(graphBatch) {
   for (const graphName in graphBatch) {
     const points = graphBatch[graphName];
     addDataToGraph(graphName, points);
+  }
+}
+
+function chartToCSVString(data) {
+  CSVString = "timestamp,values\n";
+  for (var i = 0; i < data["values"].length; i++) {
+    CSVString += data["timestamps"][i] + "," + data["values"][i] + "\n";
+  }
+  return CSVString;
+}
+function createCSVs() {
+  for (graphData in file_data) {
+    CSVString = chartToCSVString(file_data[graphData]);
+    downloadLink.setAttribute(
+      "href",
+      "data:application/octet-stream," + encodeURI(CSVString)
+    );
   }
 }
 
