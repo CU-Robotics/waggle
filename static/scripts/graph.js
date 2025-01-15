@@ -1,7 +1,3 @@
-const downloadButton = document.getElementById("download");
-const downloadLink = document.getElementById("downloadLink");
-downloadButton.onclick = createCSVs;
-
 var chartsByName = {};
 const file_data = {};
 function createChart(name, numbers) {
@@ -54,11 +50,7 @@ function createChart(name, numbers) {
   const dataDownloadLink = document.createElement("a");
   dataDownloadLink.innerHTML = "Download " + name + " data as csv";
   dataDownloadLink.setAttribute("download", name + ".csv");
-  dataDownloadLink.setAttribute(
-    "href",
-    "data:application/octet-stream," +
-      encodeURI(chartToCSVString(file_data[name]))
-  );
+  dataDownloadLink.id = "download_" + name;
   chartDiv.appendChild(dataDownloadLink);
 }
 
@@ -100,6 +92,12 @@ async function addDataToGraph(name, numbers) {
   } else {
     updateChart(name, numbers);
   }
+  const dataDownloadLink = document.getElementById("download_" + name);
+  dataDownloadLink.setAttribute(
+    "href",
+    "data:application/octet-stream," +
+      encodeURI(chartToCSVString(file_data[name]))
+  );
 }
 async function batchAddPoints(graphBatch) {
   for (const graphName in graphBatch) {
