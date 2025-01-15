@@ -51,6 +51,15 @@ function createChart(name, numbers) {
     values: numbers,
     timestamps: labels,
   };
+  const dataDownloadLink = document.createElement("a");
+  dataDownloadLink.innerHTML = "Download " + name + " data as csv";
+  dataDownloadLink.setAttribute("download", name + ".csv");
+  dataDownloadLink.setAttribute(
+    "href",
+    "data:application/octet-stream," +
+      encodeURI(chartToCSVString(file_data[name]))
+  );
+  chartDiv.appendChild(dataDownloadLink);
 }
 
 function updateChart(name, numbers) {
