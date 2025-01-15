@@ -1,6 +1,7 @@
 var chartsByName = {};
-
+const file_data = {};
 function createChart(name, numbers) {
+  console.log("creating chart");
   const container = document.getElementById("graphableNumbersContainer");
   const chartDiv = document.createElement("div");
   chartDiv.className = "chart-container";
@@ -42,9 +43,14 @@ function createChart(name, numbers) {
     chart: chart,
     data: data,
   };
+  file_data[name] = {
+    values: numbers,
+    timestamp: labels,
+  };
 }
 
 function updateChart(name, numbers) {
+  console.log("updating chart");
   const chartObj = chartsByName[name];
   const chart = chartObj.chart;
   const data = chartObj.data;
@@ -58,6 +64,8 @@ function updateChart(name, numbers) {
   data[0] = data[0].concat(newLabels);
   data[1] = data[1].concat(numbers);
 
+  file_data[name]["timestamp"] = data[0];
+  file_data[name]["values"] = data[1];
   // Keep data size manageable
   // const maxPoints = 5000;
   // if (data[0].length > maxPoints) {
