@@ -2,9 +2,6 @@ import requests, random, argparse
 from time import sleep
 import random
 
-POINTS_PER_CHUNK = 1
-REQUEST_INTERVAL = 0.1
-URL = "http://localhost:3000"
 PATH = "/batch"
 
 argparser = argparse.ArgumentParser(
@@ -20,10 +17,16 @@ def main():
     args = argparser.parse_args()
     if args.host:
         HOST = args.host
+    else:
+        HOST = "http://localhost:3000"
     if args.interval:
         REQUEST_INTERVAL = args.interval
+    else:
+        REQUEST_INTERVAL = 0.1
     if args.numpoints:
         POINTS_PER_CHUNK = args.numpoints
+    else:
+        POINTS_PER_CHUNK = 1
 
     while True:
         data = {
@@ -32,16 +35,24 @@ def main():
                 "Pitch": [],
             }
         }
-        for i in range(POINTS_PER_CHUNK):
-            data["graphable-numbers"]["Yaw"].append(int(random.betavariate(2, 5)*360))
-            data["graphable-numbers"]["Pitch"].append(int(random.betavariate(2, 2) * 20 - 10))
+        data["graphable-numbers"]["Yaw"] = generateYawData(POINTS_PER_CHUNK)
+        data["graphable-numbers"]["Pitch"] = generatePitchData(POINTS_PER_CHUNK)
+
         res = requests.post(HOST+PATH, json=data)
         sleep(REQUEST_INTERVAL)
 
-    
-    
 
-    pass
+def generatePitchData(POINTS_PER_CHUNK):
+    pitchData = []
+    for i in range(POINTS_PER_CHUNK):
+        pitchData.append(int(random.betavariate(2, 5)*360))
+    return pitchData
+def generateYawData(POINTS_PER_CHUNK):
+    yawData = []
+    for i in range (POINTS_PER_CHUNK):
+        yawData.append(int(random.betavariate(2, 2) * 20 - 10))
+    return yawData
+    
 
 if __name__ == "__main__":
     main()
