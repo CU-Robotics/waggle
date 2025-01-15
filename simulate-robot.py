@@ -52,7 +52,7 @@ def generateYawData(POINTS_PER_CHUNK):
     for i in range (POINTS_PER_CHUNK):
         yawData.append(int(random.betavariate(2, 2) * 20 - 10))
     return yawData
-    
+
 
 if __name__ == "__main__":
     main()

@@ -68,7 +68,7 @@ function updateChart(name, numbers) {
 
   data[0] = data[0].concat(newLabels);
   data[1] = data[1].concat(numbers);
-
+  // Could optimize memory here by getting rid of need to put the data into the file_data object. Could also have it return the data object
   file_data[name]["timestamps"] = data[0];
   file_data[name]["values"] = data[1];
   // Keep data size manageable
@@ -92,6 +92,7 @@ async function addDataToGraph(name, numbers) {
   } else {
     updateChart(name, numbers);
   }
+  // Consider making a seperate button/link that causes the present data to load into the link. Currently it must generate a CSV string upon every update and create a corresponding URI. May murder performance
   const dataDownloadLink = document.getElementById("download_" + name);
   dataDownloadLink.setAttribute(
     "href",
@@ -122,7 +123,6 @@ function createCSVs() {
     );
   }
 }
-// Consider appending a div that contains the graph and a link to the corresponding data. Update the URI upon call to batchAddPoints
 
 setInterval(() => {
   for (const chartName in chartsByName) {
