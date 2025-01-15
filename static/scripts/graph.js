@@ -115,6 +115,7 @@ function createCSVs() {
     );
   }
 }
+// Consider appending a div that contains the graph and a link to the corresponding data. Update the URI upon call to batchAddPoints
 
 setInterval(() => {
   for (const chartName in chartsByName) {
