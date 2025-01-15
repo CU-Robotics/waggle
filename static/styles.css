@@ -1,21 +1,91 @@
 /* Minimap */
 #map-container {
-    position: relative;
-    width: 60vh;
-    height: 40vh;
-    background-image: url("game_field.png");
-    background-size: cover;
-    border: 1px solid #ccc;
+  position: relative;
+  width: 60vh;
+  height: 40vh;
+  background-image: url("game_field.png");
+  background-size: cover;
+  border: 1px solid #ccc;
 }
 
 #robot-icon {
-    position: absolute;
-    width: 5vh;
-    height: 5vh;
-    background-image: url("robot_icon1.png");
-    background-size: contain;
-    background-repeat: no-repeat;
-    pointer-events: none;
-    top: -100px; /* Initialize offscreen */
-    left: -100px;
+  position: absolute;
+  width: 5vh;
+  height: 5vh;
+  background-image: url("robot_icon1.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  top: -100px; /* Initialize offscreen */
+  left: -100px;
+}
+
+#editor-container {
+  sizing: border-box;
+  display: grid;
+  grid-template-columns: 20% 80%;
+  border-style: solid;
+  border-width: 2px;
+  height: 60vh;
+  max-height: 60vh;
+  margin: 1%;
+}
+
+#explorer-container {
+  sizing: border-box;
+  border-style: solid;
+  border-style: none;
+  border-right: 1px solid;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#file-explorer {
+  flex-basis: 30vh;
+  flex-grow: 16;
+  overflow: scroll;
+}
+
+#back-button {
+  text-align: center;
+  flex-grow: 0;
+  background-color: #a2a4a3;
+  font-weight: bold;
+}
+#back-button p {
+  margin: 2vh 0;
+}
+
+.fileContainer {
+  padding: 6px;
+}
+
+#notepad-container {
+  sizing: border-box;
+  overflow: hidden;
+  padding: 1%;
+  background-color: #cfb87c;
+}
+
+#notepad-text {
+  width: 100%;
+  min-height: 50vh;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  border-style: none;
+}
+
+
+.cvMatImage {
+    /* transform: scale(2); */
+    
+
+    /* transform-origin: top left;  */
+}
+
+.flipImage {
+    transform: scale(-1, -1);
 }

@@ -13,12 +13,26 @@
     <div id="graphableNumbersContainer"></div>
 
     <div id="cvMatImagesContainer"></div>
-
-    <script src="scripts/chart.js"></script>
-
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/uplot/dist/uPlot.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/uplot/dist/uPlot.iife.min.js"></script>
     <script src="scripts/display_cv_mats.js"></script>
     <script src="scripts/graph.js"></script>
     <script src="scripts/minimap.js"></script>
     <script src="scripts/ws_handler.js"></script>
+    <script src="scripts/editor.js"></script>
+    <div id="editor-container">
+      <div id="explorer-container">
+        <div id="file-explorer"></div>
+        <div id="back-button"><p>Back</p></div>
+      </div>
+      <div id="notepad-container">
+        <textarea id="notepad-text"></textarea>
+        <button id="submit-file">No File Selected</button>
+        <p id="form-result"></p>
+      </div>
+    </div>
   </body>
 </html>
