@@ -196,14 +196,3 @@ function toggleEditor() {
     editorContainer.style.display = "none";
   }
 }
-
-// function hideChildren(parent) {
-//   const childCount = parent.childElementCount
-//   if (childCount == 0) return
-
-//   children = parent.children
-//   for (var i = 0; i < childCount; i++) {
-//     children[]
-//   }
-
-// }

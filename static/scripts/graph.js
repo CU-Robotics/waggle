@@ -1,5 +1,28 @@
 var chartsByName = {};
 const file_data = {};
+var originalGraphDisplay;
+var graphsEnabled = true;
+
+document.addEventListener("DOMContentLoaded", () => {
+  originalGraphDisplay = document.getElementById("graphableNumbersContainer")
+    .style.display;
+
+  document
+    .getElementById("toggle-graphs")
+    .addEventListener("input", toggleGraphs);
+});
+
+function toggleGraphs() {
+  const toggleGraphsCheck = document.getElementById("toggle-graphs");
+  const graphsContainer = document.getElementById("graphableNumbersContainer");
+
+  if (toggleGraphsCheck.checked) {
+    graphsContainer.style.display = originalGraphDisplay;
+  } else {
+    graphsContainer.style.display = "none";
+  }
+}
+
 function createChart(name, numbers) {
   console.log("creating chart");
   const container = document.getElementById("graphableNumbersContainer");
@@ -43,10 +66,7 @@ function createChart(name, numbers) {
     chart: chart,
     data: data,
   };
-  file_data[name] = {
-    values: numbers,
-    timestamps: labels,
-  };
+
   const dataDownloadLink = document.createElement("a");
   dataDownloadLink.innerHTML = "Download " + name + " data as csv";
   dataDownloadLink.setAttribute("download", name + ".csv");
@@ -68,9 +88,6 @@ function updateChart(name, numbers) {
 
   data[0] = data[0].concat(newLabels);
   data[1] = data[1].concat(numbers);
-  // Could optimize memory here by getting rid of need to put the data into the file_data object. Could also have it return the data object
-  file_data[name]["timestamps"] = data[0];
-  file_data[name]["values"] = data[1];
   // Keep data size manageable
   // const maxPoints = 5000;
   // if (data[0].length > maxPoints) {
@@ -87,10 +104,26 @@ async function addDataToGraph(name, numbers) {
     return;
   }
 
-  if (!chartsByName[name]) {
-    createChart(name, numbers);
-  } else {
-    updateChart(name, numbers);
+  // Handle adding data to the file_data structre for CSVs
+  if (!file_data[name]) {
+    file_data[name] = {
+      values: [],
+      timestamps: [],
+    };
+  }
+  file_data[name]["values"].push(numbers);
+  for (var i = 1; i <= numbers.length; i++) {
+    file_data[name]["timestamps"].push(
+      file_data[name]["timestamps"].length + i
+    );
+  }
+
+  if (graphsEnabled) {
+    if (!chartsByName[name]) {
+      createChart(name, numbers);
+    } else {
+      updateChart(name, numbers);
+    }
   }
   // Consider making a seperate button/link that causes the present data to load into the link. Currently it must generate a CSV string upon every update and create a corresponding URI. May murder performance
   const dataDownloadLink = document.getElementById("download_" + name);
