@@ -23,16 +23,12 @@ function toggleGraphs() {
   }
 }
 
-function createChart(name, numbers) {
-  console.log("creating chart");
+function createChart(name) {
   const container = document.getElementById("graphableNumbersContainer");
   const chartDiv = document.createElement("div");
   chartDiv.className = "chart-container";
   chartDiv.id = "chart_" + name.replace(/\s+/g, "_");
   container.appendChild(chartDiv);
-
-  const labels = Array.from({ length: numbers.length }, (_, i) => i);
-  const data = [labels, numbers];
 
   const options = {
     width: window.innerWidth * 0.95,
@@ -60,12 +56,8 @@ function createChart(name, numbers) {
     ],
   };
 
-  const chart = new uPlot(options, data, chartDiv);
-
-  chartsByName[name] = {
-    chart: chart,
-    data: data,
-  };
+  const chart = new uPlot(options, chartsByName[name]["data"], chartDiv);
+  chartsByName[name]["chart"] = chart;
 
   const dataDownloadLink = document.createElement("a");
   dataDownloadLink.innerHTML = "Download " + name + " data as csv";
@@ -86,16 +78,7 @@ function updateChart(name, numbers) {
     (_, i) => startIndex + i
   );
 
-  data[0] = data[0].concat(newLabels);
-  data[1] = data[1].concat(numbers);
-  // Keep data size manageable
-  // const maxPoints = 5000;
-  // if (data[0].length > maxPoints) {
-  //   data[0] = data[0].slice(-maxPoints);
-  //   data[1] = data[1].slice(-maxPoints);
-  // }
-
-  chart.setData(data);
+  chart.setData(chartsByName[name]["data"]);
 }
 
 async function addDataToGraph(name, numbers) {
@@ -104,28 +87,35 @@ async function addDataToGraph(name, numbers) {
     return;
   }
 
-  // Handle adding data to the file_data structre for CSVs
+  // Handle creating necessary objs for new charts/data
+  var newChart = false;
   if (!file_data[name]) {
     file_data[name] = {
       values: [],
       timestamps: [],
     };
+    chartsByName[name] = {
+      chart: null,
+      data: null,
+    };
+    createChart(name, numbers);
   }
-  file_data[name]["values"].push(numbers);
+  // Append new data to old data
+  file_data[name]["values"] = file_data[name]["values"].concat(numbers);
   for (var i = 1; i <= numbers.length; i++) {
     file_data[name]["timestamps"].push(
       file_data[name]["timestamps"].length + i
     );
   }
+  chartsByName[name]["data"] = [
+    file_data[name]["timestamps"],
+    file_data[name]["values"],
+  ];
 
-  if (graphsEnabled) {
-    if (!chartsByName[name]) {
-      createChart(name, numbers);
-    } else {
-      updateChart(name, numbers);
-    }
-  }
-  // Consider making a seperate button/link that causes the present data to load into the link. Currently it must generate a CSV string upon every update and create a corresponding URI. May murder performance
+  // Update the chart
+  chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
+
+  // Update the download link
   const dataDownloadLink = document.getElementById("download_" + name);
   dataDownloadLink.setAttribute(
     "href",
