@@ -1,5 +1,4 @@
 var chartsByName = {};
-const file_data = {};
 var originalGraphDisplay;
 var graphsEnabled = true;
 
@@ -89,28 +88,19 @@ async function addDataToGraph(name, numbers) {
 
   // Handle creating necessary objs for new charts/data
   var newChart = false;
-  if (!file_data[name]) {
-    file_data[name] = {
-      values: [],
-      timestamps: [],
-    };
+  if (!chartsByName[name]) {
     chartsByName[name] = {
       chart: null,
-      data: null,
+      data: [[], []],
     };
     createChart(name, numbers);
   }
   // Append new data to old data
-  file_data[name]["values"] = file_data[name]["values"].concat(numbers);
+  chartsByName[name]["data"][1] = chartsByName[name]["data"][1].concat(numbers);
+  var originalLength = chartsByName[name]["data"][0].length;
   for (var i = 1; i <= numbers.length; i++) {
-    file_data[name]["timestamps"].push(
-      file_data[name]["timestamps"].length + i
-    );
+    chartsByName[name]["data"][0].push(originalLength + i);
   }
-  chartsByName[name]["data"] = [
-    file_data[name]["timestamps"],
-    file_data[name]["values"],
-  ];
 
   // Update the chart
   chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
@@ -120,7 +110,7 @@ async function addDataToGraph(name, numbers) {
   dataDownloadLink.setAttribute(
     "href",
     "data:application/octet-stream," +
-      encodeURI(chartToCSVString(file_data[name]))
+      encodeURI(chartToCSVString(chartsByName[name]["data"]))
   );
 }
 async function batchAddPoints(graphBatch) {
@@ -132,8 +122,8 @@ async function batchAddPoints(graphBatch) {
 
 function chartToCSVString(data) {
   CSVString = "timestamp,values\n";
-  for (var i = 0; i < data["values"].length; i++) {
-    CSVString += data["timestamps"][i] + "," + data["values"][i] + "\n";
+  for (var i = 0; i < data[0].length; i++) {
+    CSVString += data[0][i] + "," + data[1][i] + "\n";
   }
   return CSVString;
 }
