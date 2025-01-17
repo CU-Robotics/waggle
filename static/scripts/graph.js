@@ -65,21 +65,6 @@ function createChart(name) {
   chartDiv.appendChild(dataDownloadLink);
 }
 
-function updateChart(name, numbers) {
-  console.log("updating chart");
-  const chartObj = chartsByName[name];
-  const chart = chartObj.chart;
-  const data = chartObj.data;
-
-  const startIndex = data[0].length;
-  const newLabels = Array.from(
-    { length: numbers.length },
-    (_, i) => startIndex + i
-  );
-
-  chart.setData(chartsByName[name]["data"]);
-}
-
 async function addDataToGraph(name, numbers) {
   if (!Array.isArray(numbers)) {
     console.error("Expected an array of numbers");
@@ -101,7 +86,6 @@ async function addDataToGraph(name, numbers) {
   for (var i = 1; i <= numbers.length; i++) {
     chartsByName[name]["data"][0].push(originalLength + i);
   }
-
   // Update the chart
   chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
 
@@ -121,20 +105,13 @@ async function batchAddPoints(graphBatch) {
 }
 
 function chartToCSVString(data) {
+  // Create header
   CSVString = "timestamp,values\n";
+  // Append each row of data
   for (var i = 0; i < data[0].length; i++) {
     CSVString += data[0][i] + "," + data[1][i] + "\n";
   }
   return CSVString;
-}
-function createCSVs() {
-  for (graphData in file_data) {
-    CSVString = chartToCSVString(file_data[graphData]);
-    downloadLink.setAttribute(
-      "href",
-      "data:application/octet-stream," + encodeURI(CSVString)
-    );
-  }
 }
 
 setInterval(() => {
