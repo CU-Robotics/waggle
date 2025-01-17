@@ -6,3 +6,6 @@ waggle.exe
 .sh
 .vscode
 .zed
+
+.ropeproject
+venv
