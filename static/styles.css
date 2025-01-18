@@ -78,14 +78,32 @@
   border-style: none;
 }
 
-
 .cvMatImage {
-    /* transform: scale(2); */
-    
+  /* transform: scale(2); */
 
-    /* transform-origin: top left;  */
+  /* transform-origin: top left;  */
 }
 
 .flipImage {
-    transform: scale(-1, -1);
+  transform: scale(-1, -1);
+}
+
+#control-panel-container {
+  border: solid black;
+  border-width: 0 0 1px 0;
+  padding: 8px;
+  margin: 0;
+}
+#control-panel-container > * {
+  margin: 0;
+}
+/* #control-panel-container > h3 {
+  text-decoration: underline;
+} */
+#control-form > * {
+  margin: 10px;
+}
+
+body {
+  margin: 0;
 }
