@@ -93,11 +93,14 @@ function createChart(name) {
   const chart = new uPlot(options, chartsByName[name]["data"], chartDiv);
   chartsByName[name]["chart"] = chart;
 
+  const dataDownloadListItem = document.createElement("li");
   const dataDownloadLink = document.createElement("a");
+  dataDownloadListItem.appendChild(dataDownloadLink);
   dataDownloadLink.innerHTML = "Download " + name + " data as csv";
   dataDownloadLink.setAttribute("download", name + ".csv");
   dataDownloadLink.id = "download_" + name;
-  chartDiv.appendChild(dataDownloadLink);
+  // dataDownloadLink.style.display = "block";
+  document.getElementById("downloadsList").appendChild(dataDownloadListItem);
 }
 
 async function addDataToGraph(name, numbers) {

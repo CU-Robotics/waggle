@@ -97,11 +97,12 @@
 #control-panel-container > * {
   margin: 0;
 }
-/* #control-panel-container > h3 {
-  text-decoration: underline;
-} */
 #control-form > * {
   margin: 10px;
+}
+
+#downloadsContainer {
+  padding: 8px;
 }
 
 body {
