@@ -1,6 +1,8 @@
 var chartsByName = {};
 var originalGraphDisplay;
 var graphsEnabled = true;
+var originalDownloadsDisplay;
+var downloadsEnabled = true;
 
 document.addEventListener("DOMContentLoaded", () => {
   originalGraphDisplay = document.getElementById("graphableNumbersContainer")
@@ -9,6 +11,12 @@ document.addEventListener("DOMContentLoaded", () => {
   document
     .getElementById("toggle-graphs")
     .addEventListener("input", toggleGraphs);
+
+  originalDownloadsDisplay =
+    document.getElementById("downloadsContainer").style.display;
+  document
+    .getElementById("toggle-downloads")
+    .addEventListener("input", toggleDownloads);
 });
 
 function toggleGraphs() {
@@ -17,8 +25,35 @@ function toggleGraphs() {
 
   if (toggleGraphsCheck.checked) {
     graphsContainer.style.display = originalGraphDisplay;
+    graphsEnabled = true;
+    for (const name in chartsByName) {
+      chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
+    }
   } else {
     graphsContainer.style.display = "none";
+    graphsEnabled = false;
+  }
+}
+
+function toggleDownloads() {
+  const toggleDOwnloadsCheck = document.getElementById("toggle-downloads");
+  const downloadsContainer = document.getElementById("downloadsContainer");
+
+  if (toggleDOwnloadsCheck.checked) {
+    downloadsContainer.style.display = originalDownloadsDisplay;
+    downloadsEnabled = true;
+    for (const name in chartsByName) {
+      document
+        .getElementById("download_" + name)
+        .setAttribute(
+          "href",
+          "data:application/octet-stream," +
+            encodeURI(chartToCSVString(chartsByName[name]["data"]))
+        );
+    }
+  } else {
+    downloadsContainer.style.display = "none";
+    downloadsEnabled = false;
   }
 }
 
@@ -72,7 +107,6 @@ async function addDataToGraph(name, numbers) {
   }
 
   // Handle creating necessary objs for new charts/data
-  var newChart = false;
   if (!chartsByName[name]) {
     chartsByName[name] = {
       chart: null,
@@ -87,15 +121,18 @@ async function addDataToGraph(name, numbers) {
     chartsByName[name]["data"][0].push(originalLength + i);
   }
   // Update the chart
-  chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
+  if (graphsEnabled)
+    chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
 
   // Update the download link
-  const dataDownloadLink = document.getElementById("download_" + name);
-  dataDownloadLink.setAttribute(
-    "href",
-    "data:application/octet-stream," +
-      encodeURI(chartToCSVString(chartsByName[name]["data"]))
-  );
+  if (downloadsEnabled) {
+    const dataDownloadLink = document.getElementById("download_" + name);
+    dataDownloadLink.setAttribute(
+      "href",
+      "data:application/octet-stream," +
+        encodeURI(chartToCSVString(chartsByName[name]["data"]))
+    );
+  }
 }
 async function batchAddPoints(graphBatch) {
   for (const graphName in graphBatch) {
@@ -114,9 +151,9 @@ function chartToCSVString(data) {
   return CSVString;
 }
 
-setInterval(() => {
-  for (const chartName in chartsByName) {
-    const { uplot } = chartsByName[chartName];
-    uplot.redraw(); // Ensures smooth rendering
-  }
-}, 300);
+// setInterval(() => {
+//   for (const chartName in chartsByName) {
+//     const { uplot } = chartsByName[chartName];
+//     uplot.redraw(); // Ensures smooth rendering
+//   }
+// }, 300);
