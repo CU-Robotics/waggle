@@ -1,5 +1,4 @@
 var chartsByName = {};
-const file_data = {};
 var originalGraphDisplay;
 var graphsEnabled = true;
 
@@ -23,16 +22,12 @@ function toggleGraphs() {
   }
 }
 
-function createChart(name, numbers) {
-  console.log("creating chart");
+function createChart(name) {
   const container = document.getElementById("graphableNumbersContainer");
   const chartDiv = document.createElement("div");
   chartDiv.className = "chart-container";
   chartDiv.id = "chart_" + name.replace(/\s+/g, "_");
   container.appendChild(chartDiv);
-
-  const labels = Array.from({ length: numbers.length }, (_, i) => i);
-  const data = [labels, numbers];
 
   const options = {
     width: window.innerWidth * 0.95,
@@ -60,12 +55,8 @@ function createChart(name, numbers) {
     ],
   };
 
-  const chart = new uPlot(options, data, chartDiv);
-
-  chartsByName[name] = {
-    chart: chart,
-    data: data,
-  };
+  const chart = new uPlot(options, chartsByName[name]["data"], chartDiv);
+  chartsByName[name]["chart"] = chart;
 
   const dataDownloadLink = document.createElement("a");
   dataDownloadLink.innerHTML = "Download " + name + " data as csv";
@@ -74,63 +65,36 @@ function createChart(name, numbers) {
   chartDiv.appendChild(dataDownloadLink);
 }
 
-function updateChart(name, numbers) {
-  console.log("updating chart");
-  const chartObj = chartsByName[name];
-  const chart = chartObj.chart;
-  const data = chartObj.data;
-
-  const startIndex = data[0].length;
-  const newLabels = Array.from(
-    { length: numbers.length },
-    (_, i) => startIndex + i
-  );
-
-  data[0] = data[0].concat(newLabels);
-  data[1] = data[1].concat(numbers);
-  // Keep data size manageable
-  // const maxPoints = 5000;
-  // if (data[0].length > maxPoints) {
-  //   data[0] = data[0].slice(-maxPoints);
-  //   data[1] = data[1].slice(-maxPoints);
-  // }
-
-  chart.setData(data);
-}
-
 async function addDataToGraph(name, numbers) {
   if (!Array.isArray(numbers)) {
     console.error("Expected an array of numbers");
     return;
   }
 
-  // Handle adding data to the file_data structre for CSVs
-  if (!file_data[name]) {
-    file_data[name] = {
-      values: [],
-      timestamps: [],
+  // Handle creating necessary objs for new charts/data
+  var newChart = false;
+  if (!chartsByName[name]) {
+    chartsByName[name] = {
+      chart: null,
+      data: [[], []],
     };
+    createChart(name, numbers);
   }
-  file_data[name]["values"].push(numbers);
+  // Append new data to old data
+  chartsByName[name]["data"][1] = chartsByName[name]["data"][1].concat(numbers);
+  var originalLength = chartsByName[name]["data"][0].length;
   for (var i = 1; i <= numbers.length; i++) {
-    file_data[name]["timestamps"].push(
-      file_data[name]["timestamps"].length + i
-    );
+    chartsByName[name]["data"][0].push(originalLength + i);
   }
+  // Update the chart
+  chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
 
-  if (graphsEnabled) {
-    if (!chartsByName[name]) {
-      createChart(name, numbers);
-    } else {
-      updateChart(name, numbers);
-    }
-  }
-  // Consider making a seperate button/link that causes the present data to load into the link. Currently it must generate a CSV string upon every update and create a corresponding URI. May murder performance
+  // Update the download link
   const dataDownloadLink = document.getElementById("download_" + name);
   dataDownloadLink.setAttribute(
     "href",
     "data:application/octet-stream," +
-      encodeURI(chartToCSVString(file_data[name]))
+      encodeURI(chartToCSVString(chartsByName[name]["data"]))
   );
 }
 async function batchAddPoints(graphBatch) {
@@ -141,20 +105,13 @@ async function batchAddPoints(graphBatch) {
 }
 
 function chartToCSVString(data) {
+  // Create header
   CSVString = "timestamp,values\n";
-  for (var i = 0; i < data["values"].length; i++) {
-    CSVString += data["timestamps"][i] + "," + data["values"][i] + "\n";
+  // Append each row of data
+  for (var i = 0; i < data[0].length; i++) {
+    CSVString += data[0][i] + "," + data[1][i] + "\n";
   }
   return CSVString;
-}
-function createCSVs() {
-  for (graphData in file_data) {
-    CSVString = chartToCSVString(file_data[graphData]);
-    downloadLink.setAttribute(
-      "href",
-      "data:application/octet-stream," + encodeURI(CSVString)
-    );
-  }
 }
 
 setInterval(() => {
