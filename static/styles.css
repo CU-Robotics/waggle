@@ -94,12 +94,18 @@
   padding: 8px;
   margin: 0;
 }
-#control-panel-container > * {
+#control-form {
+  padding: 4px;
+}
+#control-form > label {
   margin: 0;
 }
-#control-form > * {
-  margin: 10px;
+#control-form > ul {
+  margin: 0;
 }
+/* #control-panel-container > * {
+  margin: 0;
+} */
 
 #downloadsContainer {
   padding: 8px;
