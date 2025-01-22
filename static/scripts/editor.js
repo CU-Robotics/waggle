@@ -1,6 +1,7 @@
 var currentFolder = "~/";
 var currentFile = "";
-var baseUrl = window.location.href
+var baseUrl = window.location.href;
+var originalEditorDisplay;
 document.addEventListener("DOMContentLoaded", () => {
   // Load the home directory on DOM load
   getFolder(currentFolder);
@@ -10,6 +11,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // Make submit button work
   const submitFile = document.getElementById("submit-file");
   submitFile.addEventListener("click", fileSubmitHandler);
+  // Make editor toggle work
+  const toggleEditorCheck = document.getElementById("toggle-editor");
+  toggleEditorCheck.addEventListener("input", toggleEditor);
+
+  originalEditorDisplay =
+    document.getElementById("editor-container").style.display;
 });
 
 function getFolder(folderPath) {
@@ -177,4 +184,15 @@ function binaryToText(binaryString) {
     text += String.fromCharCode(charCode);
   }
   return text;
+}
+
+function toggleEditor() {
+  const toggleEditorCheck = document.getElementById("toggle-editor");
+  const editorContainer = document.getElementById("editor-container");
+  console.log(editorContainer.children);
+  if (toggleEditorCheck.checked) {
+    editorContainer.style.display = originalEditorDisplay;
+  } else {
+    editorContainer.style.display = "none";
+  }
 }
