@@ -18,10 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function toggleGraphs() {
   const toggleGraphsCheck = document.getElementById("toggle-graphs");
-  // const graphsContainer = document.getElementById("graphableNumbersContainer");
 
   if (toggleGraphsCheck.checked) {
-    // graphsContainer.style.display = originalGraphDisplay;
     graphsEnabled = true;
     for (const name in chartsByName) {
       chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
@@ -31,7 +29,6 @@ function toggleGraphs() {
       charts[i].style.display = "block";
     }
   } else {
-    // graphsContainer.style.display = "none";
     const charts = document.getElementsByClassName("chart-container");
     for (var i = 0; i < charts.length; i++) {
       charts[i].style.display = "none";
@@ -41,12 +38,12 @@ function toggleGraphs() {
 }
 
 function toggleDownloads() {
-  const toggleDOwnloadsCheck = document.getElementById("toggle-downloads");
+  const toggleDownloadsCheck = document.getElementById("toggle-downloads");
 
-  if (toggleDOwnloadsCheck.checked) {
+  if (toggleDownloadsCheck.checked) {
     downloadsEnabled = true;
     for (const name in chartsByName) {
-      const downloadLink = document.getElementById("download_" + name);
+      const downloadLink = document.getElementById("download-link_" + name);
       downloadLink.setAttribute(
         "href",
         "data:application/octet-stream," +
@@ -56,7 +53,7 @@ function toggleDownloads() {
     }
   } else {
     for (const name in chartsByName) {
-      const downloadLink = document.getElementById("download_" + name);
+      const downloadLink = document.getElementById("download-link_" + name);
       downloadLink.style.display = "none";
       downloadsEnabled = false;
     }
@@ -103,13 +100,29 @@ function createChart(name) {
   chartsByName[name]["chart"] = chart;
 
   const dataDownloadLink = document.createElement("a");
-  dataDownloadLink.innerHTML = "Download " + name + " data as csv";
-  dataDownloadLink.setAttribute("download", name + ".csv");
-  dataDownloadLink.id = "download_" + name;
-  dataDownloadLink.style.display = "block";
-  dataDownloadLink.style.textAlign = "right";
-  dataDownloadLink.style.padding = "0px 24px 0px 0px";
   document.getElementById("data_" + name).appendChild(dataDownloadLink);
+
+  dataDownloadLink.id = "download-link_" + name;
+  const dataDownloadButton = document.createElement("input");
+  dataDownloadLink.appendChild(dataDownloadButton);
+  dataDownloadButton.value = "Download " + name + ".csv";
+  dataDownloadButton.setAttribute("download", name + ".csv");
+  dataDownloadButton.type = "button";
+  dataDownloadButton.id = "download-button_" + name;
+  dataDownloadButton.addEventListener("mouseup", initiateDownload);
+}
+
+function initiateDownload(event) {
+  const name = event.srcElement.id.substring(16);
+  const downloadLink = document.getElementById("download-link_" + name);
+  console.log("download-link_" + name);
+  console.log(downloadLink);
+  downloadLink.setAttribute(
+    "href",
+    "data:application/octet-stream," +
+      encodeURI(chartToCSVString(chartsByName[name]["data"]))
+  );
+  downloadLink.setAttribute("download", name + ".csv");
 }
 
 async function addDataToGraph(name, numbers) {
@@ -136,15 +149,15 @@ async function addDataToGraph(name, numbers) {
   if (graphsEnabled)
     chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
 
-  // Update the download link
-  if (downloadsEnabled) {
-    const dataDownloadLink = document.getElementById("download_" + name);
-    dataDownloadLink.setAttribute(
-      "href",
-      "data:application/octet-stream," +
-        encodeURI(chartToCSVString(chartsByName[name]["data"]))
-    );
-  }
+  // // Update the download link
+  // if (downloadsEnabled) {
+  //   const dataDownloadLink = document.getElementById("download_" + name);
+  //   dataDownloadLink.setAttribute(
+  //     "href",
+  //     "data:application/octet-stream," +
+  //       encodeURI(chartToCSVString(chartsByName[name]["data"]))
+  //   );
+  // }
 }
 async function batchAddPoints(graphBatch) {
   for (const graphName in graphBatch) {
