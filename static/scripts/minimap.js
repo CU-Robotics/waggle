@@ -24,9 +24,9 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function toggleMap() {
-  const toggleMapCheckbox = document.getElementById("toggle-map");
+  const toggleMapCheck = document.getElementById("toggle-map");
   const mapContainer = document.getElementById("map-container");
-  if (toggleMapCheckbox.checked) {
+  if (toggleMapCheck.checked) {
     mapContainer.style.display = "block";
   } else {
     mapContainer.style.display = "none";

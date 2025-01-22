@@ -18,7 +18,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function toggleGraphs() {
   const toggleGraphsCheck = document.getElementById("toggle-graphs");
-
   if (toggleGraphsCheck.checked) {
     graphsEnabled = true;
     for (const name in chartsByName) {
@@ -39,7 +38,6 @@ function toggleGraphs() {
 
 function toggleDownloads() {
   const toggleDownloadsCheck = document.getElementById("toggle-downloads");
-
   if (toggleDownloadsCheck.checked) {
     downloadsEnabled = true;
     for (const name in chartsByName) {
@@ -164,10 +162,3 @@ function chartToCSVString(data) {
   }
   return CSVString;
 }
-
-// setInterval(() => {
-//   for (const chartName in chartsByName) {
-//     const { uplot } = chartsByName[chartName];
-//     uplot.redraw(); // Ensures smooth rendering
-//   }
-// }, 300);
