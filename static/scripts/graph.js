@@ -1,7 +1,6 @@
 var chartsByName = {};
 var originalGraphDisplay;
 var graphsEnabled = true;
-var originalDownloadsDisplay;
 var downloadsEnabled = true;
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -12,8 +11,6 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("toggle-graphs")
     .addEventListener("input", toggleGraphs);
 
-  originalDownloadsDisplay =
-    document.getElementById("downloadsContainer").style.display;
   document
     .getElementById("toggle-downloads")
     .addEventListener("input", toggleDownloads);
@@ -21,48 +18,60 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function toggleGraphs() {
   const toggleGraphsCheck = document.getElementById("toggle-graphs");
-  const graphsContainer = document.getElementById("graphableNumbersContainer");
+  // const graphsContainer = document.getElementById("graphableNumbersContainer");
 
   if (toggleGraphsCheck.checked) {
-    graphsContainer.style.display = originalGraphDisplay;
+    // graphsContainer.style.display = originalGraphDisplay;
     graphsEnabled = true;
     for (const name in chartsByName) {
       chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
     }
+    const charts = document.getElementsByClassName("chart-container");
+    for (var i = 0; i < charts.length; i++) {
+      charts[i].style.display = "block";
+    }
   } else {
-    graphsContainer.style.display = "none";
+    // graphsContainer.style.display = "none";
+    const charts = document.getElementsByClassName("chart-container");
+    for (var i = 0; i < charts.length; i++) {
+      charts[i].style.display = "none";
+    }
     graphsEnabled = false;
   }
 }
 
 function toggleDownloads() {
   const toggleDOwnloadsCheck = document.getElementById("toggle-downloads");
-  const downloadsContainer = document.getElementById("downloadsContainer");
 
   if (toggleDOwnloadsCheck.checked) {
-    downloadsContainer.style.display = originalDownloadsDisplay;
     downloadsEnabled = true;
     for (const name in chartsByName) {
-      document
-        .getElementById("download_" + name)
-        .setAttribute(
-          "href",
-          "data:application/octet-stream," +
-            encodeURI(chartToCSVString(chartsByName[name]["data"]))
-        );
+      const downloadLink = document.getElementById("download_" + name);
+      downloadLink.setAttribute(
+        "href",
+        "data:application/octet-stream," +
+          encodeURI(chartToCSVString(chartsByName[name]["data"]))
+      );
+      downloadLink.style.display = "block";
     }
   } else {
-    downloadsContainer.style.display = "none";
-    downloadsEnabled = false;
+    for (const name in chartsByName) {
+      const downloadLink = document.getElementById("download_" + name);
+      downloadLink.style.display = "none";
+      downloadsEnabled = false;
+    }
   }
 }
 
 function createChart(name) {
   const container = document.getElementById("graphableNumbersContainer");
+  const dataContainer = document.createElement("div");
+  dataContainer.id = "data_" + name;
+  container.appendChild(dataContainer);
   const chartDiv = document.createElement("div");
   chartDiv.className = "chart-container";
   chartDiv.id = "chart_" + name.replace(/\s+/g, "_");
-  container.appendChild(chartDiv);
+  dataContainer.appendChild(chartDiv);
 
   const options = {
     width: window.innerWidth * 0.95,
@@ -93,14 +102,14 @@ function createChart(name) {
   const chart = new uPlot(options, chartsByName[name]["data"], chartDiv);
   chartsByName[name]["chart"] = chart;
 
-  const dataDownloadListItem = document.createElement("li");
   const dataDownloadLink = document.createElement("a");
-  dataDownloadListItem.appendChild(dataDownloadLink);
   dataDownloadLink.innerHTML = "Download " + name + " data as csv";
   dataDownloadLink.setAttribute("download", name + ".csv");
   dataDownloadLink.id = "download_" + name;
-  // dataDownloadLink.style.display = "block";
-  document.getElementById("downloadsList").appendChild(dataDownloadListItem);
+  dataDownloadLink.style.display = "block";
+  dataDownloadLink.style.textAlign = "right";
+  dataDownloadLink.style.padding = "0px 24px 0px 0px";
+  document.getElementById("data_" + name).appendChild(dataDownloadLink);
 }
 
 async function addDataToGraph(name, numbers) {
