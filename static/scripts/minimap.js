@@ -18,3 +18,17 @@ async function moveRobotIcon(x, y) {
   userIcon.style.left = adjustedX + "px";
   userIcon.style.top = adjustedY + "px";
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("toggle-map").addEventListener("input", toggleMap);
+});
+
+function toggleMap() {
+  const toggleMapCheckbox = document.getElementById("toggle-map");
+  const mapContainer = document.getElementById("map-container");
+  if (toggleMapCheckbox.checked) {
+    mapContainer.style.display = "block";
+  } else {
+    mapContainer.style.display = "none";
+  }
+}

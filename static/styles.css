@@ -1,5 +1,6 @@
 /* Minimap */
 #map-container {
+  display: none;
   position: relative;
   width: 60vh;
   height: 40vh;
@@ -103,9 +104,6 @@
 #control-form > ul {
   margin: 0;
 }
-/* #control-panel-container > * {
-  margin: 0;
-} */
 
 #downloadsContainer {
   padding: 8px;
