@@ -44,11 +44,6 @@ function toggleDownloads() {
     downloadsEnabled = true;
     for (const name in chartsByName) {
       const downloadLink = document.getElementById("download-link_" + name);
-      downloadLink.setAttribute(
-        "href",
-        "data:application/octet-stream," +
-          encodeURI(chartToCSVString(chartsByName[name]["data"]))
-      );
       downloadLink.style.display = "block";
     }
   } else {
@@ -62,6 +57,7 @@ function toggleDownloads() {
 
 function createChart(name) {
   const container = document.getElementById("graphableNumbersContainer");
+  // dataContainer contains both download link/button and the chart-container
   const dataContainer = document.createElement("div");
   dataContainer.id = "data_" + name;
   container.appendChild(dataContainer);
@@ -99,29 +95,32 @@ function createChart(name) {
   const chart = new uPlot(options, chartsByName[name]["data"], chartDiv);
   chartsByName[name]["chart"] = chart;
 
+  // Creates a button with a link wrapping it. Clicking the button causes the URI to be generated via initiateDownload
   const dataDownloadLink = document.createElement("a");
-  document.getElementById("data_" + name).appendChild(dataDownloadLink);
-
   dataDownloadLink.id = "download-link_" + name;
   const dataDownloadButton = document.createElement("input");
-  dataDownloadLink.appendChild(dataDownloadButton);
+  // Configure the button
   dataDownloadButton.value = "Download " + name + ".csv";
   dataDownloadButton.setAttribute("download", name + ".csv");
   dataDownloadButton.type = "button";
   dataDownloadButton.id = "download-button_" + name;
   dataDownloadButton.addEventListener("mouseup", initiateDownload);
+  // Add link & button to DOM
+  document.getElementById("data_" + name).appendChild(dataDownloadLink);
+  dataDownloadLink.appendChild(dataDownloadButton);
 }
 
 function initiateDownload(event) {
+  // Extract the name of the data and get the associated download link
   const name = event.srcElement.id.substring(16);
   const downloadLink = document.getElementById("download-link_" + name);
-  console.log("download-link_" + name);
-  console.log(downloadLink);
+  // Generate a link based off of the associated CSV string
   downloadLink.setAttribute(
     "href",
     "data:application/octet-stream," +
       encodeURI(chartToCSVString(chartsByName[name]["data"]))
   );
+  // Set the download name
   downloadLink.setAttribute("download", name + ".csv");
 }
 
@@ -148,16 +147,6 @@ async function addDataToGraph(name, numbers) {
   // Update the chart
   if (graphsEnabled)
     chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
-
-  // // Update the download link
-  // if (downloadsEnabled) {
-  //   const dataDownloadLink = document.getElementById("download_" + name);
-  //   dataDownloadLink.setAttribute(
-  //     "href",
-  //     "data:application/octet-stream," +
-  //       encodeURI(chartToCSVString(chartsByName[name]["data"]))
-  //   );
-  // }
 }
 async function batchAddPoints(graphBatch) {
   for (const graphName in graphBatch) {
