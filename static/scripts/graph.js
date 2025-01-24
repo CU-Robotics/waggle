@@ -68,6 +68,7 @@ function createChart(name) {
     width: window.innerWidth * 0.95,
     height: 300,
     title: name,
+    labels: ["x", "y"],
     axes: [
       {
         label: "Index",
@@ -80,6 +81,7 @@ function createChart(name) {
     scales: {
       x: {
         time: false,
+        type: "linear",
       },
     },
     series: [
@@ -91,6 +93,8 @@ function createChart(name) {
   };
 
   const chart = new uPlot(options, chartsByName[name]["data"], chartDiv);
+  console.log(chart);
+
   chartsByName[name]["chart"] = chart;
 
   // Creates a button with a link wrapping it. Clicking the button causes the URI to be generated via initiateDownload
@@ -106,6 +110,22 @@ function createChart(name) {
   // Add link & button to DOM
   document.getElementById("data_" + name).appendChild(dataDownloadLink);
   dataDownloadLink.appendChild(dataDownloadButton);
+
+  setInterval(() => {
+    if (graphsEnabled) {
+      let startIndex = chartsByName[name]["data"][0].length - 1000;
+      let endIndex = chartsByName[name]["data"][0].length;
+      if (startIndex <= 0) {
+        chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
+        return;
+      }
+      let data = [
+        chartsByName[name]["data"][0].slice(startIndex, endIndex),
+        chartsByName[name]["data"][1].slice(startIndex, endIndex),
+      ];
+      chartsByName[name]["chart"].setData(data);
+    }
+  }, 100);
 }
 
 function initiateDownload(event) {
@@ -143,8 +163,6 @@ async function addDataToGraph(name, numbers) {
     chartsByName[name]["data"][0].push(originalLength + i);
   }
   // Update the chart
-  if (graphsEnabled)
-    chartsByName[name]["chart"].setData(chartsByName[name]["data"]);
 }
 async function batchAddPoints(graphBatch) {
   for (const graphName in graphBatch) {
