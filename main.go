@@ -40,7 +40,7 @@ func graphNumberHandler(w http.ResponseWriter, r *http.Request) {
 		Type: "graph_number",
 		Data: data,
 	}
-	updateWSClients(clientData)
+	broadcastMessage(clientData)
 }
 
 type RobotPosition struct {
@@ -68,7 +68,7 @@ func setRobotPositionHandler(w http.ResponseWriter, r *http.Request) {
 		Type: "set_robot_position",
 		Data: data,
 	}
-	updateWSClients(clientData)
+	broadcastMessage(clientData)
 }
 
 
@@ -101,7 +101,7 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		Type: "batch",
 		Data: data,
 	}
-	updateWSClients(response)
+	broadcastMessage(response)
 }
 
 
@@ -132,7 +132,7 @@ func cvMatHandler(w http.ResponseWriter, r *http.Request) {
 		Type: "display_cv_mat",
 		Data: data,
 	}
-	updateWSClients(clientData)
+	broadcastMessage(clientData)
 }
 
 
@@ -145,8 +145,8 @@ func main() {
 	router.Methods("POST").Path("/graph-number").Name("graphNumberHandler").Handler(LoggerHandler(http.HandlerFunc(graphNumberHandler), "graphNumberHandler"))
 	router.Methods("POST").Path("/robot-position").Name("setRobotPositionHandler").Handler(LoggerHandler(http.HandlerFunc(setRobotPositionHandler), "setRobotPositionHandler"))
 	router.Methods("POST").Path("/cv-mat").Name("cvMatHandler").Handler(LoggerHandler(http.HandlerFunc(cvMatHandler), "cvMatHandler"))
-	router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))
-
+	// router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))
+	router.Methods("POST").Path("/webrtc-signal").Name("webrtcSignalHandler").Handler(LoggerHandler(http.HandlerFunc(webrtcSignalHandler), "webrtcSignalHandler"))
   
 	// File editor
 	router.Methods("POST").Path("/get-folder").Name("getFolderHandler").Handler(LoggerHandler(http.HandlerFunc(getFolderHandler), "getFolderHandler"))
