@@ -1,4 +1,5 @@
 reqCounter = 0;
+let startTime = Date.now()
 document.addEventListener("DOMContentLoaded", () => {
   const messagesDiv = document.getElementById("messages");
   let socket;
@@ -13,8 +14,9 @@ document.addEventListener("DOMContentLoaded", () => {
       socket.bufferedAmount = 0;
     };
 
-    socket.onmessage = async (event) => {
+    socket.onmessage =  (event) => {
       reqCounter += 1;
+      // console.log(reqCounter / (Date.now() - startTime)*1000, ` it/s`)
       let data = JSON.parse(event.data);
       if (data.timestamp < lastTimeStamp) {
         return;

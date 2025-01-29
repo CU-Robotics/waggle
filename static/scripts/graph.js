@@ -55,7 +55,6 @@ function createChart(name, numbers) {
 }
 
 function updateChart(name, numbers) {
-  console.log("updating chart");
   const chartObj = chartsByName[name];
   const chart = chartObj.chart;
   const data = chartObj.data;
@@ -78,10 +77,10 @@ function updateChart(name, numbers) {
   //   data[1] = data[1].slice(-maxPoints);
   // }
 
-  chart.setData(data);
+  // chart.setData(data);
 }
 
-async function addDataToGraph(name, numbers) {
+function addDataToGraph(name, numbers) {
   if (!Array.isArray(numbers)) {
     console.error("Expected an array of numbers");
     return;
@@ -100,7 +99,7 @@ async function addDataToGraph(name, numbers) {
       encodeURI(chartToCSVString(file_data[name]))
   );
 }
-async function batchAddPoints(graphBatch) {
+function batchAddPoints(graphBatch) {
   for (const graphName in graphBatch) {
     const points = graphBatch[graphName];
     addDataToGraph(graphName, points);
@@ -126,7 +125,11 @@ function createCSVs() {
 
 setInterval(() => {
   for (const chartName in chartsByName) {
-    const { uplot } = chartsByName[chartName];
-    uplot.redraw(); // Ensures smooth rendering
+    const chartObj = chartsByName[chartName];
+    const chart = chartObj.chart;
+    const data = chartObj.data;
+
+    chart.setData(data);
+    // console.log(chartName)
   }
-}, 300);
+}, 100);
