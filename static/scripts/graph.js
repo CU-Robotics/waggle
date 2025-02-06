@@ -63,7 +63,7 @@ function updateChart(name, numbers) {
   const startIndex = data[0].length;
   const newLabels = Array.from(
     { length: numbers.length },
-    (_, i) => startIndex + i
+    (_, i) => startIndex + i,
   );
 
   data[0] = data[0].concat(newLabels);
@@ -97,7 +97,7 @@ async function addDataToGraph(name, numbers) {
   dataDownloadLink.setAttribute(
     "href",
     "data:application/octet-stream," +
-      encodeURI(chartToCSVString(file_data[name]))
+      encodeURI(chartToCSVString(file_data[name])),
   );
 }
 async function batchAddPoints(graphBatch) {
@@ -119,14 +119,18 @@ function createCSVs() {
     CSVString = chartToCSVString(file_data[graphData]);
     downloadLink.setAttribute(
       "href",
-      "data:application/octet-stream," + encodeURI(CSVString)
+      "data:application/octet-stream," + encodeURI(CSVString),
     );
   }
 }
 
 setInterval(() => {
+  console.log("-----------------");
+  console.log(chartsByName);
   for (const chartName in chartsByName) {
-    const { uplot } = chartsByName[chartName];
-    uplot.redraw(); // Ensures smooth rendering
+    console.log(chartName);
+    const uplot = chartsByName[chartName];
+    console.log(uplot);
+    uplot.redraw();
   }
 }, 300);
