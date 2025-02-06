@@ -40,7 +40,7 @@ func graphNumberHandler(w http.ResponseWriter, r *http.Request) {
 		Type: "graph_number",
 		Data: data,
 	}
-	updateWSClients(clientData)
+	addDataToBuffer(clientData)
 }
 
 type RobotPosition struct {
@@ -68,17 +68,14 @@ func setRobotPositionHandler(w http.ResponseWriter, r *http.Request) {
 		Type: "set_robot_position",
 		Data: data,
 	}
-	updateWSClients(clientData)
+	addDataToBuffer(clientData)
 }
-
 
 type CvMat struct {
 	MatName string `json:"matName"`
-	Base64 string `json:"base64"`
-	Flip bool `json:"flip"`
+	Base64  string `json:"base64"`
+	Flip    bool   `json:"flip"`
 }
-
-
 
 func batchHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
@@ -96,14 +93,12 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	
 	response := ClientData{
 		Type: "batch",
 		Data: data,
 	}
-	updateWSClients(response)
+	addDataToBuffer(response)
 }
-
 
 func cvMatHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
@@ -132,9 +127,8 @@ func cvMatHandler(w http.ResponseWriter, r *http.Request) {
 		Type: "display_cv_mat",
 		Data: data,
 	}
-	updateWSClients(clientData)
+	addDataToBuffer(clientData)
 }
-
 
 func main() {
 	println("Started")
@@ -147,13 +141,11 @@ func main() {
 	router.Methods("POST").Path("/cv-mat").Name("cvMatHandler").Handler(LoggerHandler(http.HandlerFunc(cvMatHandler), "cvMatHandler"))
 	router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))
 
-  
 	// File editor
 	router.Methods("POST").Path("/get-folder").Name("getFolderHandler").Handler(LoggerHandler(http.HandlerFunc(getFolderHandler), "getFolderHandler"))
 	router.Methods("POST").Path("/get-file").Name("getFileHandler").Handler(LoggerHandler(http.HandlerFunc(getFileHandler), "getFileHandler"))
 	router.Methods("POST").Path("/put-file").Name("putFileHandler").Handler(LoggerHandler(http.HandlerFunc(putFileHandler), "putFileHandler"))
-	
-  
+
 	staticDir := "./static/"
 	fs := http.FileServer(http.Dir(staticDir))
 	router.NotFoundHandler = fs

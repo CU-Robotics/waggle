@@ -5,7 +5,8 @@ function updateOrCreateImage(matName, base64, flip) {
   imageMap.set(matName, { base64, flip });
 }
 
-// Set an interval to update images every 100 milliseconds
+
+const FPS = 60
 setInterval(() => {
   const container = document.getElementById('cvMatImagesContainer');
 
@@ -37,4 +38,4 @@ setInterval(() => {
     imgElement.src = `data:image/png;base64,${base64}`;
   });
   imageMap.clear();
-}, 1000/65);
+}, 1000/FPS);

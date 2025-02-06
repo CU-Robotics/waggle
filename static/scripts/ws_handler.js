@@ -10,45 +10,55 @@ document.addEventListener("DOMContentLoaded", () => {
 
     socket.onopen = () => {
       console.log("WebSocket connection established");
-      socket.bufferedAmount = 0;
+      // socket.bufferedAmount = 0;
+      socket.send(
+        JSON.stringify({ type: "ack", data: { reqCounter: reqCounter } }),
+      );
     };
 
     socket.onmessage = async (event) => {
       reqCounter += 1;
-      let data = JSON.parse(event.data);
-      if (data.timestamp < lastTimeStamp) {
-        return;
-      }
-      lastTimeStamp = data.timestamp;
-      if (!("type" in data)) {
-        console.log("Mising Type");
-        return;
-      }
+      let bulkData = JSON.parse(event.data);
 
-      if (data.type == "set_robot_position") {
-        moveRobotIcon(data.data.x, data.data.y);
-      } else if (data.type == "graph_number") {
-        addDataToGraph(data.data.graphName, data.data.value);
-      } else if (data.type == "display_cv_mat") {
-        updateOrCreateImage(
-          data.data.matName,
-          data.data.base64,
-          data.data.flip
-        );
-        console.log(data.data.flip);
-      } else if (data.type == "batch") {
-        for (const k in data.data["cv-mats"]) {
-          updateOrCreateImage(k, data.data["cv-mats"][k], false);
+      for (let data of bulkData) {
+        if (data.timestamp < lastTimeStamp) {
+          return;
+        }
+        lastTimeStamp = data.timestamp;
+        if (!("type" in data)) {
+          console.log("Mising Type");
+          return;
         }
 
-        // for(var point of data.data['graphable-numbers']){
-        //   addDataToGraph(point.graphName, point.value);
-        // }
-        batchAddPoints(data.data["graphable-numbers"]);
-      } else {
-        console.log(data);
-        console.log(data.type);
+        if (data.type == "set_robot_position") {
+          moveRobotIcon(data.data.x, data.data.y);
+        } else if (data.type == "graph_number") {
+          addDataToGraph(data.data.graphName, data.data.value);
+        } else if (data.type == "display_cv_mat") {
+          updateOrCreateImage(
+            data.data.matName,
+            data.data.base64,
+            data.data.flip,
+          );
+          console.log(data.data.flip);
+        } else if (data.type == "batch") {
+          for (const k in data.data["cv-mats"]) {
+            updateOrCreateImage(k, data.data["cv-mats"][k], false);
+          }
+
+          // for(var point of data.data['graphable-numbers']){
+          //   addDataToGraph(point.graphName, point.value);
+          // }
+          batchAddPoints(data.data["graphable-numbers"]);
+        } else {
+          console.log(data);
+          console.log(data.type);
+        }
       }
+
+      socket.send(
+        JSON.stringify({ type: "ack", data: { reqCounter: reqCounter } }),
+      );
     };
 
     socket.onerror = (error) => {

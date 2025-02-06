@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -36,15 +35,15 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	clientsMutex.Unlock()
 
 	for {
-		_, message, err := conn.ReadMessage()
+		_, _, err := conn.ReadMessage()
 		if err != nil {
 			log.Println("Error reading message:", err)
 			break
 		}
 
-		fmt.Printf("Received: %s\n", message)
+		// fmt.Printf("Received: %s\n", message)
 
-		broadcastMessage(message)
+		broadcastMessage()
 	}
 
 	clientsMutex.Lock()
@@ -52,9 +51,17 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	clientsMutex.Unlock()
 }
 
-func broadcastMessage(message []byte) {
+var buffer []ClientData = make([]ClientData, 0)
+
+func broadcastMessage() {
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
+	message, err := json.Marshal(buffer)
+	if err != nil {
+		log.Println("Error marshalling JSON:", err)
+		return
+	}
+
 	for client := range clients {
 		err := client.WriteMessage(websocket.TextMessage, message)
 		if err != nil {
@@ -63,14 +70,19 @@ func broadcastMessage(message []byte) {
 			delete(clients, client)
 		}
 	}
+
+	buffer = []ClientData{}
 }
 
-func updateWSClients(data ClientData) {
+func addDataToBuffer(data ClientData) {
 	data.Timestamp = time.Now().UnixNano()
-	message, err := json.Marshal(data)
-	if err != nil {
-		log.Println("Error marshalling JSON:", err)
-		return
+	buffer = append(buffer, data)
+
+	if len(buffer) > 10 {
+		buffer = buffer[1:]
 	}
-	go broadcastMessage(message)
+
+	// message, err := json.Marshal(data)
+
+	// go broadcastMessage(message)
 }
