@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -36,13 +35,13 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	clientsMutex.Unlock()
 
 	for {
-		_, message, err := conn.ReadMessage()
+		_, _, err := conn.ReadMessage()
 		if err != nil {
 			log.Println("Error reading message:", err)
 			break
 		}
 
-		fmt.Printf("Received: %s\n", message)
+		// fmt.Printf("Received: %s\n", message)
 
 		broadcastMessage()
 	}

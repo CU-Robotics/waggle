@@ -55,28 +55,27 @@ function createChart(name, numbers) {
 }
 
 function updateChart(name, numbers) {
-  console.log("updating chart");
   const chartObj = chartsByName[name];
   const chart = chartObj.chart;
   const data = chartObj.data;
+  const maxPoints = 10000;
 
-  const startIndex = data[0].length;
-  const newLabels = Array.from(
-    { length: numbers.length },
-    (_, i) => startIndex + i,
-  );
+  let lastTimestamp = data[0].length > 0 ? data[0][data[0].length - 1] : -1;
+
+  const newLabels = numbers.map((_, i) => lastTimestamp + i + 1);
 
   data[0] = data[0].concat(newLabels);
   data[1] = data[1].concat(numbers);
-  // Could optimize memory here by getting rid of need to put the data into the file_data object. Could also have it return the data object
+
+  if (data[0].length > maxPoints) {
+    const excess = data[0].length - maxPoints;
+    data[0] = data[0].slice(excess);
+    data[1] = data[1].slice(excess);
+  }
+
+  console.log(data.length);
   file_data[name]["timestamps"] = data[0];
   file_data[name]["values"] = data[1];
-  // Keep data size manageable
-  // const maxPoints = 5000;
-  // if (data[0].length > maxPoints) {
-  //   data[0] = data[0].slice(-maxPoints);
-  //   data[1] = data[1].slice(-maxPoints);
-  // }
 
   chart.setData(data);
 }
@@ -93,12 +92,12 @@ async function addDataToGraph(name, numbers) {
     updateChart(name, numbers);
   }
   // Consider making a seperate button/link that causes the present data to load into the link. Currently it must generate a CSV string upon every update and create a corresponding URI. May murder performance
-  const dataDownloadLink = document.getElementById("download_" + name);
-  dataDownloadLink.setAttribute(
-    "href",
-    "data:application/octet-stream," +
-      encodeURI(chartToCSVString(file_data[name])),
-  );
+  // const dataDownloadLink = document.getElementById("download_" + name);
+  // dataDownloadLink.setAttribute(
+  //   "href",
+  //   "data:application/octet-stream," +
+  //     encodeURI(chartToCSVString(file_data[name])),
+  // );
 }
 async function batchAddPoints(graphBatch) {
   for (const graphName in graphBatch) {
@@ -125,12 +124,8 @@ function createCSVs() {
 }
 
 setInterval(() => {
-  console.log("-----------------");
-  console.log(chartsByName);
   for (const chartName in chartsByName) {
-    console.log(chartName);
     const uplot = chartsByName[chartName];
-    console.log(uplot);
     uplot.redraw();
   }
 }, 300);
