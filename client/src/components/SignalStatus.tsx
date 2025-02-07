@@ -7,7 +7,7 @@ import {
   IconAntennaBars5,
 } from "@tabler/icons-react";
 
-const icon_size = 20;
+const icon_size = 25;
 
 function SignalStatus({ signalStrength }: { signalStrength: number }) {
   // TODO add useEffect for api call to get signalStrength

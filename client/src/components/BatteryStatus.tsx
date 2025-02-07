@@ -6,6 +6,8 @@ import {
   IconBattery4,
 } from "@tabler/icons-react";
 
+const icon_size = 25;
+
 function BatteryStatus({ batteryStatus }: { batteryStatus: number }) {
   // TODO add useEffect for api call to get battery status
 
@@ -14,7 +16,7 @@ function BatteryStatus({ batteryStatus }: { batteryStatus: number }) {
       return (
         <>
           <div className="flex items-center gap-1">
-            <IconBattery size={20} color="red" />
+            <IconBattery size={icon_size} color="red" />
             <p className="text-sm">{batteryStatus}%</p>
           </div>
         </>
@@ -23,7 +25,7 @@ function BatteryStatus({ batteryStatus }: { batteryStatus: number }) {
       return (
         <>
           <div className="flex items-center gap-1">
-            <IconBattery1 size={20} color="orange" />
+            <IconBattery1 size={icon_size} color="orange" />
             <p className="text-sm">{batteryStatus}%</p>
           </div>
         </>
@@ -32,7 +34,7 @@ function BatteryStatus({ batteryStatus }: { batteryStatus: number }) {
       return (
         <>
           <div className="flex items-center gap-1">
-            <IconBattery2 size={20} />
+            <IconBattery2 size={icon_size} />
             <p className="text-sm">{batteryStatus}%</p>
           </div>
         </>
@@ -41,7 +43,7 @@ function BatteryStatus({ batteryStatus }: { batteryStatus: number }) {
       return (
         <>
           <div className="flex items-center gap-1">
-            <IconBattery3 size={20} />
+            <IconBattery3 size={icon_size} />
             <p className="text-sm">{batteryStatus}%</p>
           </div>
         </>
@@ -50,7 +52,7 @@ function BatteryStatus({ batteryStatus }: { batteryStatus: number }) {
       return (
         <>
           <div className="flex items-center gap-1">
-            <IconBattery4 size={20} />
+            <IconBattery4 size={icon_size} />
             <p className="text-sm">{batteryStatus}%</p>
           </div>
         </>
