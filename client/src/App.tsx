@@ -2,6 +2,7 @@ import { IconFileFilled, IconPower } from "@tabler/icons-react";
 import BatteryStatus from "./components/BatteryStatus";
 import SignalStatus from "./components/SignalStatus";
 import Notifications from "./components/Notifications";
+import gameField from "./assets/game_field.png";
 
 // all constants up here will be api data at some point
 const data = [
@@ -19,7 +20,7 @@ const data = [
 
 const signnalStrength: number = 75;
 const batteryStatus: number = 92;
-const notifications: number = 0;
+const notifications: number = 1;
 
 function App() {
   return (
@@ -49,7 +50,10 @@ function App() {
         {/* <!-- ! sensor readings --> */}
         <div className="flex justify-between border">
           {data.map((item) => (
-            <div className="border flex flex-col items-center p-2">
+            <div
+              className="border flex flex-col items-center p-2"
+              onClick={() => console.log(item.name)}
+            >
               <p>{item.name}</p>
               <p className="text-xl">{item.value}</p>
             </div>
@@ -70,7 +74,7 @@ function App() {
             <div className="border">more data</div>
             <div className="border">
               minimap
-              <img src="/assets/game_field.png" alt="" />
+              <img src={gameField} alt="" />
             </div>
           </div>
           <div className="border w-3/4 flex justify-center items-center">
