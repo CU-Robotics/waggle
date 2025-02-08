@@ -26,33 +26,33 @@ const notifications: number = 1;
 function App() {
   return (
     <>
-      <div className="m-5">
+      <div className="m-5 rounded-md border">
         {/* <!-- ! Nav bar --> */}
-        <nav className="flex justify-between border p-2">
-          <div className="flex gap-1 items-center">
+        <nav className="flex justify-between p-2">
+          <div className="flex items-center gap-1">
             <IconFileFilled size={20} />
             <p className="underline">
               <a href="/">file editor</a>
             </p>
           </div>
-          <div className="flex gap-1 items-center">
+          <div className="flex items-center gap-1">
             <div className="flex gap-4">
               <SignalStatus signalStrength={signnalStrength} />
               <BatteryStatus batteryStatus={batteryStatus} />
               <Notifications notifications={notifications} />
             </div>
             <div>
-              <div className="flex items-center bg-red-500 text-white p-1 rounded m-1 ml-6">
+              <div className="m-1 ml-6 flex items-center rounded bg-red-500 p-1 text-white">
                 <IconPower size={20} />
               </div>
             </div>
           </div>
         </nav>
         {/* <!-- ! sensor readings --> */}
-        <div className="flex justify-between border">
+        <div className="flex justify-between">
           {data.map((item) => (
             <div
-              className="border flex flex-col items-center p-2"
+              className="flex flex-col items-center rounded-md border p-2"
               onClick={() => console.log(item.name)}
               key={item.key}
             >
@@ -62,26 +62,28 @@ function App() {
           ))}
         </div>
         {/* <!-- ! main view camera feed --> */}
-        <div className="flex border">
-          <div className="border w-1/4">
-            <div className="border flex justify-between items-center p-2">
-              <p>Hive Mode</p>
-              <Toggle size="small" />
+        <div className="flex">
+          <div className="w-1/4">
+            <div className="mt-2 mb-2">
+              <div className="flex items-center justify-between rounded-tr-md border border-b-0 border-l-0 p-2">
+                <p>Hive Mode</p>
+                <Toggle size="small" />
+              </div>
+              <div className="flex items-center justify-between rounded-br-md border border-l-0 p-2">
+                <p>Servo</p>
+                <Toggle size="small" />
+              </div>
             </div>
-            <div className="border flex justify-between items-center p-2">
-              <p>Servo</p>
-              <Toggle size="small" />
-            </div>
-            <div className="border">
+            <div className="">
               <img src={gameField} alt="" />
             </div>
           </div>
-          <div className="border w-3/4 flex flex-col">
+          <div className="flex w-3/4 flex-col">
             <div className="flex gap-2 p-2">
               <p>Edge detection mode</p>
               <Toggle />
             </div>
-            <div className="flex items-center justify-center h-full border">
+            <div className="flex h-full items-center justify-center">
               <p>raw cam feed w edge detection toggle</p>
             </div>
           </div>

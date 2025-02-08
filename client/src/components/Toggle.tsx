@@ -47,22 +47,10 @@ export default function Toggle({
   return (
     <div
       onClick={handleClick}
-      className={`
-        relative inline-flex items-center shrink-0 cursor-pointer
-        rounded-full transition-colors duration-200 ease-in-out
-        ${sizes.track}
-        ${isChecked ? "bg-green-500" : "bg-gray-200"}
-        ${disabled ? "opacity-50 cursor-not-allowed" : ""}
-      `}
+      className={`relative inline-flex shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out ${sizes.track} ${isChecked ? "bg-green-500" : "bg-gray-200"} ${disabled ? "cursor-not-allowed opacity-50" : ""} `}
     >
       <span
-        className={`
-          absolute left-0 inline-block 
-          bg-white rounded-full shadow transform
-          transition-transform duration-200 ease-in-out
-          ${sizes.thumb}
-          ${isChecked ? sizes.translate : "translate-x-0"}
-        `}
+        className={`absolute left-0 inline-block transform rounded-full bg-white shadow transition-transform duration-200 ease-in-out ${sizes.thumb} ${isChecked ? sizes.translate : "translate-x-0"} `}
       />
     </div>
   );
