@@ -18,7 +18,7 @@ function Notifications({ notifications }: { notifications: number }) {
         className="cursor-pointer"
       />
       {notifications > 0 && (
-        <span className="absolute top-8 right-22 rounded bg-red-500 p-1 text-xs text-white"></span>
+        <span className="absolute top-3 right-17 rounded bg-red-500 p-1 text-xs text-white"></span>
       )}
       {isOpen && (
         <div className="absolute -right-0 flex w-1/8 justify-center border bg-white p-2">
