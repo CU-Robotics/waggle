@@ -11,17 +11,20 @@ function Notifications({ notifications }: { notifications: number }) {
   };
 
   return (
-    <div className="dropdown">
+    <div className="dropdown relative">
       <IconBellFilled
         size={20}
         onClick={toggleDropdown}
         className="cursor-pointer"
       />
       {notifications > 0 && (
-        <span className="absolute top-3 right-17 rounded bg-red-500 p-1 text-xs text-white"></span>
+        <span className="absolute -top-0.5 -right-0.5 flex size-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+          <span className="relative inline-flex size-2 rounded-full bg-red-500"></span>
+        </span>
       )}
       {isOpen && (
-        <div className="absolute -right-0 flex w-1/8 justify-center border bg-white p-2">
+        <div className="absolute -right-0 flex w-fit justify-center border bg-white p-2">
           {notifications > 0 ? <p>Critical Alert</p> : <p>No notifications</p>}
         </div>
       )}

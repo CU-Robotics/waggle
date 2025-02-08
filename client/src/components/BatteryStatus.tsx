@@ -1,4 +1,5 @@
 import {
+  IconBatteryOff,
   IconBattery,
   IconBattery1,
   IconBattery2,
@@ -8,10 +9,19 @@ import {
 
 const icon_size = 25;
 
-function BatteryStatus({ batteryStatus }: { batteryStatus: number }) {
+function BatteryStatus({ batteryVoltage = -1 }: { batteryVoltage: number }) {
   // TODO add useEffect for api call to get battery status
+  const batteryStatus = Math.floor((batteryVoltage / 24) * 100);
 
   switch (true) {
+    case batteryStatus <= 0:
+      return (
+        <>
+          <div className="flex items-center gap-1">
+            <IconBatteryOff size={icon_size} />
+          </div>
+        </>
+      );
     case batteryStatus <= 10:
       return (
         <>
