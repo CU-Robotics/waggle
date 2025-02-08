@@ -26,9 +26,9 @@ const notifications: number = 1;
 function App() {
   return (
     <>
-      <div className="m-5 rounded-md border">
+      <div className="w-100% h-screen overflow-hidden">
         {/* <!-- ! Nav bar --> */}
-        <nav className="flex justify-between p-2">
+        <nav className="mb-2 flex justify-between border-b p-2">
           <div className="flex items-center gap-1">
             <IconFileFilled size={20} />
             <p className="underline">
@@ -49,7 +49,7 @@ function App() {
           </div>
         </nav>
         {/* <!-- ! sensor readings --> */}
-        <div className="flex justify-between">
+        <div className="m-2 flex justify-between">
           {data.map((item) => (
             <div
               className="flex flex-col items-center rounded-md border p-2"
@@ -62,24 +62,42 @@ function App() {
           ))}
         </div>
         {/* <!-- ! main view camera feed --> */}
-        <div className="flex">
-          <div className="w-1/4">
+        <div className="flex h-3/4">
+          <div className="flex w-1/4 flex-col justify-between">
             <div className="mt-2 mb-2">
-              <div className="flex items-center justify-between rounded-tr-md border border-b-0 border-l-0 p-2">
+              <div className="flex items-center justify-between rounded-tr-md border border-l-0 p-2">
                 <p>Hive Mode</p>
                 <Toggle size="small" />
               </div>
-              <div className="flex items-center justify-between rounded-br-md border border-l-0 p-2">
+              <div className="flex items-center justify-between border-l-0 border-r border-b p-2">
                 <p>Servo</p>
                 <Toggle size="small" />
               </div>
+              <div className="flex items-center justify-between border-l-0 border-r border-b p-2">
+                <p>Emergency stop</p>
+                <Toggle size="small" />
+              </div>
+              <div className="flex items-center justify-between border-l-0 border-r border-b p-2">
+                <p>Auto aim</p>
+                <Toggle size="small" defaultChecked />
+              </div>
+              <div className="flex items-center justify-between border-l-0 border-r border-b p-2">
+                <p>Example toggle</p>
+                <Toggle size="small" defaultChecked />
+              </div>
+              <div className="flex items-center justify-between rounded-br-md border border-t-0 border-l-0 p-2">
+                <p>Add more data/modes</p>
+              </div>
             </div>
-            <div className="">
-              <img src={gameField} alt="" />
-            </div>
+
+            <img
+              src={gameField}
+              alt=""
+              className="rounded-r-md border border-l-0"
+            />
           </div>
-          <div className="flex w-3/4 flex-col">
-            <div className="flex gap-2 p-2">
+          <div className="mx-2 mt-2 flex w-3/4 flex-col rounded-md border">
+            <div className="flex gap-2 border-b p-2">
               <p>Edge detection mode</p>
               <Toggle />
             </div>
