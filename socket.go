@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -41,9 +40,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		// fmt.Printf("Received: %s\n", message)
 
-		broadcastMessage()
+		protect(broadcastMessage)
 	}
 
 	clientsMutex.Lock()
@@ -51,7 +49,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	clientsMutex.Unlock()
 }
 
-var buffer []ClientData = make([]ClientData, 0)
+var buffer []RobotData = make([]RobotData, 0)
 
 func broadcastMessage() {
 	clientsMutex.Lock()
@@ -71,11 +69,10 @@ func broadcastMessage() {
 		}
 	}
 
-	buffer = []ClientData{}
+	buffer = []RobotData{}
 }
 
-func addDataToBuffer(data ClientData) {
-	data.Timestamp = time.Now().UnixNano()
+func addDataToBuffer(data RobotData) {
 	buffer = append(buffer, data)
 
 	if len(buffer) > 10 {
