@@ -77,6 +77,8 @@ function updateChart(name, numbers) {
   file_data[name]["timestamps"] = data[0];
   file_data[name]["values"] = data[1];
 
+  // chartObj.data = data
+  // chart.data = data
   chart.setData(data);
 }
 
@@ -123,9 +125,10 @@ function createCSVs() {
   }
 }
 
-setInterval(() => {
-  for (const chartName in chartsByName) {
-    const uplot = chartsByName[chartName];
-    uplot.redraw();
-  }
-}, 300);
+// setInterval(() => {
+//   for (const chartName in chartsByName) {
+//     const uplot = chartsByName[chartName];
+//     console.log(uplot)
+//     uplot.chart.redraw();
+//   }
+// }, 300);

@@ -71,7 +71,7 @@ export function useWebSocket() {
       return;
     }
 
-    wsRef.current = new WebSocket(`ws://cu-infantry.local:3000/ws`);
+    wsRef.current = new WebSocket(`ws://${window.location.host}/ws`);
 
     wsRef.current.onopen = (event) => {
       console.log("WebSocket Connected", event);

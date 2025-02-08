@@ -146,7 +146,7 @@ func main() {
 	router.Methods("POST").Path("/get-file").Name("getFileHandler").Handler(LoggerHandler(http.HandlerFunc(getFileHandler), "getFileHandler"))
 	router.Methods("POST").Path("/put-file").Name("putFileHandler").Handler(LoggerHandler(http.HandlerFunc(putFileHandler), "putFileHandler"))
 
-	staticDir := "./static/"
+	staticDir := "./client/dist/"
 	fs := http.FileServer(http.Dir(staticDir))
 	router.NotFoundHandler = fs
 
