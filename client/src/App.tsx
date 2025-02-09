@@ -11,8 +11,7 @@ import gameField from "./assets/game_field.png";
 const notifications: number = 1;
 
 function App() {
-  const { isConnected, graphData, imageData, stringData, robotPosition } =
-    useWebSocket();
+  const { isConnected, graphData, imageData, stringData } = useWebSocket();
 
   console.log(stringData);
 

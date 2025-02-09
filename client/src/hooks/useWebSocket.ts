@@ -4,10 +4,16 @@ import { RobotData } from "../types";
 
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [graphData, setGraphData] = useState<RobotData["graph_data"]>(new Map());
+  const [graphData, setGraphData] = useState<RobotData["graph_data"]>(
+    new Map(),
+  );
   const [imageData, setImageData] = useState<RobotData["images"]>(new Map());
-  const [stringData, setStringData] = useState<RobotData["string_data"]>(new Map());
-  const [robotPosition, setRobotPosition] = useState<RobotData["robot_position"]>({x: 0, y: 0, heading: 0});
+  const [stringData, setStringData] = useState<RobotData["string_data"]>(
+    new Map(),
+  );
+  const [robotPosition, setRobotPosition] = useState<
+    RobotData["robot_position"]
+  >({ x: 0, y: 0, heading: 0 });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 20;
@@ -36,7 +42,7 @@ export function useWebSocket() {
     }
 
     // TODO - Change to dynamic URL
-    wsRef.current = new WebSocket(`ws://localhost:8765/ws`);
+    wsRef.current = new WebSocket(`ws://${window.location.host}/ws`);
 
     wsRef.current.onopen = (event) => {
       console.log("WebSocket Connected", event);
@@ -49,11 +55,16 @@ export function useWebSocket() {
     };
 
     wsRef.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+      console.log(Date.now());
+      const data = JSON.parse(event.data); //todo: fix
       handleIncomingMessage(data);
 
       if (wsRef.current) {
+        console.log("sending");
+
         wsRef.current.send("Hello from client");
+      } else {
+        console.log("wsRef.current is null");
       }
     };
 
@@ -68,8 +79,6 @@ export function useWebSocket() {
       console.error("WebSocket Error:", error);
     };
   };
-
-
 
   const handleIncomingMessage = (data: RobotData) => {
     //  Append graph data

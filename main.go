@@ -46,15 +46,15 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var data interface{}
+	var data RobotData
 	err = json.Unmarshal(body, &data)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
-	PrettyPrint(data)
-	// addDataToBuffer(data)
+	addDataToBuffer(data)
+	// broadcastMessage()
 }
 
 func main() {

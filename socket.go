@@ -40,8 +40,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-
-		protect(broadcastMessage)
+		println("recieved message")
+		broadcastMessage()
 	}
 
 	clientsMutex.Lock()
@@ -54,12 +54,20 @@ var buffer []RobotData = make([]RobotData, 0)
 func broadcastMessage() {
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
-	message, err := json.Marshal(buffer)
-	if err != nil {
-		log.Println("Error marshalling JSON:", err)
-		return
-	}
 
+	var message []byte
+
+	if len(buffer) == 0 {
+		message = []byte("[]")
+	} else {
+		var err error
+		message, err = json.Marshal(buffer[0])
+		if err != nil {
+			log.Println("Error marshalling JSON:", err)
+			return
+		}
+	}
+	println("SENDING TO CLIENTS")
 	for client := range clients {
 		err := client.WriteMessage(websocket.TextMessage, message)
 		if err != nil {
