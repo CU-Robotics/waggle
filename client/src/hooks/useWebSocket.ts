@@ -80,53 +80,57 @@ export function useWebSocket() {
     };
   };
 
-  const handleIncomingMessage = (data: RobotData) => {
-    //  Append graph data
-    if (data.graph_data) {
-      setGraphData((prevData) => {
-        for (const [key, value] of Object.entries(data.graph_data)) {
-          if (prevData.has(key)) {
-            const array = prevData.get(key);
-            const maxPoint = 10000;
+  const handleIncomingMessage = (all_data: RobotData[]) => {
+    for (let i = 0; i < all_data.length; i++) {
+      const data = all_data[i];
+      const lastFrame = i === all_data.length - 1;
+      //  Append graph data
+      if (data.graph_data) {
+        setGraphData((prevData) => {
+          for (const [key, value] of Object.entries(data.graph_data)) {
+            if (prevData.has(key)) {
+              const array = prevData.get(key);
+              const maxPoint = 10000;
 
-            if (array && array.length > maxPoint) {
-              array.splice(0, array.length - maxPoint);
+              if (array && array.length > maxPoint) {
+                array.splice(0, array.length - maxPoint);
+              }
+
+              array?.push(...value);
+            } else {
+              prevData.set(key, value);
             }
-
-            array?.push(...value);
-          } else {
-            prevData.set(key, value);
           }
-        }
-        return prevData;
-      });
-    }
+          return prevData;
+        });
+      }
 
-    // Update image data
-    if (data.images) {
-      setImageData((prevData) => {
-        const newData = new Map(prevData);
-        for (const [key, value] of Object.entries(data.images)) {
-          newData.set(key, value);
-        }
-        return newData;
-      });
-    }
+      // Update image data
+      if (data.images && lastFrame) {
+        setImageData((prevData) => {
+          const newData = new Map(prevData);
+          for (const [key, value] of Object.entries(data.images)) {
+            newData.set(key, value);
+          }
+          return newData;
+        });
+      }
 
-    // Update string data
-    if (data.string_data) {
-      setStringData((prevData) => {
-        const newData = new Map(prevData);
-        for (const [key, value] of Object.entries(data.string_data)) {
-          newData.set(key, value);
-        }
-        return newData;
-      });
-    }
+      // Update string data
+      if (data.string_data && lastFrame) {
+        setStringData((prevData) => {
+          const newData = new Map(prevData);
+          for (const [key, value] of Object.entries(data.string_data)) {
+            newData.set(key, value);
+          }
+          return newData;
+        });
+      }
 
-    // Update robot position
-    if (data.robot_position) {
-      setRobotPosition(data.robot_position);
+      // Update robot position
+      if (data.robot_position && lastFrame) {
+        setRobotPosition(data.robot_position);
+      }
     }
   };
 

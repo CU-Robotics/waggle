@@ -54,7 +54,7 @@ function App() {
               className="flex flex-col items-center rounded-md border p-2"
             >
               <p>{key}</p>
-              <p>{Math.round(value[0].value * 100) / 100}</p>
+              <p>{Math.round(value[value.length - 1].value * 100) / 100}</p>
             </div>
           ))}
         </div>

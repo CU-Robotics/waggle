@@ -40,7 +40,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		println("recieved message")
 		broadcastMessage()
 	}
 
@@ -61,13 +60,12 @@ func broadcastMessage() {
 		message = []byte("[]")
 	} else {
 		var err error
-		message, err = json.Marshal(buffer[0])
+		message, err = json.Marshal(buffer)
 		if err != nil {
 			log.Println("Error marshalling JSON:", err)
 			return
 		}
 	}
-	println("SENDING TO CLIENTS")
 	for client := range clients {
 		err := client.WriteMessage(websocket.TextMessage, message)
 		if err != nil {
