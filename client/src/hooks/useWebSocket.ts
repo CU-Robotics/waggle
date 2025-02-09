@@ -1,49 +1,13 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import { useState, useRef, useEffect } from "react";
+import { RobotData } from "../types";
 
 export function useWebSocket() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [telemetryData, setTelemetryData] = useState({
-    status: {
-      mode: "UNKNOWN",
-      game_state: "UNKNOWN",
-      system_health: "UNKNOWN",
-      score: 0,
-    },
-    position: {
-      x: 0,
-      y: 0,
-      orientation: 0,
-    },
-    power: {
-      battery_voltage: 0,
-      battery_current: 0,
-      cpu_temp: 0,
-    },
-    motors: {
-      temperatures: {},
-      currents: {},
-    },
-    weapons: {
-      ammo_count: 0,
-      shots_fired: 0,
-      barrel_temp: 0,
-    },
-    communications: {
-      signal_strength: 0,
-      latency: 0,
-      packet_loss: 0,
-    },
-    vision: {
-      target_acquired: false,
-      fps: 0,
-      confidence: 0,
-    },
-  });
-  const [cameraFeeds, setCameraFeeds] = useState({
-    main_camera: null,
-    thermal_camera: null,
-  });
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [graphData, setGraphData] = useState<RobotData["graph_data"]>(new Map());
+  const [imageData, setImageData] = useState<RobotData["images"]>(new Map());
+  const [stringData, setStringData] = useState<RobotData["string_data"]>(new Map());
+  const [robotPosition, setRobotPosition] = useState<RobotData["robot_position"]>({x: 0, y: 0, heading: 0});
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 20;
@@ -71,7 +35,8 @@ export function useWebSocket() {
       return;
     }
 
-    wsRef.current = new WebSocket(`ws://${window.location.host}/ws`);
+    // TODO - Change to dynamic URL
+    wsRef.current = new WebSocket(`ws://localhost:8765/ws`);
 
     wsRef.current.onopen = (event) => {
       console.log("WebSocket Connected", event);
@@ -86,7 +51,6 @@ export function useWebSocket() {
     wsRef.current.onmessage = (event) => {
       const data = JSON.parse(event.data);
       handleIncomingMessage(data);
-      console.log(data)
 
       if (wsRef.current) {
         wsRef.current.send("Hello from client");
@@ -104,65 +68,64 @@ export function useWebSocket() {
       console.error("WebSocket Error:", error);
     };
   };
-  // @ts-ignore
 
-  const handleIncomingMessage = (data) => {
-    if (data.type === "batch") {
-      // Update telemetry data
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { cv_mats, graphable_numbers, ...telemetry } = data.data;
-      setTelemetryData((prevData) => ({
-        ...prevData,
-        ...telemetry,
-      }));
 
-      // Update camera feeds
-      if (data.data["cv-mats"]) {
-        setCameraFeeds(data.data["cv-mats"]);
-      }
 
-      // Update graphs
-      if (data.data["graphable-numbers"]) {
-        Object.entries(data.data["graphable-numbers"]).forEach(
-          ([name, values]) => {
-              // @ts-ignore
+  const handleIncomingMessage = (data: RobotData) => {
+    //  Append graph data
+    if (data.graph_data) {
+      setGraphData((prevData) => {
+        for (const [key, value] of Object.entries(data.graph_data)) {
+          if (prevData.has(key)) {
+            const array = prevData.get(key);
+            const maxPoint = 10000;
 
-            if (window.addDataToGraph) {
-                // @ts-ignore
-
-              window.addDataToGraph(name, values);
+            if (array && array.length > maxPoint) {
+              array.splice(0, array.length - maxPoint);
             }
-          },
-        );
-      }
 
-      // Update robot position on minimap
-        // @ts-ignore
-
-      if (data.data.position && window.moveRobotIcon) {
-          // @ts-ignore
-
-        window.moveRobotIcon(data.data.position.x, data.data.position.y);
-      }
+            array?.push(...value);
+          } else {
+            prevData.set(key, value);
+          }
+        }
+        return prevData;
+      });
     }
-  };
-  // @ts-ignore
-  const sendCommand = (command) => {
-      // @ts-ignore
 
-    if (wsRef.current.readyState === WebSocket.OPEN) {
-        // @ts-ignore
+    // Update image data
+    if (data.images) {
+      setImageData((prevData) => {
+        const newData = new Map(prevData);
+        for (const [key, value] of Object.entries(data.images)) {
+          newData.set(key, value);
+        }
+        return newData;
+      });
+    }
 
-      wsRef.current.send(JSON.stringify(command));
-    } else {
-      console.error("Not connected to server. Please wait...");
+    // Update string data
+    if (data.string_data) {
+      setStringData((prevData) => {
+        const newData = new Map(prevData);
+        for (const [key, value] of Object.entries(data.string_data)) {
+          newData.set(key, value);
+        }
+        return newData;
+      });
+    }
+
+    // Update robot position
+    if (data.robot_position) {
+      setRobotPosition(data.robot_position);
     }
   };
 
   return {
     isConnected,
-    telemetryData,
-    cameraFeeds,
-    sendCommand,
+    graphData,
+    imageData,
+    stringData,
+    robotPosition,
   };
 }
