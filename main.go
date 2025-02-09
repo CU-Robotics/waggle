@@ -9,34 +9,34 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type ImageData struct{
+type ImageData struct {
 	ImageData string `json:"image_data"`
-	Scale int `json:"scale"`
-	Flip bool `json:"flip"`
+	Scale     int    `json:"scale"`
+	Flip      bool   `json:"flip"`
 }
 
 type GraphData struct {
-	Timestamp int64 `json:"timestamp"`
+	Timestamp int64   `json:"timestamp"`
 	Value     float64 `json:"value"`
 }
 
 type RobotPosition struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
+	X       float64 `json:"x"`
+	Y       float64 `json:"y"`
 	Heading float64 `json:"heading"`
 }
 
-type StringData struct { 
+type StringData struct {
 	Value string `json:"value"`
 }
 
 type RobotData struct {
-	Images map[string]ImageData `json:"images"`
-	GraphData map[string][]GraphData `json:"graph_data"`
-	StringData map[string]StringData `json:"string_data"`
-	RobotPosition RobotPosition `json:"robot_position"`
+	SentTimestamp int                    `json:"sent_timestamp"`
+	Images        map[string]ImageData   `json:"images"`
+	GraphData     map[string][]GraphData `json:"graph_data"`
+	StringData    map[string]StringData  `json:"string_data"`
+	RobotPosition RobotPosition          `json:"robot_position"`
 }
-
 
 func batchHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
@@ -46,20 +46,15 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var data RobotData
+	var data interface{}
 	err = json.Unmarshal(body, &data)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
-
 	PrettyPrint(data)
-	// response := ClientData{
-	// 	Type: "batch",
-	// 	Data: data,
-	// }
-	// addDataToBuffer(response)
+	// addDataToBuffer(data)
 }
 
 func main() {
