@@ -56,12 +56,9 @@ export function useWebSocket() {
 
     wsRef.current.onmessage = (event) => {
       const data = JSON.parse(event.data); //todo: fix
-      console.log(data)
       handleIncomingMessage(data);
 
       if (wsRef.current) {
-        console.log("sending");
-
         wsRef.current.send("Hello from client");
       } else {
         console.log("wsRef.current is null");
