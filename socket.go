@@ -56,15 +56,19 @@ func broadcastMessage() {
 
 	var message []byte
 
+	// println("broadcasting", len(buffer))
 	if len(buffer) == 0 {
 		message = []byte("[]")
+		println("empty")
 	} else {
+		println("broadcasting")
 		var err error
 		message, err = json.Marshal(buffer)
 		if err != nil {
 			log.Println("Error marshalling JSON:", err)
 			return
 		}
+
 	}
 	for client := range clients {
 		err := client.WriteMessage(websocket.TextMessage, message)

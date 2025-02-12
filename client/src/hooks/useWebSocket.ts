@@ -55,8 +55,8 @@ export function useWebSocket() {
     };
 
     wsRef.current.onmessage = (event) => {
-      console.log(Date.now());
       const data = JSON.parse(event.data); //todo: fix
+      console.log(data)
       handleIncomingMessage(data);
 
       if (wsRef.current) {

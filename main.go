@@ -53,8 +53,8 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
+	PrettyPrint(data)
 	addDataToBuffer(data)
-	// broadcastMessage()
 }
 
 func main() {
