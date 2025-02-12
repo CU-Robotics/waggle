@@ -84,21 +84,22 @@ export function useWebSocket() {
       //  Append graph data
       if (data.graph_data) {
         setGraphData((prevData) => {
+          // Create a new Map for this update
+          const newData = new Map(prevData);
           for (const [key, value] of Object.entries(data.graph_data)) {
-            if (prevData.has(key)) {
-              const array = prevData.get(key);
-              const maxPoint = 10000;
-
-              if (array && array.length > maxPoint) {
-                array.splice(0, array.length - maxPoint);
-              }
-
-              array?.push(...value);
+            if (newData.has(key)) {
+              const updatedArray = [...(newData.get(key) || []), ...value];
+              const maxPoint = 5000;
+              const trimmedArray =
+                updatedArray.length > maxPoint
+                  ? updatedArray.slice(updatedArray.length - maxPoint)
+                  : updatedArray;
+              newData.set(key, trimmedArray);
             } else {
-              prevData.set(key, value);
+              newData.set(key, [...value]);
             }
           }
-          return prevData;
+          return newData;
         });
       }
 

@@ -34,7 +34,7 @@ function App() {
 
   return (
     <>
-      <div className="h-screen w-full overflow-hidden">
+      <div className="h-screen w-full">
         {/* Nav bar */}
         <nav className="mb-2 flex justify-between border-b p-2">
           <div className="flex items-center gap-1">
