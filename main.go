@@ -9,73 +9,36 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type ClientData struct {
-	Type      string      `json:"type"`
-	Timestamp int64       `json:"timestamp"`
-	Data      interface{} `json:"data"`
+type ImageData struct {
+	ImageData string `json:"image_data"`
+	Scale     int    `json:"scale"`
+	Flip      bool   `json:"flip"`
 }
 
-type GraphableNumber struct {
-	GraphName string  `json:"graphName"`
+type GraphData struct {
+	Timestamp int64   `json:"timestamp"`
 	Value     float64 `json:"value"`
 }
 
-func graphNumberHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Println(err)
-		return
-	}
-
-	var data GraphableNumber
-	err = json.Unmarshal(body, &data)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Println(err)
-		return
-	}
-
-	clientData := ClientData{
-		Type: "graph_number",
-		Data: data,
-	}
-	addDataToBuffer(clientData)
-}
-
 type RobotPosition struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
+	X       float64 `json:"x"`
+	Y       float64 `json:"y"`
+	Heading float64 `json:"heading"`
 }
 
-func setRobotPositionHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Println(err)
-		return
-	}
-
-	var data RobotPosition
-	err = json.Unmarshal(body, &data)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Println(err)
-		return
-	}
-
-	clientData := ClientData{
-		Type: "set_robot_position",
-		Data: data,
-	}
-	addDataToBuffer(clientData)
+type StringData struct {
+	Value string `json:"value"`
 }
 
-type CvMat struct {
-	MatName string `json:"matName"`
-	Base64  string `json:"base64"`
-	Flip    bool   `json:"flip"`
+type RobotData struct {
+	SentTimestamp int                    `json:"sent_timestamp"`
+	Images        map[string]ImageData   `json:"images"`
+	GraphData     map[string][]GraphData `json:"graph_data"`
+	StringData    map[string]StringData  `json:"string_data"`
+	RobotPosition RobotPosition          `json:"robot_position"`
 }
+
+var readyToSend bool = false
 
 func batchHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
@@ -85,49 +48,17 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var data interface{}
+	var data RobotData
 	err = json.Unmarshal(body, &data)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
-
-	response := ClientData{
-		Type: "batch",
-		Data: data,
+	addDataToBuffer(data)
+	if readyToSend {
+		broadcastMessage()
 	}
-	addDataToBuffer(response)
-}
-
-func cvMatHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Println(err)
-		return
-	}
-
-	var data CvMat
-	err = json.Unmarshal(body, &data)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Println(err)
-		return
-	}
-
-	// data.Base64, err = compressBase64Image(data.Base64, 20)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Println(err)
-		return
-	}
-
-	clientData := ClientData{
-		Type: "display_cv_mat",
-		Data: data,
-	}
-	addDataToBuffer(clientData)
 }
 
 func main() {
@@ -136,9 +67,6 @@ func main() {
 	router := mux.NewRouter().StrictSlash(true)
 
 	router.Methods("POST").Path("/batch").Name("batchHandler").Handler(LoggerHandler(http.HandlerFunc(batchHandler), "batchHandler"))
-	router.Methods("POST").Path("/graph-number").Name("graphNumberHandler").Handler(LoggerHandler(http.HandlerFunc(graphNumberHandler), "graphNumberHandler"))
-	router.Methods("POST").Path("/robot-position").Name("setRobotPositionHandler").Handler(LoggerHandler(http.HandlerFunc(setRobotPositionHandler), "setRobotPositionHandler"))
-	router.Methods("POST").Path("/cv-mat").Name("cvMatHandler").Handler(LoggerHandler(http.HandlerFunc(cvMatHandler), "cvMatHandler"))
 	router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))
 
 	// File editor
@@ -146,7 +74,7 @@ func main() {
 	router.Methods("POST").Path("/get-file").Name("getFileHandler").Handler(LoggerHandler(http.HandlerFunc(getFileHandler), "getFileHandler"))
 	router.Methods("POST").Path("/put-file").Name("putFileHandler").Handler(LoggerHandler(http.HandlerFunc(putFileHandler), "putFileHandler"))
 
-	staticDir := "./static/"
+	staticDir := "./client/dist/"
 	fs := http.FileServer(http.Dir(staticDir))
 	router.NotFoundHandler = fs
 

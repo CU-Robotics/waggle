@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -40,10 +39,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error reading message:", err)
 			break
 		}
-
-		// fmt.Printf("Received: %s\n", message)
-
-		broadcastMessage()
+		if readyToSend {
+			broadcastMessage()
+		} else {
+			readyToSend = true
+		}
 	}
 
 	clientsMutex.Lock()
@@ -51,17 +51,27 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	clientsMutex.Unlock()
 }
 
-var buffer []ClientData = make([]ClientData, 0)
+var buffer []RobotData = make([]RobotData, 0)
 
 func broadcastMessage() {
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
-	message, err := json.Marshal(buffer)
-	if err != nil {
-		log.Println("Error marshalling JSON:", err)
-		return
-	}
 
+	var message []byte
+
+	// println("broadcasting", len(buffer))
+	if len(buffer) == 0 {
+		message = []byte("[]")
+		println("empty")
+	} else {
+		var err error
+		message, err = json.Marshal(buffer)
+		if err != nil {
+			log.Println("Error marshalling JSON:", err)
+			return
+		}
+
+	}
 	for client := range clients {
 		err := client.WriteMessage(websocket.TextMessage, message)
 		if err != nil {
@@ -70,12 +80,12 @@ func broadcastMessage() {
 			delete(clients, client)
 		}
 	}
+	readyToSend = false
 
-	buffer = []ClientData{}
+	buffer = []RobotData{}
 }
 
-func addDataToBuffer(data ClientData) {
-	data.Timestamp = time.Now().UnixNano()
+func addDataToBuffer(data RobotData) {
 	buffer = append(buffer, data)
 
 	if len(buffer) > 10 {
