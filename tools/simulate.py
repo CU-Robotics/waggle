@@ -9,11 +9,9 @@ import requests
 
 class RoboMasterBot:
     def __init__(self):
-        # Basic state
-        self.position = [0, 0]  # meters
-        self.orientation = 0  # degrees
+        self.position = [0., 0.]
+        self.orientation = 0
 
-        # System metrics for graphing
         self.battery_voltage = 24.0
         self.cpu_temp = 45.0
         self.signal_strength = -50
