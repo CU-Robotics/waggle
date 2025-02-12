@@ -38,6 +38,8 @@ type RobotData struct {
 	RobotPosition RobotPosition          `json:"robot_position"`
 }
 
+var readyToSend bool = false
+
 func batchHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -53,8 +55,10 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	PrettyPrint(data)
 	addDataToBuffer(data)
+	if readyToSend {
+		broadcastMessage()
+	}
 }
 
 func main() {

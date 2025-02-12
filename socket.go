@@ -39,8 +39,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error reading message:", err)
 			break
 		}
-
-		broadcastMessage()
+		if readyToSend {
+			broadcastMessage()
+		} else {
+			readyToSend = true
+		}
 	}
 
 	clientsMutex.Lock()
@@ -61,7 +64,6 @@ func broadcastMessage() {
 		message = []byte("[]")
 		println("empty")
 	} else {
-		println("broadcasting")
 		var err error
 		message, err = json.Marshal(buffer)
 		if err != nil {
@@ -78,6 +80,7 @@ func broadcastMessage() {
 			delete(clients, client)
 		}
 	}
+	readyToSend = false
 
 	buffer = []RobotData{}
 }
