@@ -1,22 +1,41 @@
+import { useState } from "react";
 import { IconFileFilled, IconPower } from "@tabler/icons-react";
 import { useWebSocket } from "./hooks/useWebSocket";
-// import BatteryStatus from "./components/BatteryStatus";
-// import SignalStatus from "./components/SignalStatus";
 import Notifications from "./components/Notifications";
 import ConnectionStatus from "./components/ConnectionStatus";
+import LiveGraph from "./components/LiveGraph";
 import gameField from "./assets/game_field.png";
-// import Toggle from "./components/Toggle";
-// import RecordSession from "./components/RecordSession";
 
 const notifications: number = 1;
 
 function App() {
   const { isConnected, graphData, imageData } = useWebSocket();
+  const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
+
+  const toggleGraph = (key: string) => {
+    setActiveGraphs((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  const removeGraph = (key: string) => {
+    setActiveGraphs((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(key);
+      return newSet;
+    });
+  };
 
   return (
     <>
-      <div className="w-100% h-screen overflow-hidden">
-        {/* <!-- ! Nav bar --> */}
+      <div className="h-screen w-full overflow-hidden">
+        {/* Nav bar */}
         <nav className="mb-2 flex justify-between border-b p-2">
           <div className="flex items-center gap-1">
             <IconFileFilled size={20} />
@@ -43,20 +62,43 @@ function App() {
             </div>
           </div>
         </nav>
-        {/* <!-- ! sensor readings --> */}
-        {/* would be cool to have views here */}
+
+        {/* Sensor readings */}
         <div className="m-2 flex justify-between">
           {Array.from(graphData.entries()).map(([key, value]) => (
             <div
               key={key}
-              className="flex flex-col items-center rounded-md border p-2"
+              className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${
+                activeGraphs.has(key)
+                  ? "border-blue-200 bg-blue-50"
+                  : "hover:bg-gray-50"
+              }`}
+              onClick={() => toggleGraph(key)}
             >
               <p>{key}</p>
               <p>{Math.round(value[value.length - 1].value * 100) / 100}</p>
             </div>
           ))}
         </div>
-        {/* <!-- ! main view camera feed --> */}
+
+        {/* Live Graphs Section */}
+        {activeGraphs.size > 0 && (
+          <div className="m-2 rounded-lg border bg-gray-50 p-4">
+            <h2 className="mb-4 text-lg font-semibold">Live Graphs</h2>
+            <div className="flex flex-wrap gap-4">
+              {Array.from(activeGraphs).map((key) => (
+                <LiveGraph
+                  key={key}
+                  title={key}
+                  data={graphData.get(key) || []}
+                  onRemove={() => removeGraph(key)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Main view camera feed */}
         <div className="flex">
           <div className="flex w-1/3 flex-col justify-between">
             {/* <div className="m-2 rounded-md border">
