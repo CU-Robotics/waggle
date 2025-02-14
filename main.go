@@ -38,6 +38,10 @@ type RobotData struct {
 	RobotPosition RobotPosition          `json:"robot_position"`
 }
 
+type ResponeData struct {
+	InitiallySentTimestamp float64 `json:"initially_sent_timestamp"`
+}
+
 var readyToSend bool = false
 
 func batchHandler(w http.ResponseWriter, r *http.Request) {

@@ -1,10 +1,6 @@
-import asyncio
 import json
 import random
 import time
-import numpy as np
-import cv2
-import base64
 import requests
 
 from shape import ShapeAnimator
@@ -28,12 +24,10 @@ class RoboMasterBot:
 
 
     def update(self):
-        # Update position
         self.position[0] += random.uniform(-0.1, 0.1)
         self.position[1] += random.uniform(-0.1, 0.1)
         self.orientation = (self.orientation + random.uniform(-1, 1)) % 360
 
-        # Update metrics
         self.yaw = (self.yaw - random.uniform(0, 0.5)) %( 2*3.14159)
         self.pitch = min(85, self.pitch + random.uniform(-0.5, 0.5))
 
@@ -81,7 +75,7 @@ class RoboMasterBot:
 
 if __name__ == "__main__":
     bot = RoboMasterBot()
-    delay = 1/60
+    target_fps = 1/30
     while True:
         last_sent = time.time()
 
@@ -94,7 +88,7 @@ if __name__ == "__main__":
             print("Failed to send data to server")
             time.sleep(1)
 
-        delta = delay - (time.time() - last_sent)
+        delta = target_fps - (time.time() - last_sent)
         if delta > 0:
             time.sleep(delta)
         else:

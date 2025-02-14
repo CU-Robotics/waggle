@@ -1,29 +1,30 @@
 interface ImageData {
-    image_data: string;
-    scale: number;
-    flip: boolean;
+  image_data: string;
+  scale: number;
+  flip: boolean;
 }
 
 interface GraphData {
-    timestamp: number;
-    value: number;
+  timestamp: number;
+  value: number;
 }
 
 interface StringData {
-    value: string;
+  value: string;
 }
 
 interface RobotPosition {
-    x: number;
-    y: number;
-    heading: number;
+  x: number;
+  y: number;
+  heading: number;
 }
 
 interface RobotData {
-    images: Map<string, ImageData>;
-    graph_data: Map<string, Array<GraphData>>;
-    string_data: Map<string, StringData>;
-    robot_position: RobotPosition;
+  sent_timestamp: number;
+  images: Map<string, ImageData>;
+  graph_data: Map<string, Array<GraphData>>;
+  string_data: Map<string, StringData>;
+  robot_position: RobotPosition;
 }
 
 export type { ImageData, GraphData, StringData, RobotPosition, RobotData };
