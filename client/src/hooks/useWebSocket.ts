@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import { useState, useRef, useEffect } from "react";
-import { RobotData } from "../types";
+import { GraphData, RobotData } from "../types";
+
+let frame_timestamps: number[] = [];
 
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -55,11 +57,35 @@ export function useWebSocket() {
     };
 
     wsRef.current.onmessage = (event) => {
-      const data = JSON.parse(event.data); //todo: fix
+      const data: RobotData[] = JSON.parse(event.data);
+      frame_timestamps.push(Date.now());
+
+      if (frame_timestamps.length > 100) {
+        frame_timestamps.shift();
+        const fps =
+          1000 /
+          ((frame_timestamps[frame_timestamps.length - 1] -
+            frame_timestamps[0]) /
+            frame_timestamps.length);
+        const fps_data: GraphData = {
+          timestamp: Date.now(),
+          value: fps,
+        };
+        const map = new Map<string, GraphData[]>(
+          Object.entries(data[data.length - 1].graph_data),
+        );
+        map.set("WAGGLE_FPS", [fps_data]);
+
+        //@ts-ignore
+        data[data.length - 1].graph_data = Object.fromEntries(map);
+      }
       handleIncomingMessage(data);
 
       if (wsRef.current) {
-        wsRef.current.send("Hello from client");
+        const responseData = {
+          initially_sent_timestamp: data[data.length - 1].sent_timestamp,
+        };
+        wsRef.current.send(responseData.toString());
       } else {
         console.log("wsRef.current is null");
       }

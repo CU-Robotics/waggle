@@ -35,6 +35,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		_, _, err := conn.ReadMessage()
+
 		if err != nil {
 			log.Println("Error reading message:", err)
 			break
