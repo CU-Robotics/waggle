@@ -7,6 +7,8 @@ import cv2
 import base64
 import requests
 
+from shape import ShapeAnimator
+
 class RoboMasterBot:
     def __init__(self):
         self.position = [0., 0.]
@@ -21,6 +23,10 @@ class RoboMasterBot:
         self.game_state = "SETUP"
         self.system_health = "OK"
 
+        self.main_camera_animator = ShapeAnimator()
+        self.world_map_animator = ShapeAnimator()
+
+
     def update(self):
         # Update position
         self.position[0] += random.uniform(-0.1, 0.1)
@@ -31,22 +37,21 @@ class RoboMasterBot:
         self.yaw = (self.yaw - random.uniform(0, 0.5)) %( 2*3.14159)
         self.pitch = min(85, self.pitch + random.uniform(-0.5, 0.5))
 
-        cv_mat = (np.random.rand(250, 500) * 255).astype(np.uint8)
-        _, jpeg_data = cv2.imencode('.jpg', cv_mat)
-        cv_mat_base64 = base64.b64encode(jpeg_data).decode()
+        current_time = time.time()
 
-        current_time = int(time.time() * 1000)
+        main_camera_img = self.main_camera_animator.create_frame()
+        world_map_img = self.world_map_animator.create_frame()
 
         return {
             "sent_timestamp": current_time,
             "images": {
                 "main_camera (this is all simulated data btw)": {
-                    "image_data": cv_mat_base64,
+                    "image_data": main_camera_img,
                     "scale": 1,
                     "flip": False
                 },
                 "world_map": {
-                    "image_data": cv_mat_base64,
+                    "image_data": world_map_img,
                     "scale": 1,
                     "flip": False
                 }
@@ -76,15 +81,21 @@ class RoboMasterBot:
 
 if __name__ == "__main__":
     bot = RoboMasterBot()
+    delay = 1/60
     while True:
+        last_sent = time.time()
+
         data = json.dumps(bot.update())
         URL = "http://localhost:3000/batch"
 
         try:
             r = requests.post(url=URL, data=data)
-            print(f"Data sent at {time.time()}")
         except:
             print("Failed to send data to server")
             time.sleep(1)
 
-        time.sleep(0.05)
+        delta = delay - (time.time() - last_sent)
+        if delta > 0:
+            time.sleep(delta)
+        else:
+            print(f'Missed deadline by {-delta} seconds')

@@ -16,7 +16,7 @@ type ImageData struct {
 }
 
 type GraphData struct {
-	Timestamp int64   `json:"timestamp"`
+	Timestamp float64 `json:"timestamp"`
 	Value     float64 `json:"value"`
 }
 
@@ -31,7 +31,7 @@ type StringData struct {
 }
 
 type RobotData struct {
-	SentTimestamp int                    `json:"sent_timestamp"`
+	SentTimestamp float64                `json:"sent_timestamp"`
 	Images        map[string]ImageData   `json:"images"`
 	GraphData     map[string][]GraphData `json:"graph_data"`
 	StringData    map[string]StringData  `json:"string_data"`

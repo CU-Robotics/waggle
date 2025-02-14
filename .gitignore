@@ -8,4 +8,6 @@ waggle.exe
 .zed
 
 .ropeproject
+
 venv
+__pycache__
