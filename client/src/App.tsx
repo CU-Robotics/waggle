@@ -1,12 +1,8 @@
 import { useState } from "react";
-import { IconFileFilled, IconPower } from "@tabler/icons-react";
 import { useWebSocket } from "./hooks/useWebSocket";
-import Notifications from "./components/Notifications";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import gameField from "./assets/game_field.png";
-
-const notifications: number = 1;
 
 function App() {
   const { isConnected, graphData, imageData } = useWebSocket();
@@ -38,10 +34,10 @@ function App() {
         {/* Nav bar */}
         <nav className="mb-2 flex justify-between border-b p-2">
           <div className="flex items-center gap-1">
-            <IconFileFilled size={20} />
+            {/* <IconFileFilled size={20} />
             <p className="underline">
               <a href="/">file editor</a>
-            </p>
+            </p> */}
             <p className="rounded-md border p-1 text-sm">
               {/* Operating mode: {stringData.mode} */}
             </p>
@@ -54,12 +50,12 @@ function App() {
             <BatteryStatus
               batteryVoltage={telemetryData.power.battery_voltage}
             /> */}
-            <Notifications notifications={notifications} />
-            <div>
+            {/* <Notifications notifications={notifications} /> */}
+            {/* <div>
               <div className="m-1 ml-6 flex items-center rounded bg-red-500 p-1 text-white">
                 <IconPower size={20} />
               </div>
-            </div>
+            </div> */}
           </div>
         </nav>
 

@@ -12,10 +12,9 @@ class RoboMasterBot:
         self.position = [0., 0.]
         self.orientation = 0
 
-        self.battery_voltage = 24.0
-        self.cpu_temp = 45.0
-        self.signal_strength = -50
-        self.latency = 15
+        self.yaw = 24.0
+        self.pitch = 45.0
+
 
         # Status strings
         self.mode = "AUTONOMOUS"
@@ -29,12 +28,10 @@ class RoboMasterBot:
         self.orientation = (self.orientation + random.uniform(-1, 1)) % 360
 
         # Update metrics
-        self.battery_voltage = max(20.0, self.battery_voltage - random.uniform(0, 0.01))
-        self.cpu_temp = max(35, min(85, self.cpu_temp + random.uniform(-0.5, 0.5)))
-        self.signal_strength = max(-90, min(-30, self.signal_strength + random.uniform(-2, 2)))
-        self.latency = max(5, min(100, self.latency + random.uniform(-2, 2)))
+        self.yaw = (self.yaw - random.uniform(0, 0.5)) %( 2*3.14159)
+        self.pitch = min(85, self.pitch + random.uniform(-0.5, 0.5))
 
-        cv_mat = (np.random.rand(120, 160) * 255).astype(np.uint8)
+        cv_mat = (np.random.rand(250, 500) * 255).astype(np.uint8)
         _, jpeg_data = cv2.imencode('.jpg', cv_mat)
         cv_mat_base64 = base64.b64encode(jpeg_data).decode()
 
@@ -43,34 +40,27 @@ class RoboMasterBot:
         return {
             "sent_timestamp": current_time,
             "images": {
-                "main_camera": {
+                "main_camera (this is all simulated data btw)": {
                     "image_data": cv_mat_base64,
                     "scale": 1,
                     "flip": False
                 },
-                "thermal_camera": {
+                "world_map": {
                     "image_data": cv_mat_base64,
                     "scale": 1,
                     "flip": False
                 }
             },
             "graph_data": {
-                "Battery_Voltage": [{
+                "Turret Yaw": [{
                     "timestamp": current_time,
-                    "value": self.battery_voltage
+                    "value": self.yaw
                 }],
-                "CPU_Temperature": [{
+                "Turret Pitch": [{
                     "timestamp": current_time,
-                    "value": self.cpu_temp
+                    "value": self.pitch
                 }],
-                "Signal_Strength": [{
-                    "timestamp": current_time,
-                    "value": self.signal_strength
-                }],
-                "Latency": [{
-                    "timestamp": current_time,
-                    "value": self.latency
-                }]
+
             },
             "string_data": {
                 "mode": {"value": self.mode},
