@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
-import { IconMoonFilled, IconBrightnessDownFilled } from '@tabler/icons-react';
+import { IconFileFilled, IconMoonFilled, IconBrightnessDownFilled } from '@tabler/icons-react';
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import gameField from "./assets/game_field.png";
 
 function App() {
-  const { isConnected, graphData, imageData } = useWebSocket();
+  const { isConnected, graphData, imageData, stringData } = useWebSocket();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
 
@@ -56,35 +56,18 @@ function App() {
   return (
     <>
       <div className="h-screen w-full dark:bg-gray-900 dark:text-white">
-        <nav className="mb-2 flex justify-between border-b p-2">
+        <div className="mb-2 flex justify-between border-b p-2">
           <div className="flex items-center gap-1">
-            {/* <IconFileFilled size={20} />
+            <IconFileFilled size={20} />
             <p className="underline">
               <a href="/">file editor</a>
-            </p> */}
-            <p className="rounded-md border p-1 text-sm">
-              {/* Operating mode: {stringData.mode} */}
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            <ConnectionStatus connectionStatus={isConnected} />
+          <ConnectionStatus connectionStatus={isConnected} />
             <button onClick={handleToggle}>
               {isDarkMode ? <IconMoonFilled size={20} /> : <IconBrightnessDownFilled size={20} />}
             </button>
-            {/* <SignalStatus
-              signalStrength={telemetryData.communications.signal_strength}
-            />
-            <BatteryStatus
-              batteryVoltage={telemetryData.power.battery_voltage}
-            /> */}
-            {/* <Notifications notifications={notifications} /> */}
-            {/* <div>
-              <div className="m-1 ml-6 flex items-center rounded bg-red-500 p-1 text-white">
-                <IconPower size={20} />
-              </div>
-            </div> */}
-          </div>
-        </nav>
+        </div>
 
         {/* Sensor readings */}
         <div className="m-2 flex flex-wrap gap-4">
@@ -120,36 +103,20 @@ function App() {
           </div>
         )}
 
-        {/* Main view camera feed */}
+        {/* String Data Section */}
         <div className="flex">
           <div className="flex w-1/3 flex-col justify-between">
-            {/* <div className="m-2 rounded-md border">
-              <div className="flex items-center justify-between border-b p-2">
-                <p>Hive Mode</p>
-                <Toggle size="small" />
-              </div>
-              <div className="flex items-center justify-between border-b p-2">
-                <p>Servo</p>
-                <Toggle size="small" />
-              </div>
-              <div className="flex items-center justify-between border-b p-2">
-                <p>Emergency stop</p>
-                <Toggle size="small" />
-              </div>
-              <div className="flex items-center justify-between border-b p-2">
-                <p>Auto aim</p>
-                <Toggle size="small" defaultChecked />
-              </div>
-              <div className="flex items-center justify-between border-b p-2">
-                <p>Example toggle</p>
-                <Toggle size="small" defaultChecked />
-              </div>
-              <div className="flex items-center justify-between p-2">
-                <p>Add more data/modes</p>
-              </div>
-            </div> */}
+            <div className="m-2 rounded-md border border-b-0">
+              {Array.from(stringData).map(([key, value]) => (
+                <div className="flex items-center justify-between border-b p-2" key={key}>
+                  <p>{key}: {value.value}</p>
+                </div>
+              ))
+              }
+            </div>
             <img src={gameField} alt="" className="m-2 rounded-md border" />
           </div>
+          {/* Main view camera feed */}
           <div className="m-2 flex w-3/4 flex-col rounded-md border">
             <div className="flex items-center justify-center">
               <div className="m-2 flex flex-wrap">
