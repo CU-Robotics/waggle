@@ -23,7 +23,7 @@ function LiveGraph({ title, data, onRemove }: LiveGraphProps) {
         <h3 className="font-semibold">{title}</h3>
         <button
           onClick={onRemove}
-          className="rounded-full p-1 hover:bg-gray-100"
+          className="rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
           aria-label="Remove graph"
         >
           <IconX size={16} />
