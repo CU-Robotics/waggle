@@ -1,6 +1,7 @@
 golang-test
 waggle
 waggle.exe
+waggle.log
 
 .exe
 .sh
