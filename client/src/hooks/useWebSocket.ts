@@ -115,7 +115,7 @@ export function useWebSocket() {
           for (const [key, value] of Object.entries(data.graph_data)) {
             if (newData.has(key)) {
               const updatedArray = [...(newData.get(key) || []), ...value];
-              const maxPoint = 5000;
+              const maxPoint = 500;
               const trimmedArray =
                 updatedArray.length > maxPoint
                   ? updatedArray.slice(updatedArray.length - maxPoint)
