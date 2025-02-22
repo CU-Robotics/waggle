@@ -66,4 +66,33 @@ go build
 
 ## Development
 
-In addition to Go, you need to install 
+In addition to Go, you need to install node. This is easiest with nvm
+
+```bash
+cd && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+```
+
+Then install Node 20
+
+```bash
+nvm install 20
+```
+
+Set Node 20 as the default
+
+```bash
+nvm use 20
+```
+
+Now, whenever you make a change to Go code, run
+
+```bash
+go build
+```
+
+And whenever you make a change to the client code, run the following from **inside the `client/` directory**
+
+```bash
+npm run build
+```
+
