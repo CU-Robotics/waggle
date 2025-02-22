@@ -34,27 +34,26 @@ function LiveGraph({ title, data, onRemove }: LiveGraphProps) {
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
-              dataKey="timestamp"
+              dataKey="x"
               domain={["auto", "auto"]}
-              tickFormatter={(timestamp) => {
-                const date = new Date(timestamp);
-                return `${date.getMinutes()}:${date.getSeconds()}`;
-              }}
+              // tickFormatter={(x) => {
+              //   const date = new Date(x);
+              //   return `${date.getMinutes()}:${date.getSeconds()}`;
+              // }}
             />
             <YAxis domain={["auto", "auto"]} />
             <Tooltip
-              labelFormatter={(timestamp) => {
-                const date = new Date(timestamp);
-                return `Time: ${date.getMinutes()}:${date.getSeconds()}.${date.getMilliseconds()}`;
+              labelFormatter={(x) => {
+                return `X: ${x}`;
               }}
-              formatter={(value: number) => [
-                `${Math.round(value * 100) / 100}`,
+              formatter={(y: number) => [
+                `${Math.round(y * 100) / 100}`,
                 "Value",
               ]}
             />
             <Line
               type="monotone"
-              dataKey="value"
+              dataKey="y"
               stroke="#8884d8"
               dot={false}
               isAnimationActive={false}

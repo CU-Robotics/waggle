@@ -4,9 +4,9 @@ interface ImageData {
   flip: boolean;
 }
 
-interface GraphData {
-  timestamp: number;
-  value: number;
+interface GraphDataPoint {
+  x: number;
+  y: number;
 }
 
 interface StringData {
@@ -22,9 +22,15 @@ interface RobotPosition {
 interface RobotData {
   sent_timestamp: number;
   images: Map<string, ImageData>;
-  graph_data: Map<string, Array<GraphData>>;
+  graph_data: Map<string, Array<GraphDataPoint>>;
   string_data: Map<string, StringData>;
   robot_position: RobotPosition;
 }
 
-export type { ImageData, GraphData, StringData, RobotPosition, RobotData };
+export type {
+  ImageData,
+  GraphDataPoint as GraphData,
+  StringData,
+  RobotPosition,
+  RobotData,
+};

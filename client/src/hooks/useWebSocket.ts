@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { GraphData, RobotData } from "../types";
 
-let frame_timestamps: number[] = [];
+const frame_timestamps: number[] = [];
 
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -68,8 +68,8 @@ export function useWebSocket() {
             frame_timestamps[0]) /
             frame_timestamps.length);
         const fps_data: GraphData = {
-          timestamp: Date.now(),
-          value: fps,
+          x: Date.now(),
+          y: fps,
         };
         const map = new Map<string, GraphData[]>(
           Object.entries(data[data.length - 1].graph_data),

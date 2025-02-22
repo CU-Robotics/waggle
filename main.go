@@ -15,9 +15,9 @@ type ImageData struct {
 	Flip      bool   `json:"flip"`
 }
 
-type GraphData struct {
-	Timestamp float64 `json:"timestamp"`
-	Value     float64 `json:"value"`
+type GraphDataPoint struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
 }
 
 type RobotPosition struct {
@@ -31,11 +31,11 @@ type StringData struct {
 }
 
 type RobotData struct {
-	SentTimestamp float64                `json:"sent_timestamp"`
-	Images        map[string]ImageData   `json:"images"`
-	GraphData     map[string][]GraphData `json:"graph_data"`
-	StringData    map[string]StringData  `json:"string_data"`
-	RobotPosition RobotPosition          `json:"robot_position"`
+	SentTimestamp float64                     `json:"sent_timestamp"`
+	Images        map[string]ImageData        `json:"images"`
+	GraphData     map[string][]GraphDataPoint `json:"graph_data"`
+	StringData    map[string]StringData       `json:"string_data"`
+	RobotPosition RobotPosition               `json:"robot_position"`
 }
 
 type ResponeData struct {

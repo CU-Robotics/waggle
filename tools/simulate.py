@@ -31,7 +31,7 @@ class RoboMasterBot:
         self.yaw = (self.yaw - random.uniform(0, 0.5)) %( 2*3.14159)
         self.pitch = min(85, self.pitch + random.uniform(-0.5, 0.5))
 
-        current_time = time.time()
+        current_time = time.time() % 10
 
         main_camera_img = self.main_camera_animator.create_frame()
         world_map_img = self.world_map_animator.create_frame()
@@ -52,12 +52,12 @@ class RoboMasterBot:
             },
             "graph_data": {
                 "Turret Yaw": [{
-                    "timestamp": current_time,
-                    "value": self.yaw
+                    "x": current_time,
+                    "y": self.yaw
                 }],
                 "Turret Pitch": [{
-                    "timestamp": current_time,
-                    "value": self.pitch
+                    "x": current_time,
+                    "y": self.pitch
                 }],
 
             },
