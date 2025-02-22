@@ -16,8 +16,12 @@ type ImageData struct {
 }
 
 type GraphDataPoint struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
+	X        float64           `json:"x"`
+	Y        float64           `json:"y"`
+	Settings GraphDataSettings `json:"settings"`
+}
+type GraphDataSettings struct {
+	ClearData bool `json:"clear_data"`
 }
 
 type RobotPosition struct {

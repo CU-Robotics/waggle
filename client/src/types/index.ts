@@ -4,9 +4,14 @@ interface ImageData {
   flip: boolean;
 }
 
+interface GraphDataSettings {
+  clear_data: boolean;
+}
+
 interface GraphDataPoint {
   x: number;
   y: number;
+  settings?: GraphDataSettings;
 }
 
 interface StringData {

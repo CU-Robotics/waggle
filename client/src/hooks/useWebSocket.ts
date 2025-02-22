@@ -112,17 +112,28 @@ export function useWebSocket() {
         setGraphData((prevData) => {
           // Create a new Map for this update
           const newData = new Map(prevData);
-          for (const [key, value] of Object.entries(data.graph_data)) {
-            if (newData.has(key)) {
-              const updatedArray = [...(newData.get(key) || []), ...value];
+          for (const [graph_name, _graph_points] of Object.entries(
+            data.graph_data,
+          )) {
+            const graph_points: GraphData[] = _graph_points;
+            if (newData.has(graph_name)) {
+              const updatedArray = [...(newData.get(graph_name) || [])];
+
+              for (const point of graph_points) {
+                if (point.settings?.clear_data) {
+                  updatedArray.splice(0, updatedArray.length);
+                }
+                updatedArray.push(point);
+              }
+
               const maxPoint = 5000;
               const trimmedArray =
                 updatedArray.length > maxPoint
                   ? updatedArray.slice(updatedArray.length - maxPoint)
                   : updatedArray;
-              newData.set(key, trimmedArray);
+              newData.set(graph_name, trimmedArray);
             } else {
-              newData.set(key, [...value]);
+              newData.set(graph_name, [...graph_points]);
             }
           }
           return newData;
