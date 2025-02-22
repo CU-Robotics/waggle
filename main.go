@@ -61,6 +61,8 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
+
+		log.Println("Body:", string(body))
 		return
 	}
 	addDataToBuffer(data)

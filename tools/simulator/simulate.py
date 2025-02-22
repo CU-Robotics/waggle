@@ -4,6 +4,8 @@ import time
 import requests
 
 from shape import ShapeAnimator
+from rose import generate_rose_curve
+import numpy as np
 
 class RoboMasterBot:
     def __init__(self):
@@ -12,6 +14,7 @@ class RoboMasterBot:
 
         self.yaw = 24.0
         self.pitch = 45.0
+        self.last_rose = 0.0
 
 
         # Status strings
@@ -31,12 +34,12 @@ class RoboMasterBot:
         self.yaw = (self.yaw - random.uniform(0, 0.5)) %( 2*3.14159)
         self.pitch = min(85, self.pitch + random.uniform(-0.5, 0.5))
 
-        current_time = time.time() % 10
+        current_time: float = time.time()
 
         main_camera_img = self.main_camera_animator.create_frame()
         world_map_img = self.world_map_animator.create_frame()
 
-        return {
+        data =  {
             "sent_timestamp": current_time,
             "images": {
                 "main_camera (this is all simulated data btw)": {
@@ -72,6 +75,22 @@ class RoboMasterBot:
                 "heading": self.orientation
             }
         }
+
+        if abs(current_time - self.last_rose) > 1:
+            self.last_rose = current_time
+            data["graph_data"]["Rose Curve"] = [{
+                "x":0,
+                "y":0,
+                "settings": {
+                    "clear_data": True
+                }
+            }]
+            data["graph_data"]["Rose Curve"].extend(generate_rose_curve(np.random.randint(1, 10), np.random.randint(1, 10), 100))
+
+
+
+
+        return data
 
 if __name__ == "__main__":
     bot = RoboMasterBot()
