@@ -26,6 +26,7 @@ cd && git clone https://github.com/CU-Robotics/waggle.git
 
 Go into the Waggle directory
 
+
 ```bash
 cd waggle
 ```
@@ -51,6 +52,7 @@ Run the run script
 ## Updating
 
 Pull the new code
+
 
 ```
 git pull
@@ -90,6 +92,7 @@ Install all node dependencies
 cd ~/waggle/client && npm install
 ```
 
+
 Now, whenever you make a change to Go code, run
 
 ```bash
@@ -101,3 +104,4 @@ And whenever you make a change to the client code, run the following from **insi
 ```bash
 npm run build
 ```
+
