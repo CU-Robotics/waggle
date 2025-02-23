@@ -120,11 +120,12 @@ export function useWebSocket() {
               const updatedArray = [...(newData.get(graph_name) || [])];
 
               for (const point of graph_points) {
+                updatedArray.push(point);
+
                 if (point.settings?.clear_data) {
-                  console.log(`Clearing ${graph_name}`)
+                  console.log(`Clearing ${graph_name}`);
                   updatedArray.splice(0, updatedArray.length);
                 }
-                updatedArray.push(point);
               }
 
               const maxPoint = 5000;
