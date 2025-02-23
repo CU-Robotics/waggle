@@ -48,14 +48,15 @@ function App() {
           {Array.from(graphData.entries()).map(([key, value]) => (
             <div
               key={key}
-              className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${activeGraphs.has(key)
-                ? "border-blue-200 bg-blue-50"
-                : "hover:bg-gray-50"
-                }`}
+              className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${
+                activeGraphs.has(key)
+                  ? "border-blue-200 bg-blue-50"
+                  : "hover:bg-gray-50"
+              }`}
               onClick={() => toggleGraph(key)}
             >
               <p>{key}</p>
-              <p>{Math.round(value[value.length - 1].value * 100) / 100}</p>
+              <p>{Math.round(value[value.length - 1].y * 100) / 100}</p>
             </div>
           ))}
         </div>
@@ -82,11 +83,15 @@ function App() {
           <div className="flex w-1/3 flex-col justify-between">
             <div className="m-2 rounded-md border border-b-0">
               {Array.from(stringData).map(([key, value]) => (
-                <div className="flex items-center justify-between border-b p-2" key={key}>
-                  <p>{key}: {value.value}</p>
+                <div
+                  className="flex items-center justify-between border-b p-2"
+                  key={key}
+                >
+                  <p>
+                    {key}: {value.value}
+                  </p>
                 </div>
-              ))
-              }
+              ))}
             </div>
             <img src={gameField} alt="" className="m-2 rounded-md border" />
           </div>

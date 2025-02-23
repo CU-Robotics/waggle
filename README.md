@@ -18,13 +18,14 @@ Download Waggle into your home directory with
 cd && git clone git@github.com:CU-Robotics/waggle.git
 ```
 
-or	
+or
 
 ```sh
 cd && git clone https://github.com/CU-Robotics/waggle.git
 ```
 
-Go into the Waggle directory 
+Go into the Waggle directory
+
 
 ```bash
 cd waggle
@@ -50,7 +51,8 @@ Run the run script
 
 ## Updating
 
-Pull the new code 
+Pull the new code
+
 
 ```
 git pull
@@ -83,6 +85,13 @@ Set Node 20 as the default
 ```bash
 nvm use 20
 ```
+
+Install all node dependencies
+
+```bash
+cd ~/waggle/client && npm install
+```
+
 
 Now, whenever you make a change to Go code, run
 
