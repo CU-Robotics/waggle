@@ -121,6 +121,7 @@ export function useWebSocket() {
 
               for (const point of graph_points) {
                 if (point.settings?.clear_data) {
+                  console.log(`Clearing ${graph_name}`)
                   updatedArray.splice(0, updatedArray.length);
                 }
                 updatedArray.push(point);
