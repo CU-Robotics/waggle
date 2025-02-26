@@ -6,6 +6,14 @@ use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::sleep;
 
+mod image;
+#[derive(Serialize, Deserialize, Debug)]
+struct ImageData {
+    image_data: String,
+    scale: i32,
+    flip: bool,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct GraphDataSettings {
     clear_data: bool,
@@ -33,6 +41,7 @@ struct StringData {
 #[derive(Serialize, Deserialize, Debug)]
 struct RobotData {
     sent_timestamp: f64,
+    images: HashMap<String, ImageData>,
     graph_data: HashMap<String, Vec<GraphDataPoint>>,
     string_data: HashMap<String, StringData>,
     robot_position: RobotPosition,
@@ -96,8 +105,22 @@ fn create_json_string() -> String {
         );
     }
 
+    let mut images: HashMap<String, ImageData> = HashMap::new();
+    for i in 0..2 {
+        let key = format!("image_key_{}", i);
+        images.insert(
+            key,
+            ImageData {
+                image_data: image::generate_timestamp_image(100, 200),
+                scale: rng.r#gen_range(1..=5),
+                flip: rng.r#gen::<bool>(),
+            },
+        );
+    }
+
     let robot_data = RobotData {
         sent_timestamp: rng.r#gen::<f64>(),
+        images,
         graph_data,
         string_data,
         robot_position: random_robot_position(),
@@ -128,7 +151,7 @@ async fn main_loop() {
             }
         }
 
-        sleep(Duration::from_millis(30)).await;
+        // sleep(Duration::from_millis(30)).await;
     }
 }
 
