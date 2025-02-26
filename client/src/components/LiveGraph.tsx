@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import { GraphData } from "../types";
 import { IconX } from "@tabler/icons-react";
+import { useMemo } from "react";
 
 interface LiveGraphProps {
   title: string;
@@ -25,6 +26,28 @@ function LiveGraph({ title, data, onRemove, isDarkMode }: LiveGraphProps) {
     border: isDarkMode ? "1px solid #ddd" : "1px solid #333",
     color: isDarkMode ? "#ddd" : "#333",
   };
+
+  // Calculate domains based on data
+  const domains = useMemo(() => {
+    if (data.length === 0) return { x: [0, 100], y: [0, 100] };
+
+    const xValues = data.map((d) => d.x);
+    const yValues = data.map((d) => d.y);
+
+    const xMin = Math.min(...xValues);
+    const xMax = Math.max(...xValues);
+    const yMin = Math.min(...yValues);
+    const yMax = Math.max(...yValues);
+
+    // Add some padding to the domains
+    const xPadding = (xMax - xMin) * 0.01;
+    const yPadding = (yMax - yMin) * 0.01;
+
+    return {
+      x: [xMin - xPadding, xMax + xPadding],
+      y: [yMin - yPadding, yMax + yPadding],
+    };
+  }, [data]);
 
   return (
     <div className="flex h-[300px] w-[450px] flex-col rounded-lg border p-4">
@@ -43,32 +66,35 @@ function LiveGraph({ title, data, onRemove, isDarkMode }: LiveGraphProps) {
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
             <XAxis
-              dataKey="timestamp"
-              domain={["auto", "auto"]}
+              type="number"
+              dataKey="x"
               stroke={axisTickFill}
-              tickFormatter={(timestamp) => {
-                const date = new Date(timestamp);
-                return `${date.getMinutes()}:${date.getSeconds()}`;
-              }}
+              domain={domains.x}
+              allowDataOverflow={true}
+              tickFormatter={(x) => `${Math.round(x * 100) / 100}`}
             />
-            <YAxis domain={["auto", "auto"]} stroke={axisTickFill} />
+            <YAxis
+              type="number"
+              stroke={axisTickFill}
+              domain={domains.y}
+              allowDataOverflow={true}
+              tickFormatter={(y) => `${Math.round(y * 100) / 100}`}
+            />
             <Tooltip
               contentStyle={tooltipContentStyle}
-              labelFormatter={(timestamp) => {
-                const date = new Date(timestamp);
-                return `Time: ${date.getMinutes()}:${date.getSeconds()}.${date.getMilliseconds()}`;
-              }}
-              formatter={(value: number) => [
-                `${Math.round(value * 100) / 100}`,
+              labelFormatter={(x) => `X: ${x}`}
+              formatter={(y: number) => [
+                `${Math.round(y * 100) / 100}`,
                 "Value",
               ]}
             />
             <Line
               type="monotone"
-              dataKey="value"
+              dataKey="y"
               stroke="#8884d8"
               dot={false}
               isAnimationActive={false}
+              connectNulls={true}
             />
           </LineChart>
         </ResponsiveContainer>
