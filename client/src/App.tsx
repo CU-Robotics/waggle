@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
-import { IconFileFilled, IconMoonFilled, IconBrightnessDownFilled } from '@tabler/icons-react';
+import {
+  IconFileFilled,
+  IconMoonFilled,
+  IconBrightnessDownFilled,
+} from "@tabler/icons-react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import gameField from "./assets/game_field.png";
@@ -31,25 +35,26 @@ function App() {
   };
 
   const handleToggle = () => {
-    setIsDarkMode(prevMode => !prevMode);
+    setIsDarkMode((prevMode) => !prevMode);
 
-    document.documentElement.classList.toggle('dark');
+    document.documentElement.classList.toggle("dark");
 
-    if (document.documentElement.classList.contains('dark')) {
-      localStorage.theme = 'dark';
+    if (document.documentElement.classList.contains("dark")) {
+      localStorage.theme = "dark";
     } else {
-      localStorage.theme = 'light'; // Could add ability to clear theme and default to system theme 
+      localStorage.theme = "light"; // Could add ability to clear theme and default to system theme
     }
   };
 
   useEffect(() => {
-    const initialTheme = localStorage.theme === 'dark' ||
-      (!('theme' in localStorage) &&
-        window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const initialTheme =
+      localStorage.theme === "dark" ||
+      (!("theme" in localStorage) &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
 
     setIsDarkMode(initialTheme);
     if (initialTheme) {
-      document.documentElement.classList.add('dark');
+      document.documentElement.classList.add("dark");
     }
   }, []);
 
@@ -65,9 +70,13 @@ function App() {
           </div>
           <div className="flex items-center gap-4">
             <ConnectionStatus connectionStatus={isConnected} />
-              <button onClick={handleToggle}>
-                {isDarkMode ? <IconMoonFilled size={20} /> : <IconBrightnessDownFilled size={20} />}
-              </button>
+            <button onClick={handleToggle}>
+              {isDarkMode ? (
+                <IconMoonFilled size={20} />
+              ) : (
+                <IconBrightnessDownFilled size={20} />
+              )}
+            </button>
           </div>
         </div>
 
@@ -76,18 +85,11 @@ function App() {
           {Array.from(graphData.entries()).map(([key, value]) => (
             <div
               key={key}
-<<<<<<< HEAD
-              className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${activeGraphs.has(key)
-                  ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
-                  : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                }`}
-=======
               className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${
                 activeGraphs.has(key)
-                  ? "border-blue-200 bg-blue-50"
-                  : "hover:bg-gray-50"
+                  ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
+                  : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
               }`}
->>>>>>> origin/main
               onClick={() => toggleGraph(key)}
             >
               <p>{key}</p>
