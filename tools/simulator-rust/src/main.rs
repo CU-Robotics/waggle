@@ -106,12 +106,13 @@ fn create_json_string() -> String {
     }
 
     let mut images: HashMap<String, ImageData> = HashMap::new();
-    for i in 0..2 {
+    let image = image::generate_timestamp_image(200, 200);
+    for i in 0..20 {
         let key = format!("image_key_{}", i);
         images.insert(
             key,
             ImageData {
-                image_data: image::generate_timestamp_image(100, 200),
+                image_data: image.clone(),
                 scale: rng.r#gen_range(1..=5),
                 flip: rng.r#gen::<bool>(),
             },
@@ -133,6 +134,7 @@ async fn main_loop() {
     let client = reqwest::Client::new();
 
     loop {
+        let start = SystemTime::now();
         let json_str = create_json_string();
         println!("Sending");
 
@@ -151,7 +153,11 @@ async fn main_loop() {
             }
         }
 
-        // sleep(Duration::from_millis(30)).await;
+        let elapsed = start.elapsed().unwrap();
+        let remaining = Duration::from_secs(1) / 30 - elapsed;
+        if remaining.as_millis() > 0 {
+            sleep(remaining).await;
+        }
     }
 }
 
