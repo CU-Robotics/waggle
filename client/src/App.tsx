@@ -1,12 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
-import { IconFileFilled } from "@tabler/icons-react";
+import {
+  IconFileFilled,
+  IconMoonFilled,
+  IconBrightnessDownFilled,
+} from "@tabler/icons-react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import gameField from "./assets/game_field.png";
 
 function App() {
   const { isConnected, graphData, imageData, stringData } = useWebSocket();
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
 
   const toggleGraph = (key: string) => {
@@ -29,10 +34,33 @@ function App() {
     });
   };
 
+  const handleToggle = () => {
+    setIsDarkMode((prevMode) => !prevMode);
+
+    document.documentElement.classList.toggle("dark");
+
+    if (document.documentElement.classList.contains("dark")) {
+      localStorage.theme = "dark";
+    } else {
+      localStorage.theme = "light"; // Could add ability to clear theme and default to system theme
+    }
+  };
+
+  useEffect(() => {
+    const initialTheme =
+      localStorage.theme === "dark" ||
+      (!("theme" in localStorage) &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+    setIsDarkMode(initialTheme);
+    if (initialTheme) {
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
+
   return (
     <>
-      <div className="h-screen w-full">
-        {/* Nav bar */}
+      <div className="h-screen w-full dark:bg-neutral-800 dark:text-white">
         <div className="mb-2 flex justify-between border-b p-2">
           <div className="flex items-center gap-1">
             <IconFileFilled size={20} />
@@ -40,18 +68,27 @@ function App() {
               <a href="/">file editor</a>
             </p>
           </div>
-          <ConnectionStatus connectionStatus={isConnected} />
+          <div className="flex items-center gap-4">
+            <ConnectionStatus connectionStatus={isConnected} />
+            <button onClick={handleToggle}>
+              {isDarkMode ? (
+                <IconMoonFilled size={20} />
+              ) : (
+                <IconBrightnessDownFilled size={20} />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Sensor readings */}
-        <div className="m-2 flex justify-between">
+        <div className="m-2 flex flex-wrap gap-2">
           {Array.from(graphData.entries()).map(([key, value]) => (
             <div
               key={key}
               className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${
                 activeGraphs.has(key)
-                  ? "border-blue-200 bg-blue-50"
-                  : "hover:bg-gray-50"
+                  ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
+                  : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
               }`}
               onClick={() => toggleGraph(key)}
             >
@@ -63,7 +100,7 @@ function App() {
 
         {/* Live Graphs Section */}
         {activeGraphs.size > 0 && (
-          <div className="m-2 rounded-lg border bg-gray-50 p-4">
+          <div className="m-2 rounded-lg border p-4">
             <h2 className="mb-4 text-lg font-semibold">Live Graphs</h2>
             <div className="flex flex-wrap gap-4">
               {Array.from(activeGraphs).map((key) => (
@@ -72,6 +109,7 @@ function App() {
                   title={key}
                   data={graphData.get(key) || []}
                   onRemove={() => removeGraph(key)}
+                  isDarkMode={isDarkMode}
                 />
               ))}
             </div>

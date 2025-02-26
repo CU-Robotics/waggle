@@ -15,9 +15,18 @@ interface LiveGraphProps {
   title: string;
   data: GraphData[];
   onRemove: () => void;
+  isDarkMode: boolean;
 }
 
-function LiveGraph({ title, data, onRemove }: LiveGraphProps) {
+function LiveGraph({ title, data, onRemove, isDarkMode }: LiveGraphProps) {
+  const gridStroke = isDarkMode ? "#ddd" : "#111";
+  const axisTickFill = isDarkMode ? "#ddd" : "#777";
+  const tooltipContentStyle = {
+    background: isDarkMode ? "#333" : "#fff",
+    border: isDarkMode ? "1px solid #ddd" : "1px solid #333",
+    color: isDarkMode ? "#ddd" : "#333",
+  };
+
   // Calculate domains based on data
   const domains = useMemo(() => {
     if (data.length === 0) return { x: [0, 100], y: [0, 100] };
@@ -46,7 +55,7 @@ function LiveGraph({ title, data, onRemove }: LiveGraphProps) {
         <h3 className="font-semibold">{title}</h3>
         <button
           onClick={onRemove}
-          className="rounded-full p-1 hover:bg-gray-100"
+          className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
           aria-label="Remove graph"
         >
           <IconX size={16} />
@@ -55,21 +64,24 @@ function LiveGraph({ title, data, onRemove }: LiveGraphProps) {
       <div className="flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
             <XAxis
               type="number"
               dataKey="x"
+              stroke={axisTickFill}
               domain={domains.x}
               allowDataOverflow={true}
               tickFormatter={(x) => `${Math.round(x * 100) / 100}`}
             />
             <YAxis
               type="number"
+              stroke={axisTickFill}
               domain={domains.y}
               allowDataOverflow={true}
               tickFormatter={(y) => `${Math.round(y * 100) / 100}`}
             />
             <Tooltip
+              contentStyle={tooltipContentStyle}
               labelFormatter={(x) => `X: ${x}`}
               formatter={(y: number) => [
                 `${Math.round(y * 100) / 100}`,
