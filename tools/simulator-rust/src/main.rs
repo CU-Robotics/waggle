@@ -176,7 +176,8 @@ async fn main() -> std::io::Result<()> {
     let command = &args[1];
     let command_args = &args[2..];
 
-    let mut child = Command::new(command)
+    let mut child = Command::new("unbuffer")
+        .arg(command)
         .args(command_args)
         .stdout(Stdio::piped())
         .spawn()?;
@@ -186,7 +187,7 @@ async fn main() -> std::io::Result<()> {
 
     for line in reader.lines() {
         let line = line?;
-        println!("{}", line);
+        println!("reeeee {}", line);
         let split: Vec<&str> = line.split_ascii_whitespace().collect();
         if split.len() < 1 {
             continue;

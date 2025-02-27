@@ -1,3 +1,4 @@
+import time
 a = '''
 (base) zhixing-li@Zhixings-MacBook-Air firmware % make upload
 We've detected you are using a Mac! Consult God if this breaks.
@@ -46,7 +47,9 @@ Random Num: 313ab95b
 1
 3
 Calibrating IMU...
+'''
 
+b = '''
 ll_ddot: 0.00
 lr_ddot: 0.00
 theta_ll: -13.462652
@@ -159,3 +162,5 @@ wheel_speed_filtered: 0.
 '''
 
 print(a)
+time.sleep(3)
+print(b)
