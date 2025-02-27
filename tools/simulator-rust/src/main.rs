@@ -2,11 +2,15 @@ use rand::Rng;
 use rand::distributions::Alphanumeric;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env;
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::sleep;
 
 mod image;
+
 #[derive(Serialize, Deserialize, Debug)]
 struct ImageData {
     image_data: String,
@@ -160,8 +164,36 @@ async fn main_loop() {
         }
     }
 }
-
 #[tokio::main]
-async fn main() {
-    main_loop().await;
+async fn main() -> std::io::Result<()> {
+    // main_loop().await;
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: {} <command> [arguments...]", args[0]);
+        std::process::exit(1);
+    }
+
+    let command = &args[1];
+    let command_args = &args[2..];
+
+    let mut child = Command::new(command)
+        .args(command_args)
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    let stdout = child.stdout.take().expect("Failed to capture stdout");
+    let reader = BufReader::new(stdout);
+
+    for line in reader.lines() {
+        let line = line?;
+        println!("{}", line);
+        let split: Vec<&str> = line.split_ascii_whitespace().collect();
+        if split.len() < 1 {
+            continue;
+        }
+    }
+
+    child.wait()?;
+
+    Ok(())
 }
