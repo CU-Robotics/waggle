@@ -42,7 +42,7 @@ fn draw_ball(
 /// The ball's position is computed from the current timestamp.
 /// The image is filled with a white background, and the ball is drawn in red.
 pub fn generate_timestamp_image(width: u32, height: u32) -> String {
-    let timestamp_ms = current_timestamp_ms() as f64;
+    let timestamp_ms = current_timestamp_nanos() as f64;
     let seconds = timestamp_ms / 1000.0;
 
     // Ball parameters: radius is 10% of the smallest dimension.
@@ -95,9 +95,9 @@ pub fn generate_timestamp_image(width: u32, height: u32) -> String {
 }
 
 /// Helper function to get the current timestamp in milliseconds.
-pub fn current_timestamp_ms() -> u64 {
+pub fn current_timestamp_nanos() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
-        .as_millis() as u64
+        .as_nanos() as u64
 }

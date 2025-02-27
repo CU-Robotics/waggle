@@ -47,9 +47,6 @@ Random Num: 313ab95b
 1
 3
 Calibrating IMU...
-'''
-
-b = '''
 ll_ddot: 0.00
 lr_ddot: 0.00
 theta_ll: -13.462652
@@ -113,16 +110,16 @@ lr_ddot: 0.00
 theta_ll: -13.464929
 theta_lr: -12.355460
 theta_ll_dot: -0.972707
-theta_lr_dot: -0.972707
+waggle graph theta_lr_dot: -0.972707
 jl: 0.05 0.27
 -0.05 0.31
 jr: 0.05 0.29
 -0.05 0.31
 pitch: 0.192265, roll: 0.007819, yaw: 0.499065
-torque_fr: 14.00
-torque_fl: -14.00
+waggle graph torque_fr: 14.00
+waggle graph torque_fl: -14.00
 torque_bl: 4.64
-torque_br: -5.39
+waggle graph torque_br: -5.39
 torque_wl: -2.83
 torque_wr: 2.81
 SAFTYON
@@ -151,7 +148,7 @@ pitch: 0.192280, roll: 0.007814, yaw: 0.499068
 torque_fr: 14.00
 torque_fl: -14.00
 torque_bl: 4.64
-torque_br: -5.47
+waggle graph torque_br: -5.47
 torque_wl: -2.83
 torque_wr: 2.80
 SAFTYON
@@ -162,5 +159,5 @@ wheel_speed_filtered: 0.
 '''
 
 print(a)
-time.sleep(3)
+time.sleep(1)
 print(b)

@@ -1,3 +1,4 @@
+use image::current_timestamp_nanos;
 use rand::Rng;
 use rand::distributions::Alphanumeric;
 use serde::{Deserialize, Serialize};
@@ -51,6 +52,22 @@ struct RobotData {
     robot_position: RobotPosition,
 }
 
+impl Default for RobotData {
+    fn default() -> Self {
+        RobotData {
+            sent_timestamp: 0.0,
+            images: HashMap::new(),
+            graph_data: HashMap::new(),
+            string_data: HashMap::new(),
+            robot_position: RobotPosition {
+                x: 0.0,
+                y: 0.0,
+                heading: 0.0,
+            },
+        }
+    }
+}
+
 fn random_string(len: usize) -> String {
     rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -89,7 +106,7 @@ fn random_robot_position() -> RobotPosition {
     }
 }
 
-fn create_json_string() -> String {
+fn create_json_string() -> RobotData {
     let mut rng = rand::thread_rng();
 
     let mut graph_data: HashMap<String, Vec<GraphDataPoint>> = HashMap::new();
@@ -131,31 +148,16 @@ fn create_json_string() -> String {
         robot_position: random_robot_position(),
     };
 
-    serde_json::to_string_pretty(&robot_data).unwrap()
+    robot_data
 }
 
-async fn main_loop() {
-    let client = reqwest::Client::new();
-
+async fn send_random_loop() {
     loop {
         let start = SystemTime::now();
-        let json_str = create_json_string();
+        let robot_data = create_json_string();
         println!("Sending");
 
-        match client
-            .post("http://localhost:3000/batch")
-            .header("Content-Type", "application/json")
-            .body(json_str.clone())
-            .send()
-            .await
-        {
-            Ok(response) => {
-                println!("Sent successfully: Status {}", response.status());
-            }
-            Err(e) => {
-                println!("Error sending request: {}", e);
-            }
-        }
+        send_data(robot_data).await;
 
         let elapsed = start.elapsed().unwrap();
         let remaining = Duration::from_secs(1) / 30 - elapsed;
@@ -164,6 +166,28 @@ async fn main_loop() {
         }
     }
 }
+
+async fn send_data(robot_data: RobotData) {
+    let client = reqwest::Client::new();
+
+    let json_str = serde_json::to_string_pretty(&robot_data).unwrap();
+
+    match client
+        .post("http://localhost:3000/batch")
+        .header("Content-Type", "application/json")
+        .body(json_str.clone())
+        .send()
+        .await
+    {
+        Ok(response) => {
+            println!("Sent successfully: Status {}", response.status());
+        }
+        Err(e) => {
+            println!("Error sending request: {}", e);
+        }
+    };
+}
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     // main_loop().await;
@@ -185,16 +209,50 @@ async fn main() -> std::io::Result<()> {
     let stdout = child.stdout.take().expect("Failed to capture stdout");
     let reader = BufReader::new(stdout);
 
+    let mut robot_data = RobotData::default();
+    let mut data_counter = 0;
+
     for line in reader.lines() {
-        let line = line?;
+        let line = line?.to_lowercase();
         println!("reeeee {}", line);
         let split: Vec<&str> = line.split_ascii_whitespace().collect();
-        if split.len() < 1 {
+        if split.len() < 4 {
+            continue;
+        }
+        if split[0] != "waggle" {
+            continue;
+        }
+        if split[1] == "graph" {
+            let graph_name = split[2];
+            println!("parsing {}", split[3]);
+            let value: Result<f64, _> = split[3].parse();
+            if let Ok(value) = value {
+                println!("Graph {}: {}", graph_name, value);
+                let graph_data: GraphDataPoint = GraphDataPoint {
+                    x: (current_timestamp_nanos() as f64),
+                    y: value,
+                    settings: GraphDataSettings { clear_data: false },
+                };
+                robot_data
+                    .graph_data
+                    .entry(graph_name.to_string())
+                    .or_insert_with(Vec::new)
+                    .push(graph_data);
+                data_counter += 1;
+                if data_counter > 10 {
+                    send_data(robot_data).await;
+                    robot_data = RobotData::default();
+                    data_counter = 0;
+                }
+            } else {
+                println!("Invalid graph value: {}", split[4]);
+            }
             continue;
         }
     }
 
     child.wait()?;
+    send_data(robot_data).await;
 
     Ok(())
 }
