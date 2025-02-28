@@ -214,7 +214,7 @@ async fn main() -> std::io::Result<()> {
 
     for line in reader.lines() {
         let line = line?.to_lowercase();
-        println!("reeeee {}", line);
+        println!("reeeee2 {}", line);
         let split: Vec<&str> = line.split_ascii_whitespace().collect();
         if split.len() < 4 {
             continue;
@@ -224,10 +224,10 @@ async fn main() -> std::io::Result<()> {
         }
         if split[1] == "graph" {
             let graph_name = split[2];
-            println!("parsing {}", split[3]);
+            // println!("parsing {}", split[3]);
             let value: Result<f64, _> = split[3].parse();
             if let Ok(value) = value {
-                println!("Graph {}: {}", graph_name, value);
+                // println!("Graph {}: {}", graph_name, value);
                 let graph_data: GraphDataPoint = GraphDataPoint {
                     x: (current_timestamp_nanos() as f64),
                     y: value,
@@ -239,13 +239,13 @@ async fn main() -> std::io::Result<()> {
                     .or_insert_with(Vec::new)
                     .push(graph_data);
                 data_counter += 1;
-                if data_counter > 10 {
+                if data_counter > 500 {
                     send_data(robot_data).await;
                     robot_data = RobotData::default();
                     data_counter = 0;
                 }
             } else {
-                println!("Invalid graph value: {}", split[4]);
+                // println!("Invalid graph value: {}", split[4]);
             }
             continue;
         }
