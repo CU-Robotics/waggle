@@ -26,9 +26,9 @@ interface RobotPosition {
 
 interface RobotData {
   sent_timestamp: number;
-  images: Map<string, ImageData>;
-  graph_data: Map<string, Array<GraphDataPoint>>;
-  string_data: Map<string, StringData>;
+  images: { [key: string]: ImageData };
+  graph_data: { [key: string]: Array<GraphDataPoint> };
+  string_data: { [key: string]: StringData };
   robot_position: RobotPosition;
 }
 

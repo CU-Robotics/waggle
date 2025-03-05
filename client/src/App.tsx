@@ -82,7 +82,7 @@ function App() {
 
         {/* Sensor readings */}
         <div className="m-2 flex flex-wrap gap-2">
-          {Array.from(graphData.entries()).map(([key, value]) => (
+          {Object.entries(graphData).map(([key, value]) => (
             <div
               key={key}
               className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${
@@ -107,7 +107,7 @@ function App() {
                 <LiveGraph
                   key={key}
                   title={key}
-                  data={graphData.get(key) || []}
+                  data={graphData[key] || []}
                   onRemove={() => removeGraph(key)}
                   isDarkMode={isDarkMode}
                 />
@@ -120,7 +120,7 @@ function App() {
         <div className="flex">
           <div className="flex w-1/3 flex-col justify-between">
             <div className="m-2 rounded-md border border-b-0">
-              {Array.from(stringData).map(([key, value]) => (
+              {Object.entries(stringData).map(([key, value]) => (
                 <div
                   className="flex items-center justify-between border-b p-2"
                   key={key}
@@ -137,7 +137,7 @@ function App() {
           <div className="m-2 flex w-3/4 flex-col rounded-md border">
             <div className="flex items-center justify-center">
               <div className="m-2 flex flex-wrap">
-                {Array.from(imageData.entries()).map(([key, value]) => {
+                {Object.entries(imageData).map(([key, value]) => {
                   return (
                     <div className="m-2 flex flex-col items-center" key={key}>
                       <p>{key}</p>
