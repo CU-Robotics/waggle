@@ -6,13 +6,11 @@ const frame_timestamps: number[] = [];
 
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [graphData, setGraphData] = useState<RobotData["graph_data"]>(
-    new Map(),
-  );
-  const [imageData, setImageData] = useState<RobotData["images"]>(new Map());
-  const [stringData, setStringData] = useState<RobotData["string_data"]>(
-    new Map(),
-  );
+
+  const [graphData, setGraphData] = useState<RobotData["graph_data"]>({});
+  const [imageData, setImageData] = useState<RobotData["images"]>({});
+  const [stringData, setStringData] = useState<RobotData["string_data"]>({});
+
   const [robotPosition, setRobotPosition] = useState<
     RobotData["robot_position"]
   >({ x: 0, y: 0, heading: 0 });
@@ -57,7 +55,7 @@ export function useWebSocket() {
     };
 
     wsRef.current.onmessage = (event) => {
-      const data: RobotData[] = JSON.parse(event.data);
+      const robot_data: RobotData[] = JSON.parse(event.data);
       frame_timestamps.push(Date.now());
 
       if (frame_timestamps.length > 100) {
@@ -71,19 +69,15 @@ export function useWebSocket() {
           x: Date.now(),
           y: fps,
         };
-        const map = new Map<string, GraphData[]>(
-          Object.entries(data[data.length - 1].graph_data),
-        );
-        map.set("WAGGLE_FPS", [fps_data]);
 
-        //@ts-ignore
-        data[data.length - 1].graph_data = Object.fromEntries(map);
+        robot_data[robot_data.length - 1].graph_data.WAGGLE_FPS = [fps_data];
       }
-      handleIncomingMessage(data);
+      handleIncomingMessage(robot_data);
 
       if (wsRef.current) {
         const responseData = {
-          initially_sent_timestamp: data[data.length - 1].sent_timestamp,
+          initially_sent_timestamp:
+            robot_data[robot_data.length - 1].sent_timestamp,
         };
         wsRef.current.send(responseData.toString());
       } else {
@@ -117,7 +111,7 @@ export function useWebSocket() {
           )) {
             const graph_points: GraphData[] = _graph_points;
             if (newData.has(graph_name)) {
-              const updatedArray = [...(newData.get(graph_name) || [])];
+              const updatedArray = [...(newData(graph_name) || [])];
 
               for (const point of graph_points) {
                 updatedArray.push(point);
