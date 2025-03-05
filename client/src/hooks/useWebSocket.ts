@@ -104,20 +104,21 @@ export function useWebSocket() {
       //  Append graph data
       if (data.graph_data) {
         setGraphData((prevData) => {
-          // Create a new Map for this update
-          const newData = new Map(prevData);
+          const newData = { ...prevData };
+
           for (const [graph_name, _graph_points] of Object.entries(
             data.graph_data,
           )) {
             const graph_points: GraphData[] = _graph_points;
-            if (newData.has(graph_name)) {
-              const updatedArray = [...(newData(graph_name) || [])];
+            if (newData[graph_name]) {
+              const updatedArray = [...newData[graph_name]];
 
               for (const point of graph_points) {
                 updatedArray.push(point);
 
                 if (point.settings?.clear_data) {
                   console.log(`Clearing ${graph_name}`);
+                  // Clear the array if the setting is triggered
                   updatedArray.splice(0, updatedArray.length);
                 }
               }
@@ -127,9 +128,9 @@ export function useWebSocket() {
                 updatedArray.length > maxPoint
                   ? updatedArray.slice(updatedArray.length - maxPoint)
                   : updatedArray;
-              newData.set(graph_name, trimmedArray);
+              newData[graph_name] = trimmedArray;
             } else {
-              newData.set(graph_name, [...graph_points]);
+              newData[graph_name] = [...graph_points];
             }
           }
           return newData;
@@ -139,26 +140,24 @@ export function useWebSocket() {
       // Update image data
       if (data.images && lastFrame) {
         setImageData((prevData) => {
-          const newData = new Map(prevData);
+          const newData = { ...prevData };
           for (const [key, value] of Object.entries(data.images)) {
-            newData.set(key, value);
+            newData[key] = value;
           }
           return newData;
         });
       }
 
-      // Update string data
       if (data.string_data && lastFrame) {
         setStringData((prevData) => {
-          const newData = new Map(prevData);
+          const newData = { ...prevData };
           for (const [key, value] of Object.entries(data.string_data)) {
-            newData.set(key, value);
+            newData[key] = value;
           }
           return newData;
         });
       }
 
-      // Update robot position
       if (data.robot_position && lastFrame) {
         setRobotPosition(data.robot_position);
       }
