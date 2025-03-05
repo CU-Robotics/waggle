@@ -75,10 +75,7 @@ export function useWebSocket() {
       handleIncomingMessage(robot_data);
 
       if (wsRef.current) {
-        const responseData = {
-          initially_sent_timestamp:
-            robot_data[robot_data.length - 1].sent_timestamp,
-        };
+        const responseData = {};
         wsRef.current.send(responseData.toString());
       } else {
         console.log("wsRef.current is null");
