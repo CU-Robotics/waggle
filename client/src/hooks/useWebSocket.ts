@@ -107,28 +107,29 @@ export function useWebSocket() {
             data.graph_data,
           )) {
             const graph_points: GraphData[] = _graph_points;
-            if (newData[graph_name]) {
-              const updatedArray = [...newData[graph_name]];
+            if (!newData[graph_name]) {
+              newData[graph_name] = [];
+            }
+            const updatedArray = [...newData[graph_name]];
 
-              for (const point of graph_points) {
-                updatedArray.push(point);
-
-                if (point.settings?.clear_data) {
-                  console.log(`Clearing ${graph_name}`);
-                  // Clear the array if the setting is triggered
+            for (const point of graph_points) {
+              if (point.settings?.clear_data) {
+                console.log(`Clearing ${graph_name}`);
+                if (updatedArray.length > 0) {
                   updatedArray.splice(0, updatedArray.length);
                 }
+                continue;
               }
 
-              const maxPoint = 5000;
-              const trimmedArray =
-                updatedArray.length > maxPoint
-                  ? updatedArray.slice(updatedArray.length - maxPoint)
-                  : updatedArray;
-              newData[graph_name] = trimmedArray;
-            } else {
-              newData[graph_name] = [...graph_points];
+              updatedArray.push(point);
             }
+
+            const maxPoint = 5000;
+            const trimmedArray =
+              updatedArray.length > maxPoint
+                ? updatedArray.slice(updatedArray.length - maxPoint)
+                : updatedArray;
+            newData[graph_name] = trimmedArray;
           }
           return newData;
         });
