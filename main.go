@@ -66,10 +66,10 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	addDataToBuffer(data)
-	replay_manger.write_update(data)
 	if readyToSend {
 		broadcastMessage()
 	}
+	go replay_manger.write_update(data)
 }
 
 var replay_manger ReplayManager
@@ -77,7 +77,6 @@ var replay_manger ReplayManager
 func main() {
 	print("Initializing replay manager... ")
 	replay_manger = ReplayManager{}
-	replay_manger.init_replay()
 	println("Done!")
 
 	print("Creating routes... ")
