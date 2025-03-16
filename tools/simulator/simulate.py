@@ -94,6 +94,7 @@ class RoboMasterBot:
 
 if __name__ == "__main__":
     bot = RoboMasterBot()
+    start = time.time()
     target_fps = 1/15
     while True:
         last_sent = time.time()
@@ -112,3 +113,6 @@ if __name__ == "__main__":
             time.sleep(delta)
         else:
             print(f'Missed deadline by {-delta} seconds')
+
+        if time.time() - start > 10:
+            exit(0)
