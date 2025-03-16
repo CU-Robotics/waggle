@@ -94,7 +94,7 @@ class RoboMasterBot:
 
 if __name__ == "__main__":
     bot = RoboMasterBot()
-    target_fps = 1/30
+    target_fps = 1/15
     while True:
         last_sent = time.time()
 
