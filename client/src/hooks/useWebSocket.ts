@@ -6,6 +6,7 @@ const frame_timestamps: number[] = [];
 
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [maxDataPoints, setMaxDataPoints] = useState<number>(5000);
 
   const [graphData, setGraphData] = useState<RobotData["graph_data"]>({});
   const [imageData, setImageData] = useState<RobotData["images"]>({});
@@ -124,10 +125,9 @@ export function useWebSocket() {
               updatedArray.push(point);
             }
 
-            const maxPoint = 5000;
             const trimmedArray =
-              updatedArray.length > maxPoint
-                ? updatedArray.slice(updatedArray.length - maxPoint)
+              updatedArray.length > maxDataPoints
+                ? updatedArray.slice(updatedArray.length - maxDataPoints)
                 : updatedArray;
             newData[graph_name] = trimmedArray;
           }
@@ -168,5 +168,7 @@ export function useWebSocket() {
     imageData,
     stringData,
     robotPosition,
+    maxDataPoints,
+    setMaxDataPoints,
   };
 }
