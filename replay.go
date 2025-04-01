@@ -1,19 +1,11 @@
 package main
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"image"
-	"image/jpeg"
-	"log"
 	"os"
-	"strings"
 	"sync"
 	"time"
-
-	"github.com/disintegration/imaging"
 )
 
 // If there is no data for REPLAY_TIMEOUT milliseconds, this will be counted as a new replay
@@ -62,25 +54,25 @@ func (r *ReplayManager) write_update(robot_data RobotData) {
 	}
 	r.last_update = curr_time
 
-	for image_name, image_data := range robot_data.Images {
-		reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(image_data.ImageData))
-		m, _, err := image.Decode(reader)
-		if err != nil {
-			log.Fatal(err)
-		}
+	// for image_name, image_data := range robot_data.Images {
+	// 	reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(image_data.ImageData))
+	// 	m, _, err := image.Decode(reader)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
 
-		dstImageFit := imaging.Fit(m, 500, 500, imaging.Lanczos)
+	// 	dstImageFit := imaging.Fit(m, 500, 500, imaging.Lanczos)
 
-		var buf bytes.Buffer
+	// 	var buf bytes.Buffer
 
-		err = jpeg.Encode(&buf, dstImageFit, &jpeg.Options{Quality: 25})
-		if err != nil {
-			log.Fatal(err)
-		}
+	// 	err = jpeg.Encode(&buf, dstImageFit, &jpeg.Options{Quality: 25})
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
 
-		image_data.ImageData = base64.StdEncoding.EncodeToString(buf.Bytes())
-		robot_data.Images[image_name] = image_data
-	}
+	// 	image_data.ImageData = base64.StdEncoding.EncodeToString(buf.Bytes())
+	// 	robot_data.Images[image_name] = image_data
+	// }
 
 	b, err := json.Marshal(robot_data)
 	if err != nil {
