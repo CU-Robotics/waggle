@@ -124,7 +124,6 @@ export function useWebSocket() {
 
                 updatedArray.push(point);
               }
-              console.log(`Max data points ${maxDataPoints}`);
               const trimmedArray =
                 updatedArray.length > maxDataPoints
                   ? updatedArray.slice(updatedArray.length - maxDataPoints)
@@ -197,6 +196,14 @@ export function useWebSocket() {
 
       wsRef.current.onmessage = (event) => {
         const robot_data: RobotData[] = JSON.parse(event.data);
+        if (robot_data.length == 0) {
+          if (wsRef.current) {
+            const responseData = {};
+            wsRef.current.send(responseData.toString());
+          } else {
+            console.log("wsRef.current is null");
+          }
+        }
         frame_timestamps.push(Date.now());
 
         if (frame_timestamps.length > 100) {
