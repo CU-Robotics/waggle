@@ -97,7 +97,6 @@ function App() {
               <input
                 type="number"
                 min="1"
-                // max="100000"
                 value={maxDataPoints}
                 onChange={(e) => {
                   const value = parseInt(e.target.value);
