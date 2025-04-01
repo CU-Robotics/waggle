@@ -7,10 +7,17 @@ import {
 } from "@tabler/icons-react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
-import gameField from "./assets/game_field.png";
+// import gameField from "./assets/game_field.png";
 
 function App() {
-  const { isConnected, graphData, imageData, stringData } = useWebSocket();
+  const {
+    isConnected,
+    graphData,
+    imageData,
+    stringData,
+    maxDataPoints,
+    setMaxDataPoints,
+  } = useWebSocket();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
 
@@ -80,6 +87,27 @@ function App() {
           </div>
         </div>
 
+        <div className="m-2 rounded-lg border bg-white p-4 dark:bg-neutral-700">
+          <div className="mb-4">
+            <h2 className="mb-4 text-lg font-semibold">Settings</h2>
+            <label htmlFor="maxDataPoints" className="mb-2 block">
+              Max Data Points per Graph:
+            </label>
+            <div className="flex items-center">
+              <input
+                type="number"
+                min="1"
+                value={maxDataPoints}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  setMaxDataPoints(value);
+                }}
+                className="w-36 rounded border px-2 py-1 dark:bg-neutral-800"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Sensor readings */}
         <div className="m-2 flex flex-wrap gap-2">
           {Object.entries(graphData).map(([key, value]) => (
@@ -131,7 +159,7 @@ function App() {
                 </div>
               ))}
             </div>
-            <img src={gameField} alt="" className="m-2 rounded-md border" />
+            {/* <img src={gameField} alt="" className="m-2 rounded-md border" /> */}
           </div>
           {/* Main view camera feed */}
           <div className="m-2 flex w-3/4 flex-col rounded-md border">
