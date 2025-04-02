@@ -59,6 +59,16 @@ export function useWebSocket() {
       const robot_data: RobotData[] = JSON.parse(event.data);
       frame_timestamps.push(Date.now());
 
+      if (robot_data.length == 0) {
+        if (wsRef.current) {
+          const responseData = {};
+          wsRef.current.send(responseData.toString());
+        } else {
+          console.log("wsRef.current is null");
+        }
+        return;
+      }
+
       if (frame_timestamps.length > 100) {
         frame_timestamps.shift();
         const fps =
