@@ -8,7 +8,7 @@
 
 Waggle is a graphing and debugging dashboard initially created for the CU Robotics team, however it has since proven to be a valuable, problem agnostic tool. This document is intended to get you up and running with your first graph in no time! 
 
-<video src="demo.MP4"></video>
+<video src="demo.mp4"></video>
 
 
 
@@ -24,7 +24,7 @@ Waggle was built and is primarily maintained for the CU Robotics team. Some of t
 
 ## Displaying Other Elements
 
-<video src="mat_demo.MP4"></video>
+<video src="mat_demo.mp4"></video>
 
 
 ## Sample Chapter
