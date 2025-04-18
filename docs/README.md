@@ -150,6 +150,9 @@ There are in-progress Waggle libraries for C++, Python,  and Rust, as well as a 
 https://github.com/CU-Robotics/waggle/raw/refs/heads/docs/docs/mat_demo.mp4
 
 ![](mat_demo.gif)
+![](mat_demo.mp4)
+<video src='https://github.com/CU-Robotics/waggle/raw/refs/heads/docs/docs/mat_demo.mp4'></video>
+<video src='mat_demo.mp4'></video>
 
 Where waggle becomes super versatile is in its ability to display any piece of data through generated images. On the CU Robotics team, we generate OpenCV Mats, then encode the images as jpg-base64. The image data can then be sent as
 ```json
