@@ -1,30 +1,19 @@
 # Waggle Manual
 
 ## Table of Contents
-
 - [Overview](#overview)
 - [Warnings](#warnings)
 - [Introduction](#introduction)
+- [What You'll Need](#what-youll-need)
 - [Getting Started](#getting-started)
   - [Installation](#installation)
-  - [Running Waggle](#running-waggle)
 - [Basic Usage](#basic-usage)
   - [Sending Data to Waggle](#sending-data-to-waggle)
-  - [The Waggle Interface](#the-waggle-interface)
-- [Features](#features)
-  - [Graphs](#graphs)
-  - [Images](#images)
-  - [Status Values](#status-values)
-- [Advanced Usage](#advanced-usage)
-  - [Custom Integration](#custom-integration)
-  - [Creating Clients in Different Languages](#creating-clients-in-different-languages)
-- [API Reference](#api-reference)
-- [Troubleshooting](#troubleshooting)
+- [Displaying Other Elements](#displaying-other-elements)
 - [FAQ](#faq)
-- [Additional Resources](#additional-resources)
+- [Troubleshooting](#troubleshooting)
 - [Glossary](#glossary)
-
-
+- [Additional Resources](#additional-resources)
 
 ## Overview
 
