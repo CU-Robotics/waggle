@@ -1,37 +1,26 @@
 # Waggle Manual
 
 ## Table of Contents
-
 - [Overview](#overview)
 - [Warnings](#warnings)
 - [Introduction](#introduction)
+- [What You'll Need](#what-youll-need)
 - [Getting Started](#getting-started)
   - [Installation](#installation)
-  - [Running Waggle](#running-waggle)
 - [Basic Usage](#basic-usage)
   - [Sending Data to Waggle](#sending-data-to-waggle)
-  - [The Waggle Interface](#the-waggle-interface)
-- [Features](#features)
-  - [Graphs](#graphs)
-  - [Images](#images)
-  - [Status Values](#status-values)
-- [Advanced Usage](#advanced-usage)
-  - [Custom Integration](#custom-integration)
-  - [Creating Clients in Different Languages](#creating-clients-in-different-languages)
-- [API Reference](#api-reference)
-- [Troubleshooting](#troubleshooting)
+- [Displaying Other Elements](#displaying-other-elements)
 - [FAQ](#faq)
-- [Additional Resources](#additional-resources)
+- [Troubleshooting](#troubleshooting)
 - [Glossary](#glossary)
-
-
+- [Additional Resources](#additional-resources)
 
 ## Overview
 
 Waggle is a graphing and debugging dashboard initially created for the CU Robotics team, however it has since proven to be a valuable, problem agnostic tool. This document is intended to get you up and running with your first graph in no time!
 
-<video src="demo.mp4"></video>
 
+https://github.com/user-attachments/assets/3a3af2b8-a265-4fd5-a25b-947d003e2ff0
 
 
 ## Warnings
@@ -159,15 +148,15 @@ There are in-progress Waggle libraries for C++, Python,  and Rust, as well as a 
 
 ## Displaying Other Elements
 
-<video src="mat_demo.mp4"></video>
+https://github.com/user-attachments/assets/e2309845-6b4f-4e25-aed0-b9b8637f5fde
 
 Where waggle becomes super versatile is in its ability to display any piece of data through generated images. On the CU Robotics team, we generate OpenCV Mats, then encode the images as jpg-base64. The image data can then be sent as
 ```json
 {
-  "sent_timestamp": time.time(),
+  "sent_timestamp": 1745020248.154549,
   "graph_data": {
       "Sensor Reading": [
-          {"x": time.time(), "y": 42.0}
+          {"x": 1745020248.154549, "y": 42.0}
       ]
   },
   "string_data": {
