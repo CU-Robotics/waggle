@@ -1,7 +1,5 @@
 # Waggle Manual
 
-## 
-
 ## Table of Contents
 
 - [Overview](#overview)
@@ -30,7 +28,7 @@
 
 ## Overview
 
-Waggle is a graphing and debugging dashboard initially created for the CU Robotics team, however it has since proven to be a valuable, problem agnostic tool. This document is intended to get you up and running with your first graph in no time! 
+Waggle is a graphing and debugging dashboard initially created for the CU Robotics team, however it has since proven to be a valuable, problem agnostic tool. This document is intended to get you up and running with your first graph in no time!
 
 <video src="demo.mp4"></video>
 
@@ -38,7 +36,7 @@ Waggle is a graphing and debugging dashboard initially created for the CU Roboti
 
 ## Warnings
 
-Waggle was built and is primarily maintained for the CU Robotics team. Some of the tooling can be a little disjointed or split across subdirectories in different repositories. That said, you interact with the main server through a simple API. If there's a tool you want or you need to spin up a waggle client in a new language, the process is fairly trivial. 
+Waggle was built and is primarily maintained for the CU Robotics team. Some of the tooling can be a little disjointed or split across subdirectories in different repositories. That said, you interact with the main server through a simple API. If there's a tool you want or you need to spin up a waggle client in a new language, the process is fairly trivial.
 
 ## Introduction
 
@@ -59,26 +57,26 @@ The system uses a simple HTTP-based API to receive data and WebSockets to push u
 
 ## What You'll Need
 
-All you need is a basic Linux, Mac, or Windows computer to act as the server (in our case, that's the robot's on-board computer!). There are also many tools that allow Waggle to receive data over Serial from a microcontroller, over the internet with an ESP-32, or from any computer capable of running the client script. 
+All you need is a basic Linux, Mac, or Windows computer to act as the server (in our case, that's the robot's on-board computer!). There are also many tools that allow Waggle to receive data over Serial from a microcontroller, over the internet with an ESP-32, or from any computer capable of running the client script.
 
 ## Getting Started
 
 ### Installation
 
-Waggle requires both Go to run the API and serve the static frontend files. These instructions are for a unix system (Mac/Linux), however Windows is also supported. 
+Waggle requires both Go to run the API and serve the static frontend files. These instructions are for a unix system (Mac/Linux), however Windows is also supported.
 
 1. **Install [Go](https://go.dev/):**
-   
+
    ```bash
    sudo snap install go --classic
    ```
-   
+
 3. **Download Waggle:**
-   
+
    ```bash
    cd && git clone https://github.com/CU-Robotics/waggle.git
    ```
-   
+
 5. **Build Waggle:**
    ```bash
    cd ~/waggle && go build
@@ -93,9 +91,6 @@ Waggle requires both Go to run the API and serve the static frontend files. Thes
 Now when you go to http://localhost:3000 you'll see the blank waggle page
 
 ![empty_screen](empty_screen.png)
-
-
-
 
 
 ## Basic Usage
@@ -153,7 +148,7 @@ data = {
 
 # Send to Waggle
 response = requests.post(
-    "http://localhost:3000/batch", 
+    "http://localhost:3000/batch",
     data=json.dumps(data)
 )
 ```
@@ -196,10 +191,19 @@ Our robotics team's main robot software is called "Hive," as it is one piece sof
 
 **How can I support this project?**
 
-Donation link to the team coming soon. In the mean time, use the tool and give feedback! Open a pull request with improvements if you have the know-how. 
+Use the tool and give feedback! Open a pull request with improvements if you have the know-how.
 
 ## Troubleshooting
+
+If you run into any issues, post an issue on GitHub.
 
 ## Glossary
 
 ## Additional Resources
+
+Learn more about:
+
+* [OpenCV Mats](https://docs.opencv.org/3.4/d3/d63/classcv_1_1Mat.html)
+
+Waggle used outside CU Robotics:
+* [UChicago Trading Competition](https://eff.sh/UChicago-Trading-Competition-2025/case-1/)
