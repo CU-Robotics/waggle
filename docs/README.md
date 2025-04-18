@@ -147,8 +147,9 @@ response = requests.post(
 There are in-progress Waggle libraries for C++, Python,  and Rust, as well as a tool to intercept Serial output. All of these will be *officially* released after a little bit more work. In the mean time, many of them can be found scattered throughout various CU Robotics repositories (Note: some of these are currently closed-source and for internal use only)
 
 ## Displaying Other Elements
+https://github.com/CU-Robotics/waggle/raw/refs/heads/docs/docs/mat_demo.mp4
 
-<video src="mat_demo.mp4"></video>
+![](mat_demo.gif)
 
 Where waggle becomes super versatile is in its ability to display any piece of data through generated images. On the CU Robotics team, we generate OpenCV Mats, then encode the images as jpg-base64. The image data can then be sent as
 ```json
