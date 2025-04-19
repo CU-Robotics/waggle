@@ -1,63 +1,105 @@
-import json
 import os
+import json
 import time
+import argparse
+import curses
 import requests
+from typing import List, Dict
 
-def get_alphabetically_largest_file(directory_path) -> str:
+SCHEMA_VERSION = "schema 1"
+
+def find_latest_file(directory: str) -> str:
     try:
-        files = [f for f in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, f))]
-
+        files = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
         if not files:
             print("No files in replay dir")
             exit(1)
-
         return max(files)
-
     except Exception as e:
         print(f"Error: {e}")
         exit(1)
 
-schema_version = "schema 1"
-
-
-
-if __name__ == '__main__':
-    replay_dir = '../replays/'
-    replay_filename = replay_dir + get_alphabetically_largest_file(replay_dir)
-    print(replay_filename)
-
-    time_offset = 0
-    last_sent_relative = 0
-    start_time = time.time()
-    URL = "http://localhost:3000/batch"
-
-    with open(replay_filename, 'r') as file:
-        first_line = file.readline().strip()
-        if first_line != schema_version:
-            print(f'Incompatible replay schema. Needs schema "{schema_version}" has "{first_line}"')
+def load_frames(path: str) -> List[Dict]:
+    frames = []
+    with open(path, 'r') as f:
+        header = f.readline().strip()
+        if header != SCHEMA_VERSION:
+            print(f'Incompatible replay schema. Needs "{SCHEMA_VERSION}", found "{header}"')
             exit(1)
+        first_ts = None
+        for raw in f:
+            data = json.loads(raw)
+            sent_ts = data['sent_timestamp'] / 1000.0
+            if first_ts is None:
+                first_ts = sent_ts
+            frames.append({
+                "rel": sent_ts - first_ts,
+                "line": raw
+            })
+    return frames
 
-        while True:
-            line = file.readline()
-            if not line:
+def send_frame(url: str, line: str):
+    try:
+        requests.post(url, data=line)
+    except Exception:
+        pass
+
+def main(stdscr, frames, url):
+    curses.curs_set(0)    
+    stdscr.nodelay(True)   
+    stdscr.clear()
+
+    idx = 0
+    playing = False
+    start_time = None
+
+    while True:
+        ch = stdscr.getch()
+        if ch != -1:
+            key = chr(ch)
+            if key in ('q',):
                 break
+            if key in (' ', 'p'):
+                if not playing and start_time is None:
+                    start_time = time.time()
+                elif not playing:
+                    start_time = time.time() - frames[idx]['rel']
+                playing = not playing
+            elif key == 'n' and not playing:
+                if idx < len(frames):
+                    send_frame(url, frames[idx]['line'])
+                    idx += 1
 
-            data = json.loads(line)
+        if playing and idx < len(frames):
+            now_rel = time.time() - start_time
+            while idx < len(frames) and frames[idx]['rel'] <= now_rel:
+                send_frame(url, frames[idx]['line'])
+                idx += 1
+            if idx >= len(frames):
+                playing = False
 
-            sent_timestamp = data['sent_timestamp']/1000
+        stdscr.erase()
+        stdscr.addstr(0, 0, "Replay CLI — SPACE/p to Play/Pause • n to Step • q to Quit")
+        status = "▶ Playing" if playing else "❚❚ Paused "
+        stdscr.addstr(2, 0, f"Status     : {status}")
+        stdscr.addstr(3, 0, f"Frame      : {idx} / {len(frames)}")
+        if idx < len(frames):
+            next_time = frames[idx]['rel']
+            stdscr.addstr(4, 0, f"Next @ +{next_time:.2f}s")
+        stdscr.refresh()
 
-            if time_offset == 0:
-                time_offset = sent_timestamp
+        time.sleep(0.01)
 
 
+if __name__ == "__main__":
+    p = argparse.ArgumentParser()
+    p.add_argument("--replay-dir", default="../replays", help="Directory containing replay files")
+    p.add_argument("--url", default="http://localhost:3000/batch", help="Waggle endpoint")
+    args = p.parse_args()
 
-            sent_relative = sent_timestamp - time_offset
-            curr_relative = time.time()-start_time
-            if sent_relative > curr_relative:
-                time.sleep(sent_relative-curr_relative)
+    latest = find_latest_file(args.replay_dir)
+    path = os.path.join(args.replay_dir, latest)
+    print(f"Loading replay: {path}")
+    frames = load_frames(path)
 
-            last_sent_relative = sent_relative
-            try:
-                r = requests.post(url=URL, data=line)
-            except:
-                print("Failed to send data to server")
+    curses.wrapper(main, frames, args.url)
