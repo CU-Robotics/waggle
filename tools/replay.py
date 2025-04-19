@@ -39,12 +39,14 @@ def load_frames(path: str) -> List[Dict]:
     return frames
 
 def send_frame(url: str, line: str):
+    if type(line) != 'str':
+        line = json.dumps(line)
     try:
         requests.post(url, data=line)
     except Exception:
         pass
 
-def main(stdscr, frames, url):
+def main(stdscr, frames, url,path):
     curses.curs_set(0)    
     stdscr.nodelay(True)   
     stdscr.clear()
@@ -55,6 +57,8 @@ def main(stdscr, frames, url):
 
     while True:
         ch = stdscr.getch()
+        frame_data = json.loads(frames[idx]['line']) 
+        frame_data['graph_data']['WAGGLE_REPLAY_FRAME']=[{'x':time.time(),'y':idx}]
         if ch != -1:
             key = chr(ch)
             if key in ('q',):
@@ -67,22 +71,31 @@ def main(stdscr, frames, url):
                 playing = not playing
             elif key == 'n' and not playing:
                 if idx < len(frames):
-                    send_frame(url, frames[idx]['line'])
+                    
+                    send_frame(url, frame_data)
                     idx += 1
 
         if playing and idx < len(frames):
             now_rel = time.time() - start_time
             while idx < len(frames) and frames[idx]['rel'] <= now_rel:
-                send_frame(url, frames[idx]['line'])
+                send_frame(url, frame_data)
                 idx += 1
             if idx >= len(frames):
                 playing = False
 
+        r = 0
         stdscr.erase()
-        stdscr.addstr(0, 0, "Replay CLI — SPACE/p to Play/Pause • n to Step • q to Quit")
+        stdscr.addstr(r, 0, f'Waggle Replay — {path}')
+        r+=1
+        stdscr.addstr(r, 0, 'SPACE/p to Play/Pause • n to Step • q to Quit')
+        r+=1
+        r+=1
+
         status = "▶ Playing" if playing else "❚❚ Paused "
-        stdscr.addstr(2, 0, f"Status     : {status}")
-        stdscr.addstr(3, 0, f"Frame      : {idx} / {len(frames)}")
+        stdscr.addstr(r, 0, f"Status     : {status}")
+        r+=1
+        stdscr.addstr(r, 0, f"Frame      : {idx} / {len(frames)}")
+        r+=1
         if idx < len(frames):
             next_time = frames[idx]['rel']
             stdscr.addstr(4, 0, f"Next @ +{next_time:.2f}s")
@@ -102,4 +115,4 @@ if __name__ == "__main__":
     print(f"Loading replay: {path}")
     frames = load_frames(path)
 
-    curses.wrapper(main, frames, args.url)
+    curses.wrapper(main, frames, args.url, path)
