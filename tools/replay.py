@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
             data = json.loads(line)
 
-            sent_timestamp = data['sent_timestamp']
+            sent_timestamp = data['sent_timestamp']/1000
 
             if time_offset == 0:
                 time_offset = sent_timestamp
