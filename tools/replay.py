@@ -52,7 +52,7 @@ def main(stdscr, frames, url,path):
     stdscr.clear()
 
     idx = 0
-    playing = False
+    playing = 0
     start_time = None
 
     while True:
@@ -61,33 +61,48 @@ def main(stdscr, frames, url,path):
         frame_data['graph_data']['WAGGLE_REPLAY_FRAME']=[{'x':time.time(),'y':idx}]
         if ch != -1:
             key = chr(ch)
-            if key in ('q',):
+            if key in ('q'):
                 break
-            if key in (' ', 'p'):
-                if not playing and start_time is None:
+            if key in ('p'):
+                if start_time is None:
                     start_time = time.time()
-                elif not playing:
+                else:
                     start_time = time.time() - frames[idx]['rel']
-                playing = not playing
-            elif key == 'n' and not playing:
+                playing = 1
+
+            if key in ('o'):
+                if start_time is None:
+                    start_time = time.time()
+                else:
+                    start_time = time.time() - frames[idx]['rel']
+                playing = -1
+
+            elif key == 'l':
+                playing = 0
                 if idx < len(frames):
                     
                     send_frame(url, frame_data)
                     idx += 1
+            elif key == 'k':
+                playing = 0
+                if idx < len(frames):
+                    
+                    send_frame(url, frame_data)
+                    idx -= 1
 
-        if playing and idx < len(frames):
-            now_rel = time.time() - start_time
+        if playing != 0 and 0 <= idx < len(frames):
+            now_rel = (time.time() - start_time) * playing
             while idx < len(frames) and frames[idx]['rel'] <= now_rel:
                 send_frame(url, frame_data)
-                idx += 1
+                idx += playing
             if idx >= len(frames):
-                playing = False
+                playing = 0
 
         r = 0
         stdscr.erase()
         stdscr.addstr(r, 0, f'Waggle Replay — {path}')
         r+=1
-        stdscr.addstr(r, 0, 'SPACE/p to Play/Pause • n to Step • q to Quit')
+        stdscr.addstr(r, 0, 'p/o to play forward/back • l/k to Step forward/back • q to Quit')
         r+=1
         r+=1
 
@@ -95,6 +110,9 @@ def main(stdscr, frames, url,path):
         stdscr.addstr(r, 0, f"Status     : {status}")
         r+=1
         stdscr.addstr(r, 0, f"Frame      : {idx} / {len(frames)}")
+        r+=1
+
+        stdscr.addstr(r, 0, f"Playing      : {playing}")
         r+=1
         if idx < len(frames):
             next_time = frames[idx]['rel']
