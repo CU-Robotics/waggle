@@ -20,7 +20,7 @@
 Waggle is a graphing and debugging dashboard initially created for the CU Robotics team, however it has since proven to be a valuable, problem agnostic tool. This document is intended to get you up and running with your first graph in no time!
 
 
-https://github.com/user-attachments/assets/3a3af2b8-a265-4fd5-a25b-947d003e2ff0
+<video width=800 src='https://github.com/user-attachments/assets/3a3af2b8-a265-4fd5-a25b-947d003e2ff0' autoplay></video>
 
 
 ## Warnings
@@ -148,7 +148,8 @@ There are in-progress Waggle libraries for C++, Python,  and Rust, as well as a 
 
 ## Displaying Other Elements
 
-https://github.com/user-attachments/assets/e2309845-6b4f-4e25-aed0-b9b8637f5fde
+<video width=800 src='https://github.com/user-attachments/assets/e2309845-6b4f-4e25-aed0-b9b8637f5fde' autoplay></video>
+
 
 Where waggle becomes super versatile is in its ability to display any piece of data through generated images. On the CU Robotics team, we generate OpenCV Mats, then encode the images as jpg-base64. The image data can then be sent as
 ```json
