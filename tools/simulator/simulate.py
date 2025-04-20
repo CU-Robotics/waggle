@@ -47,45 +47,45 @@ class RoboMasterBot:
                     "scale": 1,
                     "flip": False
                 },
-                "world_map": {
+                "world_map (this is all simulated data btw)": {
                     "image_data": world_map_img,
                     "scale": 1,
                     "flip": False
                 }
             },
             "graph_data": {
-                "Turret Yaw": [{
+                "Turret Yaw (this is all simulated data btw)": [{
                     "x": current_time,
                     "y": self.yaw
                 }],
-                "Turret Pitch": [{
+                "Turret Pitch (this is all simulated data btw)": [{
                     "x": current_time,
                     "y": self.pitch
                 }],
 
             },
             "string_data": {
-                "mode": {"value": self.mode},
-                "game_state": {"value": self.game_state},
-                "system_health": {"value": self.system_health}
+                "mode (this is all simulated data btw)": {"value": self.mode},
+                "game_state (this is all simulated data btw)": {"value": self.game_state},
+                "system_health (this is all simulated data btw)": {"value": self.system_health}
             },
             "robot_position": {
-                "x": self.position[0],
-                "y": self.position[1],
-                "heading": self.orientation
+                "x (this is all simulated data btw)": self.position[0],
+                "y (this is all simulated data btw)": self.position[1],
+                "heading (this is all simulated data btw)": self.orientation
             }
         }
 
         if abs(current_time - self.last_rose) > 1:
             self.last_rose = current_time
-            data["graph_data"]["Rose Curve"] = [{
+            data["graph_data"]["Rose Curve (this is all simulated data btw)"] = [{
                 "x":0,
                 "y":0,
                 "settings": {
                     "clear_data": True
                 }
             }]
-            data["graph_data"]["Rose Curve"].extend(generate_rose_curve(np.random.randint(1, 10), np.random.randint(1, 10), 100))
+            data["graph_data"]["Rose Curve (this is all simulated data btw)"].extend(generate_rose_curve(np.random.randint(1, 10), np.random.randint(1, 10), 100))
 
 
 
@@ -94,7 +94,8 @@ class RoboMasterBot:
 
 if __name__ == "__main__":
     bot = RoboMasterBot()
-    target_fps = 1/30
+    start = time.time()
+    target_fps = 1/15
     while True:
         last_sent = time.time()
 
@@ -112,3 +113,6 @@ if __name__ == "__main__":
             time.sleep(delta)
         else:
             print(f'Missed deadline by {-delta} seconds')
+
+        if time.time() - start > 120:
+            exit(0)

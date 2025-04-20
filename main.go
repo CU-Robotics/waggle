@@ -69,10 +69,17 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 	if readyToSend {
 		broadcastMessage()
 	}
+	go replay_manger.write_update(data)
 }
 
+var replay_manger ReplayManager
+
 func main() {
-	println("Started")
+	print("Initializing replay manager... ")
+	replay_manger = ReplayManager{}
+	println("Done!")
+
+	print("Creating routes... ")
 
 	router := mux.NewRouter().StrictSlash(true)
 
@@ -87,7 +94,9 @@ func main() {
 	staticDir := "./client/dist/"
 	fs := http.FileServer(http.Dir(staticDir))
 	router.NotFoundHandler = fs
+	println("Done!")
 
+	println("Starting hosting!")
 	log.Fatal(http.ListenAndServe(":3000", router))
 
 }
