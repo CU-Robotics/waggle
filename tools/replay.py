@@ -53,8 +53,8 @@ def main(stdscr, frames, url,path):
 
     idx = 0
     playing = 0
-    start_time = None
-
+    start_time = 0
+    start_rel = 0
     while True:
         ch = stdscr.getch()
         frame_data = json.loads(frames[idx]['line']) 
@@ -64,17 +64,13 @@ def main(stdscr, frames, url,path):
             if key in ('q'):
                 break
             if key in ('p'):
-                if start_time is None:
-                    start_time = time.time()
-                else:
-                    start_time = time.time() - frames[idx]['rel']
+                start_time = time.time()
+                start_rel = frames[idx]['rel']
                 playing = 1
 
             if key in ('o'):
-                if start_time is None:
-                    start_time = time.time()
-                else:
-                    start_time = time.time() - frames[idx]['rel']
+                start_time = time.time()
+                start_rel = frames[idx]['rel']
                 playing = -1
 
             elif key == 'l':
@@ -85,18 +81,31 @@ def main(stdscr, frames, url,path):
                     idx += 1
             elif key == 'k':
                 playing = 0
-                if idx < len(frames):
+                if idx >0:
                     
                     send_frame(url, frame_data)
                     idx -= 1
 
-        if playing != 0 and 0 <= idx < len(frames):
-            now_rel = (time.time() - start_time) * playing
-            while idx < len(frames) and frames[idx]['rel'] <= now_rel:
-                send_frame(url, frame_data)
-                idx += playing
-            if idx >= len(frames):
-                playing = 0
+        if playing != 0:
+            if playing > 0:
+                while idx < len(frames) and time.time() - start_time >= frames[idx]['rel']-start_rel:
+                    frame_data = json.loads(frames[idx]['line']) 
+                    frame_data['graph_data']['WAGGLE_REPLAY_FRAME']=[{'x':time.time(),'y':idx}]
+                    send_frame(url, frame_data)
+                    idx += 1
+
+                if idx >= len(frames):
+                    playing = 0
+            else:
+                while idx > 0 and time.time() - start_time >= -frames[idx]['rel']+start_rel:
+                    idx -= 1
+                    frame_data = json.loads(frames[idx]['line'])
+                    frame_data['graph_data']['WAGGLE_REPLAY_FRAME'] = [{'x': time.time(), 'y': idx}]
+                    send_frame(url, frame_data)
+
+                if idx <= 0:
+                    playing = 0
+
 
         r = 0
         stdscr.erase()
@@ -114,6 +123,7 @@ def main(stdscr, frames, url,path):
 
         stdscr.addstr(r, 0, f"Playing      : {playing}")
         r+=1
+
         if idx < len(frames):
             next_time = frames[idx]['rel']
             stdscr.addstr(4, 0, f"Next @ +{next_time:.2f}s")
