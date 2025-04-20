@@ -67,7 +67,7 @@ function App() {
 
   return (
     <>
-      <div className="h-screen w-full dark:bg-neutral-800 dark:text-white">
+      <div className="min-h-screen w-full dark:bg-neutral-800 dark:text-white">
         <div className="mb-2 flex justify-between border-b p-2">
           <div className="flex items-center gap-1">
             <IconFileFilled size={20} />
