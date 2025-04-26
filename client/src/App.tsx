@@ -8,7 +8,7 @@ import {
 } from "@tabler/icons-react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
-import { GraphData } from "./types";
+import { GraphDataToCSV, saveFile } from "./csvHelpter";
 // import gameField from "./assets/game_field.png";
 
 function App() {
@@ -23,29 +23,10 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
 
-  function GraphDataToCSV(data: { [key: string]: GraphData[] }): string {
-    const headers = Object.keys(data);
-
-    const maxLen = Math.max(...headers.map((key) => data[key].length), 0);
-
-    const rows: string[] = [];
-
-    rows.push(headers.join(","));
-
-    for (let i = 0; i < maxLen; i++) {
-      const row = headers.map((key) => {
-        const pt = data[key][i];
-        return pt ? `"(${pt.x},${pt.y})"` : "";
-      });
-      rows.push(row.join(","));
-    }
-
-    return rows.join("\n");
-  }
-
   const handleDownloadData = () => {
     console.log(Date.now());
-    console.log(GraphDataToCSV(graphData));
+    const csvData = GraphDataToCSV(graphData);
+    saveFile("data.csv", csvData);
   };
 
   const toggleGraph = (key: string) => {
