@@ -65,12 +65,12 @@ def main(stdscr, frames, url,path):
             key = chr(ch)
             if key in ('q'):
                 break
-            if key in ('p'):
+            elif key in ('p'):
                 start_time = time.time()
                 start_rel = frames[idx]['rel']
                 playing = 1
 
-            if key in ('o'):
+            elif key in ('o'):
                 start_time = time.time()
                 start_rel = frames[idx]['rel']
                 playing = -1
