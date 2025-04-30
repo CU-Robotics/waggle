@@ -40,8 +40,8 @@ type RobotData struct {
 	GraphData     map[string][]GraphDataPoint `json:"graph_data"`
 	StringData    map[string]StringData       `json:"string_data"`
 	RobotPosition RobotPosition               `json:"robot_position"`
+	SaveReplay    bool                        `json:"save_replay"`
 }
-
 type ResponeData struct {
 	InitiallySentTimestamp float64 `json:"initially_sent_timestamp"`
 }
@@ -56,8 +56,12 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var data RobotData
+	data := RobotData{
+		SaveReplay: true,
+	}
+
 	err = json.Unmarshal(body, &data)
+
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
@@ -69,7 +73,9 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 	if readyToSend {
 		broadcastMessage()
 	}
-	go replay_manger.write_update(data)
+	if data.SaveReplay {
+		go replay_manger.write_update(data)
+	}
 }
 
 var replay_manger ReplayManager
