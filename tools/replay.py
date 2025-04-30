@@ -75,7 +75,7 @@ def main(stdscr, frames, url,path):
 
             elif key == 'l':
                 playing = 0
-                if idx < len(frames):
+                if idx < len(frames)-1:
 
                     send_frame(url, frame_data)
                     idx += 1
@@ -88,7 +88,7 @@ def main(stdscr, frames, url,path):
 
         if playing != 0:
             if playing > 0:
-                while idx < len(frames) and time.time() - start_time >= frames[idx]['rel']-start_rel:
+                while idx < len(frames)-1 and time.time() - start_time >= frames[idx]['rel']-start_rel:
                     frame_data = json.loads(frames[idx]['line'])
                     frame_data['graph_data']['WAGGLE_REPLAY_FRAME']=[{'x':time.time(),'y':idx}]
                     send_frame(url, frame_data)
