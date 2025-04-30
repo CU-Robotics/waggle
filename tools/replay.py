@@ -38,17 +38,17 @@ def load_frames(path: str) -> List[Dict]:
             })
     return frames
 
-def send_frame(url: str, line: str):
-    if type(line) != 'str':
-        line = json.dumps(line)
+def send_frame(url: str, line: Dict):
+    line['save_replay'] = False
+    line = json.dumps(line)
     try:
         requests.post(url, data=line)
     except Exception:
         pass
 
 def main(stdscr, frames, url,path):
-    curses.curs_set(0)    
-    stdscr.nodelay(True)   
+    curses.curs_set(0)
+    stdscr.nodelay(True)
     stdscr.clear()
 
     idx = 0
@@ -57,7 +57,7 @@ def main(stdscr, frames, url,path):
     start_rel = 0
     while True:
         ch = stdscr.getch()
-        frame_data = json.loads(frames[idx]['line']) 
+        frame_data = json.loads(frames[idx]['line'])
         frame_data['graph_data']['WAGGLE_REPLAY_FRAME']=[{'x':time.time(),'y':idx}]
         if ch != -1:
             key = chr(ch)
@@ -76,20 +76,20 @@ def main(stdscr, frames, url,path):
             elif key == 'l':
                 playing = 0
                 if idx < len(frames):
-                    
+
                     send_frame(url, frame_data)
                     idx += 1
             elif key == 'k':
                 playing = 0
                 if idx >0:
-                    
+
                     send_frame(url, frame_data)
                     idx -= 1
 
         if playing != 0:
             if playing > 0:
                 while idx < len(frames) and time.time() - start_time >= frames[idx]['rel']-start_rel:
-                    frame_data = json.loads(frames[idx]['line']) 
+                    frame_data = json.loads(frames[idx]['line'])
                     frame_data['graph_data']['WAGGLE_REPLAY_FRAME']=[{'x':time.time(),'y':idx}]
                     send_frame(url, frame_data)
                     idx += 1
