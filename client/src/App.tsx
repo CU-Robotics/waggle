@@ -4,9 +4,11 @@ import {
   IconFileFilled,
   IconMoonFilled,
   IconBrightnessDownFilled,
+  IconDownload,
 } from "@tabler/icons-react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
+import { GraphDataToCSV, saveFile } from "./csvHelpter";
 // import gameField from "./assets/game_field.png";
 
 function App() {
@@ -20,6 +22,12 @@ function App() {
   } = useWebSocket();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
+
+  const handleDownloadData = () => {
+    console.log(Date.now());
+    const csvData = GraphDataToCSV(graphData);
+    saveFile("data.csv", csvData);
+  };
 
   const toggleGraph = (key: string) => {
     setActiveGraphs((prev) => {
@@ -104,6 +112,15 @@ function App() {
                 }}
                 className="w-36 rounded border px-2 py-1 dark:bg-neutral-800"
               />
+            </div>
+            <div>
+              <button
+                onClick={handleDownloadData}
+                className="flex items-center gap-2 rounded-md border bg-slate-300 px-3 py-2 text-black hover:bg-slate-600 dark:bg-slate-700 dark:text-white"
+              >
+                <IconDownload size={18} />
+                Download All Data
+              </button>
             </div>
           </div>
         </div>

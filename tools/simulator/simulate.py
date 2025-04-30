@@ -114,5 +114,5 @@ if __name__ == "__main__":
         else:
             print(f'Missed deadline by {-delta} seconds')
 
-        if time.time() - start > 120:
-            exit(0)
+        # if time.time() - start > 120:
+        #     exit(0)
