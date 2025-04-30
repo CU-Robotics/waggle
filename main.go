@@ -61,9 +61,7 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = json.Unmarshal(body, &data)
-	log.Println("Raw body:", string(body)) // Display the incoming JSON to see if save_replay is present
 
-	println("Save replay", data.SaveReplay)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println(err)
