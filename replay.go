@@ -6,6 +6,9 @@ import (
 	"os"
 	"sync"
 	"time"
+	"path/filepath"
+	"sort"
+	"io/ioutil"
 )
 
 // If there is no data for REPLAY_TIMEOUT milliseconds, this will be counted as a new replay
@@ -17,17 +20,74 @@ type ReplayManager struct {
 	last_update int64
 }
 
+const maxFolderSizeMB = 10 // Limit in megabytes
+
+func get_folder_size(path string) (int64, error) {
+    var size int64 = 0
+    err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+        if err != nil {
+            return err
+        }
+        if !info.IsDir() {
+            size += info.Size()
+        }
+        return nil
+    })
+    return size, err
+}
+
+func delete_oldest_files(folder string, maxSize int64) error {
+    files, err := ioutil.ReadDir(folder)
+    if err != nil {
+        return err
+    }
+
+    // Sort files by ModTime (oldest first)
+    sort.Slice(files, func(i, j int) bool {
+        return files[i].ModTime().Before(files[j].ModTime())
+    })
+
+    var totalSize int64
+    for _, file := range files {
+        totalSize += file.Size()
+    }
+
+    // Delete oldest files until we're under the limit
+    for _, file := range files {
+        if totalSize <= maxSize {
+            break
+        }
+		println("Deleting file: " + file.Name())
+        err := os.Remove(filepath.Join(folder, file.Name()))
+        if err != nil {
+            return err
+        }
+        totalSize -= file.Size()
+    }
+    return nil
+}
+
 func (r *ReplayManager) init_replay() {
 	if r.file != nil {
 		r.file.Close()
 	}
 
+
 	var err error
 	folder_name := "replays/"
-
-	filename := folder_name + time.Now().Local().String() + ".waggle"
+	timestamp := time.Now().Local().Format("2006-01-02_15-04-05")
+	filename := folder_name + timestamp + ".waggle"
 
 	os.Mkdir(folder_name, os.ModePerm)
+
+    maxSizeBytes := int64(maxFolderSizeMB) * 1024 * 1024
+    folderSize, err := get_folder_size(folder_name)
+    if err == nil && folderSize > maxSizeBytes {
+        err = delete_oldest_files(folder_name, maxSizeBytes)
+        if err != nil {
+            panic(err)
+        }
+    }
 
 	r.file, err = os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
