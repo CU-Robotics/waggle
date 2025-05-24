@@ -108,7 +108,7 @@ func (r *ReplayManager) write_update(robot_data RobotData) {
 		return
 	}
 	defer r.file_guard.Unlock()
-	size, err := r.file.Stat().Size()
+	size := r.file.Stat().Size()
 	curr_time := time.Now().UnixMilli()
 	if curr_time-r.last_update > REPLAY_TIMEOUT || size > int64(maxFileSizeMB)*1024*1024 {
 		println("Replay timeout or file size exceeded, creating new replay")
