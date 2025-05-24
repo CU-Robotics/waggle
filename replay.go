@@ -108,6 +108,9 @@ func (r *ReplayManager) write_update(robot_data RobotData) {
 		return
 	}
 	defer r.file_guard.Unlock()
+	
+	curr_time := time.Now().UnixMilli()
+	should_reinit := false
 
 	if curr_time-r.last_update > REPLAY_TIMEOUT {
 		should_reinit = true
