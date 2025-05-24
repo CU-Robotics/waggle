@@ -104,7 +104,7 @@ func (r *ReplayManager) close() {
 
 func (r *ReplayManager) write_update(robot_data RobotData) {
 	if !r.file_guard.TryLock() {
-		print("Missed write update because locked mutex")
+		print("Missed write update because locked mutex\n")
 		return
 	}
 	defer r.file_guard.Unlock()
