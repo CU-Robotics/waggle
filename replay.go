@@ -122,7 +122,7 @@ func (r *ReplayManager) write_update(robot_data RobotData) {
 		if err != nil {
 			fmt.Printf("Failed to stat replay file: %v\n", err)
 			should_reinit = true // play it safe
-		} else if stat.Size() > int64(MAX_FILE_SI)*1024*1024 {
+		} else if stat.Size() > int64(MAX_FILE_SIZE_MB)*1024*1024 {
 			should_reinit = true
 		}
 	} else {
