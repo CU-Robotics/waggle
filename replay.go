@@ -20,7 +20,8 @@ type ReplayManager struct {
 	last_update int64
 }
 
-const maxFolderSizeMB = 10 // Limit in megabytes
+const maxFolderSizeMB = 500 // Limit in megabytes
+const maxFileSizeMB = 100
 
 func get_folder_size(path string) (int64, error) {
     var size int64 = 0
@@ -107,9 +108,10 @@ func (r *ReplayManager) write_update(robot_data RobotData) {
 		return
 	}
 	defer r.file_guard.Unlock()
-
+	size, err := r.file.Stat().Size()
 	curr_time := time.Now().UnixMilli()
-	if curr_time-r.last_update > REPLAY_TIMEOUT {
+	if curr_time-r.last_update > REPLAY_TIMEOUT || size > int64(maxFileSizeMB)*1024*1024 {
+		println("Replay timeout or file size exceeded, creating new replay")
 		r.init_replay()
 	}
 	r.last_update = curr_time
