@@ -111,9 +111,10 @@ func (r *ReplayManager) write_update(robot_data RobotData) {
 
 	stat, err := r.file.Stat()
 	if err != nil {
-		print("Failed to stat replay file: %v", err)
+		print("Failed to stat replay file: %v\n", err)
 		return
 	}
+	println("Replay file size: ", stat.Size())
 
 	size := stat.Size()
 	curr_time := time.Now().UnixMilli()
