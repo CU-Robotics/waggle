@@ -20,8 +20,8 @@ type ReplayManager struct {
 	last_update int64
 }
 
-const maxFolderSizeMB = 500 // Limit in megabytes
-const maxFileSizeMB = 100
+const MAX_FOLDER_SIZE_MB = 5000 // Limit in megabytes
+const MAX_FILE_SIZE_MB = 1000
 
 func get_folder_size(path string) (int64, error) {
     var size int64 = 0
@@ -81,7 +81,7 @@ func (r *ReplayManager) init_replay() {
 
 	os.Mkdir(folder_name, os.ModePerm)
 
-    maxSizeBytes := int64(maxFolderSizeMB) * 1024 * 1024
+    maxSizeBytes := int64(MAX_FOLDER_SIZE_MB) * 1024 * 1024
     folderSize, err := get_folder_size(folder_name)
     if err == nil && folderSize > maxSizeBytes {
         err = delete_oldest_files(folder_name, maxSizeBytes)
@@ -108,7 +108,7 @@ func (r *ReplayManager) write_update(robot_data RobotData) {
 		return
 	}
 	defer r.file_guard.Unlock()
-	
+
 	curr_time := time.Now().UnixMilli()
 	should_reinit := false
 
@@ -116,13 +116,13 @@ func (r *ReplayManager) write_update(robot_data RobotData) {
 		should_reinit = true
 	}
 
-	const maxFileSizeMB = 5
+	
 	if r.file != nil {
 		stat, err := r.file.Stat()
 		if err != nil {
 			fmt.Printf("Failed to stat replay file: %v\n", err)
 			should_reinit = true // play it safe
-		} else if stat.Size() > int64(maxFileSizeMB)*1024*1024 {
+		} else if stat.Size() > int64(MAX_FILE_SI)*1024*1024 {
 			should_reinit = true
 		}
 	} else {
