@@ -143,10 +143,14 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--replay-dir", default="../replays", help="Directory containing replay files")
     p.add_argument("--url", default="http://localhost:3000/batch", help="Waggle endpoint")
+    p.add_argument("--file", default="", help="file name, relative to the replay dir")
+
     args = p.parse_args()
 
-    latest = find_latest_file(args.replay_dir)
-    path = os.path.join(args.replay_dir, latest)
+    filename = args.file
+    if filename == '':
+        filename = find_latest_file(args.replay_dir)
+    path = os.path.join(args.replay_dir, filename)
     print(f"Loading replay: {path}")
     frames = load_frames(path)
 
