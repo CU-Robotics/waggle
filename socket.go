@@ -1,11 +1,17 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"image"
+	"image/jpeg"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 
+	"github.com/disintegration/imaging"
 	"github.com/gorilla/websocket"
 )
 
@@ -66,6 +72,30 @@ func broadcastMessage() {
 		println("empty")
 	} else {
 		var err error
+		for i, robot_data := range buffer {
+			if i != len(buffer)-1 {
+				robot_data.Images = map[string]ImageData{}
+				continue
+			}
+			for image_name, image_data := range robot_data.Images {
+				reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(image_data.ImageData))
+				m, _, err := image.Decode(reader)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				dstImageFit := imaging.Fit(m, 500, 500, imaging.Lanczos)
+
+				var buf bytes.Buffer
+				err = jpeg.Encode(&buf, dstImageFit, &jpeg.Options{Quality: 80})
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				image_data.ImageData = base64.StdEncoding.EncodeToString(buf.Bytes())
+				robot_data.Images[image_name] = image_data
+			}
+		}
 		message, err = json.Marshal(buffer)
 		if err != nil {
 			log.Println("Error marshalling JSON:", err)
@@ -89,11 +119,8 @@ func broadcastMessage() {
 func addDataToBuffer(data RobotData) {
 	buffer = append(buffer, data)
 
+	//TODO: configurable max-buffer size
 	if len(buffer) > 10 {
 		buffer = buffer[1:]
 	}
-
-	// message, err := json.Marshal(data)
-
-	// go broadcastMessage(message)
 }
