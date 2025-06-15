@@ -57,7 +57,7 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := RobotData{
-		SaveReplay: true,
+		// 	SaveReplay: true, //default to true
 	}
 
 	err = json.Unmarshal(body, &data)
@@ -69,12 +69,12 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("Body:", string(body))
 		return
 	}
+	if data.SaveReplay {
+		replay_manger.write_update(data)
+	}
 	addDataToBuffer(data)
 	if readyToSend {
 		broadcastMessage()
-	}
-	if data.SaveReplay {
-		go replay_manger.write_update(data)
 	}
 }
 
