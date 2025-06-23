@@ -1,0 +1,7 @@
+Initializing replay manager... Done!
+Creating routes... Done!
+Starting hosting!
+2025/06/23 16:09:15 Error reading message: websocket: close 1001 (going away)
+empty
+Replay file is nil, reinitializing
+Replay timeout or file size exceeded, creating new replay
