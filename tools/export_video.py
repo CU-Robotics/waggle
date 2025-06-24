@@ -13,6 +13,31 @@ import io
 SCHEMA_VERSION = "schema 1"
 
 
+
+
+#################
+import base64
+
+# Your base64 string (example only — replace with your actual string)
+base64_string = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+
+# If the base64 string includes the data URI scheme, remove the prefix
+if base64_string.startswith("data:"):
+    base64_string = base64_string.split(",")[1]
+
+# Decode the base64 string
+image_data = base64.b64decode(base64_string)
+
+# Save the decoded data to an image file
+with open("output_image.png", "wb") as f:
+    f.write(image_data)
+
+print("Image saved as output_image.png")
+
+#################
+
+
+
 def base64_to_png(base64_string, output_file):
     """Converts a base64 string to a PNG image file.
 
@@ -37,19 +62,18 @@ def export_video(frames, url,path):
     # for i in range(len(frames)):
     os.makedirs("image-export/", exist_ok=True)
     print(json.loads(frames[0]['line']).keys())
-    for image_name, image_data in json.loads(frames[0]['line'])['images'].items():
-        base_64_image = f'data:image/png;base64,{image_data['image_data']}'
-        print(base_64_image)
-        os.makedirs(f"image-export/{image_name}", exist_ok=True)
-        number = frame_count[image_name]
-        frame_count[image_name] += 1
+    for frame in frames:
+        for image_name, image_data in json.loads(frame['line'])['images'].items():
+            os.makedirs(f"image-export/{image_name}", exist_ok=True)
 
-        # png_recovered = base64.b64decode(base_64)
-        base64_to_png(f"image-export/{image_name}/{number}.png", base_64_image)
-    
-        # print(base_64)
+            # base_64_image_string = f'data:image/png;base64,{image_data['image_data']}'
+            number = frame_count[image_name]
+            frame_count[image_name] += 1
+            decoded_image = base64.b64decode(image_data['image_data'])
 
-    # print(frame_count['yuurr'])
+            with open(f"image-export/{image_name}/{number}.jpg", "wb") as f:
+                f.write(decoded_image)
+                
 
 def find_latest_file(directory: str) -> str:
     try:
