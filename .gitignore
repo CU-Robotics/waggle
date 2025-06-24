@@ -18,3 +18,5 @@ __pycache__
 replays/
 
 *.log
+
+tools/image-export
