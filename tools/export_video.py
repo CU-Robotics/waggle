@@ -10,63 +10,18 @@ import base64
 import base64
 from PIL import Image
 import io
+from tqdm import tqdm 
+
 SCHEMA_VERSION = "schema 1"
-
-
-
-
-#################
-import base64
-
-# Your base64 string (example only — replace with your actual string)
-base64_string = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
-
-# If the base64 string includes the data URI scheme, remove the prefix
-if base64_string.startswith("data:"):
-    base64_string = base64_string.split(",")[1]
-
-# Decode the base64 string
-image_data = base64.b64decode(base64_string)
-
-# Save the decoded data to an image file
-with open("output_image.png", "wb") as f:
-    f.write(image_data)
-
-print("Image saved as output_image.png")
-
-#################
-
-
-
-def base64_to_png(base64_string, output_file):
-    """Converts a base64 string to a PNG image file.
-
-    Args:
-        base64_string: The base64 encoded string of the image.
-        output_file: The path to save the PNG image.
-    """
-    try:
-        # Decode the base64 string
-        image_data = base64.b64decode(base64_string)
-        # Create an image object from the decoded data
-        image = Image.open(io.BytesIO(image_data))
-        # Save the image as PNG
-        image.save(output_file, 'PNG')
-        print(f"Image saved as {output_file}")
-
-    except Exception as e:
-        print(f"Error: {e}")
 
 def export_video(frames, url,path):
     frame_count = defaultdict(int)
-    # for i in range(len(frames)):
     os.makedirs("image-export/", exist_ok=True)
     print(json.loads(frames[0]['line']).keys())
-    for frame in frames:
+    for frame in tqdm(frames):
         for image_name, image_data in json.loads(frame['line'])['images'].items():
             os.makedirs(f"image-export/{image_name}", exist_ok=True)
 
-            # base_64_image_string = f'data:image/png;base64,{image_data['image_data']}'
             number = frame_count[image_name]
             frame_count[image_name] += 1
             decoded_image = base64.b64decode(image_data['image_data'])

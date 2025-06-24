@@ -2,3 +2,4 @@ websockets
 numpy
 opencv-python
 requests
+tqdm
