@@ -59,6 +59,8 @@ def main(stdscr, frames, url,path):
     start_rel = 0
     last_frame_time = 0
 
+    SPEED = 5
+
     while True:
         ch = stdscr.getch()
         if ch != -1:
@@ -89,28 +91,30 @@ def main(stdscr, frames, url,path):
         if playing != 0:
             now = time.time()
             if playing > 0:
-                if idx < len(frames)-1:
+                if idx < len(frames)-SPEED:
                     elapsed = now - start_time
+                    elapsed *= SPEED
                     next_frame_rel = frames[idx+1]['rel']
                     if elapsed >= next_frame_rel - start_rel:
                         if now - last_frame_time >= 0.01:
-                            idx += 1
+                            idx += SPEED
                             send_frame(url, frames, idx)
                             last_frame_time = now
 
-                if idx >= len(frames)-1:
+                if idx >= len(frames)-SPEED:
                     playing = 0
             else:
                 if idx > 0:
                     elapsed = now - start_time
+                    elapsed *= SPEED
                     prev_frame_rel = frames[idx-1]['rel']
                     if elapsed >= start_rel - prev_frame_rel:
                         if now - last_frame_time >= 0.01:
-                            idx -= 1
+                            idx -= SPEED
                             send_frame(url, frames, idx)
                             last_frame_time = now
 
-                if idx <= 0:
+                if idx <= SPEED:
                     playing = 0
 
 
@@ -150,8 +154,14 @@ if __name__ == "__main__":
     filename = args.file
     if filename == '':
         filename = find_latest_file(args.replay_dir)
-    path = os.path.join(args.replay_dir, filename)
+    
+    path = ''
+    if os.path.isabs(filename):
+        path = filename
+    else:
+        path = os.path.join(args.replay_dir, filename)
     print(f"Loading replay: {path}")
+
     frames = load_frames(path)
 
     curses.wrapper(main, frames, args.url, path)

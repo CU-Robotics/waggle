@@ -26,7 +26,7 @@ def export_video(frames, url,path):
             frame_count[image_name] += 1
             decoded_image = base64.b64decode(image_data['image_data'])
 
-            with open(f"image-export/{image_name}/{number}.jpg", "wb") as f:
+            with open(f"image-export/{image_name}/{number:08}.jpg", "wb") as f:
                 f.write(decoded_image)
                 
 
