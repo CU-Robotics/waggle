@@ -20,3 +20,5 @@ replays/
 *.log
 
 tools/image-export
+
+replay_counter.txt

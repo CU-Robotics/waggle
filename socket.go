@@ -69,7 +69,6 @@ func broadcastMessage() {
 	// println("broadcasting", len(buffer))
 	if len(buffer) == 0 {
 		message = []byte("[]")
-		println("empty")
 	} else {
 		var err error
 		for i, robot_data := range buffer {
