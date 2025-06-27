@@ -47,7 +47,7 @@ func delete_oldest_files(folder string, maxSize int64) error {
 
 	// Sort files by ModTime (oldest first)
 	sort.Slice(files, func(i, j int) bool {
-		return files[i].ModTime().Before(files[j].ModTime())
+		return files[i].Name() < files[j].Name()
 	})
 
 	var totalSize int64
@@ -77,11 +77,11 @@ func (r *ReplayManager) init_replay() {
 
 	var err error
 	folder_name := "replays/"
-	curr_name, err := get_replay_filename("replay_counter.txt")
+	_ = os.Mkdir(folder_name, os.ModePerm)
+
+	curr_name, _ := get_replay_filename(folder_name + "replay_counter.txt")
 	filename := folder_name + curr_name
 	println("creating file", filename)
-
-	os.Mkdir(folder_name, os.ModePerm)
 
 	maxSizeBytes := int64(MAX_FOLDER_SIZE_MB) * 1024 * 1024
 	folderSize, err := get_folder_size(folder_name)
