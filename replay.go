@@ -45,7 +45,6 @@ func delete_oldest_files(folder string, maxSize int64) error {
 		return err
 	}
 
-	// Sort files by ModTime (oldest first)
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].Name() < files[j].Name()
 	})
