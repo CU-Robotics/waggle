@@ -49,8 +49,13 @@ def load_frames(path: str) -> List[Dict]:
             print(f'Incompatible replay schema. Needs "{SCHEMA_VERSION}", found "{header}"')
             exit(1)
         first_ts = None
-        for raw in f:
-            data = json.loads(raw)
+        for e, raw in enumerate(f):
+            data = {}
+            try:
+                data = json.loads(raw)
+            except:
+                print(f'Could not load frame {e}')
+                continue
             sent_ts = data['sent_timestamp'] / 1000.0
             if first_ts is None:
                 first_ts = sent_ts

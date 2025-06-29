@@ -64,7 +64,7 @@ def main(stdscr, frames, url,path):
     start_rel = 0
     last_frame_time = 0
 
-    SPEED = 5
+    SPEED = 1
 
     while True:
         ch = stdscr.getch()
