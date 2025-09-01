@@ -15,6 +15,10 @@ type ImageData struct {
 	Flip      bool   `json:"flip"`
 }
 
+type SvgData struct {
+	SvgString string `json:"svg_string"`
+}
+
 type GraphDataPoint struct {
 	X        float64           `json:"x"`
 	Y        float64           `json:"y"`
@@ -37,6 +41,7 @@ type StringData struct {
 type RobotData struct {
 	SentTimestamp float64                     `json:"sent_timestamp"`
 	Images        map[string]ImageData        `json:"images"`
+	Svgs          map[string]SvgData          `json:"svg_data"`
 	GraphData     map[string][]GraphDataPoint `json:"graph_data"`
 	StringData    map[string]StringData       `json:"string_data"`
 	RobotPosition RobotPosition               `json:"robot_position"`
@@ -46,7 +51,7 @@ type ResponeData struct {
 	InitiallySentTimestamp float64 `json:"initially_sent_timestamp"`
 }
 
-var readyToSend bool = false
+var readyToSend = false
 
 func batchHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
@@ -57,7 +62,7 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := RobotData{
-			SaveReplay: true, //default to true
+		SaveReplay: true, //default to true
 	}
 
 	err = json.Unmarshal(body, &data)
@@ -72,6 +77,7 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 	if data.SaveReplay {
 		replay_manger.write_update(data)
 	}
+	PrettyPrint(data)
 	addDataToBuffer(data)
 	if readyToSend {
 		broadcastMessage()
