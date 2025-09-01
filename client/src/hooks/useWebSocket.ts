@@ -106,6 +106,7 @@ export function useWebSocket() {
   };
   const handleIncomingMessage = useCallback(
     (all_data: RobotData[]) => {
+      console.log(all_data)
       for (let i = 0; i < all_data.length; i++) {
         const data = all_data[i];
         const lastFrame = i === all_data.length - 1;

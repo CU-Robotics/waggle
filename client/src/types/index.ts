@@ -4,6 +4,10 @@ interface ImageData {
   flip: boolean;
 }
 
+interface SvgData {
+  svg_string: string;
+}
+
 interface GraphDataSettings {
   clear_data: boolean;
 }
@@ -27,6 +31,7 @@ interface RobotPosition {
 interface RobotData {
   sent_timestamp: number;
   images: { [key: string]: ImageData };
+  svg_data: { [key: string]: SvgData };
   graph_data: { [key: string]: Array<GraphDataPoint> };
   string_data: { [key: string]: StringData };
   robot_position: RobotPosition;
