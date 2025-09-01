@@ -77,7 +77,7 @@ func batchHandler(w http.ResponseWriter, r *http.Request) {
 	if data.SaveReplay {
 		replay_manger.write_update(data)
 	}
-	PrettyPrint(data)
+
 	addDataToBuffer(data)
 	if readyToSend {
 		broadcastMessage()
