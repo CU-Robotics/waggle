@@ -10,9 +10,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-
 func LogRequest(wrappedWriter *ResponseWriterWrapper, r *http.Request, start time.Time, message string, name string, logger *zerolog.Event) {
-	
+
 	var millis float32 = float32(time.Since(start).Microseconds()) / 1000
 	execTime := fmt.Sprintf("%.3f ms", millis)
 
@@ -25,7 +24,6 @@ func LogRequest(wrappedWriter *ResponseWriterWrapper, r *http.Request, start tim
 	if wrappedWriter.StatusCode < 200 || wrappedWriter.StatusCode >= 400 {
 		data["error"] = wrappedWriter.Body.String()
 	}
-
 
 }
 

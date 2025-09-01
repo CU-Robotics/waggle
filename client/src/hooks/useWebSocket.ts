@@ -10,6 +10,8 @@ export function useWebSocket() {
 
   const [graphData, setGraphData] = useState<RobotData["graph_data"]>({});
   const [imageData, setImageData] = useState<RobotData["images"]>({});
+  const [svgData, setSvgData] = useState<RobotData["svg_data"]>({});
+
   const [stringData, setStringData] = useState<RobotData["string_data"]>({});
 
   const [robotPosition, setRobotPosition] = useState<
@@ -106,6 +108,7 @@ export function useWebSocket() {
   };
   const handleIncomingMessage = useCallback(
     (all_data: RobotData[]) => {
+      console.log(all_data)
       for (let i = 0; i < all_data.length; i++) {
         const data = all_data[i];
         const lastFrame = i === all_data.length - 1;
@@ -149,6 +152,16 @@ export function useWebSocket() {
           setImageData((prevData) => {
             const newData = { ...prevData };
             for (const [key, value] of Object.entries(data.images)) {
+              newData[key] = value;
+            }
+            return newData;
+          });
+        }
+
+        if (data.svg_data && lastFrame) {
+          setSvgData((prevData) => {
+            const newData = { ...prevData };
+            for (const [key, value] of Object.entries(data.svg_data)) {
               newData[key] = value;
             }
             return newData;
@@ -264,6 +277,7 @@ export function useWebSocket() {
     isConnected,
     graphData,
     imageData,
+    svgData,
     stringData,
     robotPosition,
     maxDataPoints,

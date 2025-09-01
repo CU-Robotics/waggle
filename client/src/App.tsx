@@ -16,6 +16,7 @@ function App() {
     isConnected,
     graphData,
     imageData,
+    svgData,
     stringData,
     maxDataPoints,
     setMaxDataPoints,
@@ -190,6 +191,22 @@ function App() {
                         src={`data:image/png;base64,${value.image_data}`}
                         className="rounded-md border"
                         alt="no source"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <div className="m-2 flex w-3/4 flex-col rounded-md border">
+            <div className="flex items-center justify-center">
+              <div className="m-2 flex flex-wrap">
+                {Object.entries(svgData).map(([key, value]) => {
+                  return (
+                    <div className="m-2 flex flex-col items-center" key={key}>
+                      <p>{key}</p>
+                      <div
+                        dangerouslySetInnerHTML={{ __html: value.svg_string }}
                       />
                     </div>
                   );
