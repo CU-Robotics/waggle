@@ -1,67 +1,73 @@
 use axum::{
-    extract::{ws::{WebSocket, WebSocketUpgrade, Message}, State},
-    routing::{get, post},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
+    },
     response::IntoResponse,
+    routing::{get, post},
     Json, Router,
 };
-use futures::{StreamExt, SinkExt};
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::{Arc}};
+use futures::StreamExt;
 use parking_lot::Mutex;
-use tracing::{info, error};
-use tokio::fs;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::mpsc;
+use tracing::info;
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageFormat;
 use std::io::Cursor;
-
+use axum::handler::HandlerWithoutStateExt;
+use tower_http::services::ServeDir;
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct ImageData {
-    image_data: String,
-    scale: Option<u32>,
-    flip: Option<bool>,
+pub struct ImageData {
+    /// PNG-encoded image bytes as base64.
+    pub image_data: String,
+    /// Scale factor applied when rendering on the dashboard (1.0 = native).
+    pub scale: i32,
+    /// Whether the dashboard should flip horizontally+vertically.
+    pub flip: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SvgData {
-    svg_string: String,
+pub struct SvgData {
+    pub svg_string: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct GraphDataSettings {
-    clear_data: bool,
+pub struct GraphData {
+    pub x: f64,
+    pub y: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct GraphDataPoint {
-    x: f64,
-    y: f64,
-    settings: GraphDataSettings,
+pub struct StringData {
+    pub value: String,
+}
+impl Into<StringData> for String {
+    fn into(self) -> StringData {
+        StringData { value: self }
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct RobotPosition {
-    x: f64,
-    y: f64,
-    heading: f64,
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RobotData {
+    pub sent_timestamp: i64,
+    pub images: HashMap<String, ImageData>,
+    pub svg_data: HashMap<String, SvgData>,
+    pub graph_data: HashMap<String, Vec<GraphData>>,
+    pub string_data: HashMap<String, StringData>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct StringData {
-    value: String,
+/// Thread-safe batch that mirrors the C++ WaggleData responsibilities.
+#[derive(Debug, Default)]
+pub struct WaggleData {
+    images: std::sync::Mutex<HashMap<String, ImageData>>,
+    svgs: std::sync::Mutex<HashMap<String, SvgData>>,
+    graph_data: std::sync::Mutex<HashMap<String, Vec<GraphData>>>,
+    string_data: std::sync::Mutex<HashMap<String, StringData>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct RobotData {
-    sent_timestamp: f64,
-    images: HashMap<String, ImageData>,
-    svg_data: HashMap<String, SvgData>,
-    graph_data: HashMap<String, Vec<GraphDataPoint>>,
-    string_data: HashMap<String, StringData>,
-    robot_position: RobotPosition,
-    save_replay: bool,
-}
-
-type Clients = Arc<Mutex<HashMap<uuid::Uuid, tokio::sync::mpsc::UnboundedSender<Message>>>>;
+type Clients = Arc<Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<Message>>>>;
 type Buffer = Arc<Mutex<Vec<RobotData>>>;
 
 /// WebSocket handler
@@ -72,32 +78,28 @@ async fn ws_handler(
     ws.on_upgrade(|socket| ws_connected(socket, clients, buffer))
 }
 
-async fn ws_connected(
-    mut socket: WebSocket,
-    clients: Clients,
-    buffer: Buffer,
-) {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+async fn ws_connected(mut socket: WebSocket, clients: Clients, buffer: Buffer) {
+    let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
     let id = uuid::Uuid::new_v4();
-
     clients.lock().insert(id, tx);
 
+    // Reader loop
     while let Some(Ok(msg)) = socket.next().await {
-        match msg {
-            Message::Text(_) | Message::Binary(_) => {
+        if matches!(msg, Message::Text(_) | Message::Binary(_)) {
+            // Lock, copy, unlock BEFORE await
+            let serialized = {
                 let buf = buffer.lock();
-                if !buf.is_empty() {
-                    if let Ok(serialized) = serde_json::to_string(&*buf) {
-                        if socket.send(Message::Text(serialized)).await.is_err() {
-                            break;
-                        }
-                    }
-                }
+                serde_json::to_string(&*buf).unwrap_or("[]".to_string())
+            };
+
+            if socket.send(Message::Text(serialized)).await.is_err() {
+                break;
             }
-            Message::Close(_) => break,
-            _ => {}
+        } else if matches!(msg, Message::Close(_)) {
+            break;
         }
     }
+
     clients.lock().remove(&id);
 }
 
@@ -106,6 +108,7 @@ async fn batch_handler(
     State((clients, buffer)): State<(Clients, Buffer)>,
     Json(mut data): Json<RobotData>,
 ) {
+    info!("reeee {:?}", data);
     // Example: resize images before storing
     for (_name, img) in data.images.iter_mut() {
         if let Ok(bin) = general_purpose::STANDARD.decode(&img.image_data) {
@@ -113,13 +116,12 @@ async fn batch_handler(
             if let Ok(decoded) = image::load(cursor, ImageFormat::Png) {
                 let resized = decoded.thumbnail(500, 500);
                 let mut buf = Vec::new();
-                resized.write_to(&mut Cursor::new(&mut buf), ImageFormat::Jpeg).ok();
+                let _ = resized.write_to(&mut Cursor::new(&mut buf), ImageFormat::Jpeg);
                 img.image_data = general_purpose::STANDARD.encode(&buf);
             }
         }
     }
 
-    // Append to buffer
     {
         let mut buf = buffer.lock();
         buf.push(data.clone());
@@ -128,13 +130,10 @@ async fn batch_handler(
         }
     }
 
-    // Broadcast
-    let json = serde_json::to_string(&data).unwrap_or("{}".to_string());
+    let json = serde_json::to_string(&data).unwrap_or("{}".into());
     for tx in clients.lock().values() {
         let _ = tx.send(Message::Text(json.clone()));
     }
-
-    // TODO: replay_manager.write_update(data)
 }
 
 #[tokio::main]
@@ -147,11 +146,16 @@ async fn main() {
     let app = Router::new()
         .route("/batch", post(batch_handler))
         .route("/ws", get(ws_handler))
+        .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
         .with_state((clients, buffer));
 
     info!("Starting server on :3000");
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
-        .serve(app.into_make_service())
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
+        .await
+        .unwrap();
+
+    axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
 }
