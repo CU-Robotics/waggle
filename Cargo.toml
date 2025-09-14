@@ -19,3 +19,6 @@ image = "0.25"
 base64 = "0.21"
 parking_lot = "0.12"
 tower-http = { version = "0.5", features = ["fs"] }
+easy-svg = "0.3.0"
+rand = "0.8.5"
+reqwest = { version = "0.12.23", features = ["json"] }

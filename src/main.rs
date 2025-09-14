@@ -1,23 +1,23 @@
+use axum::handler::HandlerWithoutStateExt;
 use axum::{
+    Json, Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
+use base64::{Engine as _, engine::general_purpose};
 use futures::StreamExt;
+use image::ImageFormat;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use std::io::Cursor;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
-use tracing::info;
-use base64::{engine::general_purpose, Engine as _};
-use image::ImageFormat;
-use std::io::Cursor;
-use axum::handler::HandlerWithoutStateExt;
 use tower_http::services::ServeDir;
+use tracing::info;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageData {
     /// PNG-encoded image bytes as base64.
@@ -49,8 +49,9 @@ impl Into<StringData> for String {
     }
 }
 
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct RobotData {
+pub struct WaggleData {
     pub sent_timestamp: i64,
     pub images: HashMap<String, ImageData>,
     pub svg_data: HashMap<String, SvgData>,
@@ -58,17 +59,10 @@ pub struct RobotData {
     pub string_data: HashMap<String, StringData>,
 }
 
-/// Thread-safe batch that mirrors the C++ WaggleData responsibilities.
-#[derive(Debug, Default)]
-pub struct WaggleData {
-    images: std::sync::Mutex<HashMap<String, ImageData>>,
-    svgs: std::sync::Mutex<HashMap<String, SvgData>>,
-    graph_data: std::sync::Mutex<HashMap<String, Vec<GraphData>>>,
-    string_data: std::sync::Mutex<HashMap<String, StringData>>,
-}
+
 
 type Clients = Arc<Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<Message>>>>;
-type Buffer = Arc<Mutex<Vec<RobotData>>>;
+type Buffer = Arc<Mutex<Vec<WaggleData>>>;
 
 /// WebSocket handler
 async fn ws_handler(
@@ -106,9 +100,8 @@ async fn ws_connected(mut socket: WebSocket, clients: Clients, buffer: Buffer) {
 /// POST /batch handler
 async fn batch_handler(
     State((clients, buffer)): State<(Clients, Buffer)>,
-    Json(mut data): Json<RobotData>,
+    Json(mut data): Json<WaggleData>,
 ) {
-    info!("reeee {:?}", data);
     // Example: resize images before storing
     for (_name, img) in data.images.iter_mut() {
         if let Ok(bin) = general_purpose::STANDARD.decode(&img.image_data) {
@@ -151,9 +144,7 @@ async fn main() {
 
     info!("Starting server on :3000");
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
     axum::serve(listener, app.into_make_service())
         .await

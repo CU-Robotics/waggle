@@ -104,6 +104,7 @@ if __name__ == "__main__":
 
         try:
             r = requests.post(url=URL, data=data)
+            print(r)
         except:
             print("Failed to send data to server")
             time.sleep(1)
