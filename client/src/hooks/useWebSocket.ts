@@ -58,6 +58,7 @@ export function useWebSocket() {
     };
 
     wsRef.current.onmessage = (event) => {
+      console.log("message received")
       const robot_data: RobotData[] = JSON.parse(event.data);
       frame_timestamps.push(Date.now());
 

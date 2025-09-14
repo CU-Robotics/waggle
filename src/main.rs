@@ -12,12 +12,13 @@ use base64::{Engine as _, engine::general_purpose};
 use futures::StreamExt;
 use image::ImageFormat;
 use parking_lot::Mutex;
+use rand::{Rng, random};
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
 use tower_http::services::ServeDir;
-use tracing::info;
+use tracing::{error, info};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageData {
     /// PNG-encoded image bytes as base64.
@@ -49,7 +50,6 @@ impl Into<StringData> for String {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WaggleData {
     pub sent_timestamp: i64,
@@ -58,8 +58,6 @@ pub struct WaggleData {
     pub graph_data: HashMap<String, Vec<GraphData>>,
     pub string_data: HashMap<String, StringData>,
 }
-
-
 
 type Clients = Arc<Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<Message>>>>;
 type Buffer = Arc<Mutex<Vec<WaggleData>>>;
@@ -76,6 +74,8 @@ async fn ws_connected(mut socket: WebSocket, clients: Clients, buffer: Buffer) {
     let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
     let id = uuid::Uuid::new_v4();
     clients.lock().insert(id, tx);
+    info!("New client connected");
+    update_clients(&clients, &buffer);
 
     // Reader loop
     while let Some(Ok(msg)) = socket.next().await {
@@ -85,15 +85,15 @@ async fn ws_connected(mut socket: WebSocket, clients: Clients, buffer: Buffer) {
                 let buf = buffer.lock();
                 serde_json::to_string(&*buf).unwrap_or("[]".to_string())
             };
+            info!("WS received {}", serialized);
 
-            if socket.send(Message::Text(serialized)).await.is_err() {
-                break;
-            }
+            update_clients(&clients, &buffer);
         } else if matches!(msg, Message::Close(_)) {
             break;
         }
     }
 
+    error!("Client disconnected");
     clients.lock().remove(&id);
 }
 
@@ -123,9 +123,27 @@ async fn batch_handler(
         }
     }
 
-    let json = serde_json::to_string(&data).unwrap_or("{}".into());
+    // update_clients(clients, &buffer);
+}
+
+fn update_clients(clients: &Clients, buffer: &Buffer) {
+    let to_send = if let Some(data) = buffer.lock().last().cloned() {
+        data
+    } else {
+        WaggleData {
+            sent_timestamp: 0,
+            images: Default::default(),
+            svg_data: Default::default(),
+            graph_data: Default::default(),
+            string_data: Default::default(),
+        }
+    };
+    // println!("sending {:?}", to_send);
+    let json = serde_json::to_string(&to_send).unwrap_or("{}".into());
+    info!("Sending...");
     for tx in clients.lock().values() {
         let _ = tx.send(Message::Text(json.clone()));
+        info!("Sent")
     }
 }
 
