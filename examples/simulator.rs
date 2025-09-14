@@ -1,15 +1,11 @@
 use easy_svg::elements::Svg;
-use easy_svg::elements::{Circle, Line, Rect, Text};
+use easy_svg::elements::{Circle, Rect, Text};
 use easy_svg::types::Color;
-use rand::Rng;
 use rand::distributions::Alphanumeric;
+use rand::Rng;
 use reqwest::Client;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::thread::sleep;
-use std::time::{Duration, SystemTime};
-use tracing_subscriber::fmt::time;
-use tracing_subscriber::registry::Data;
+use std::time::{Duration, Instant, SystemTime};
 use waggle::main::{GraphData, StringData, SvgData, WaggleData};
 
 fn create_svg(cx: f64, cy: f64) -> Svg {
@@ -29,7 +25,13 @@ fn create_svg(cx: f64, cy: f64) -> Svg {
 }
 #[tokio::main]
 async fn main() {
-    for i in 0..100000 {
+    let target_fps = 60;
+    let tick_rate = Duration::from_micros(1_000_000 / target_fps);
+    let mut i = 0;
+
+    loop {
+        i += 1;
+        let start = Instant::now();
         let mut string_data = HashMap::<String, StringData>::new();
         string_data.insert("test".to_string(), StringData { value: generate_random_string(5) });
 
@@ -60,7 +62,7 @@ async fn main() {
             "cosine".to_string(),
             vec![GraphData {
                 x: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64(),
-                y: f64::cos(i as f64 / 200.),
+                y: f64::cos(i as f64 / 10.),
             }],
         );
         let request = WaggleData {
@@ -73,8 +75,16 @@ async fn main() {
 
         let url = "http://localhost:3000/batch";
         let client = Client::new();
-        let res = client.post(url).json(&request).send().await;
-        tokio::time::sleep(Duration::from_millis(1000 / 60)).await;
+        tokio::spawn(async move {
+            client.post(url).json(&request).send().await.expect("TODO: panic message");
+        });
+        let elapsed = start.elapsed();
+
+        if elapsed < tick_rate {
+            tokio::time::sleep(tick_rate - elapsed).await;
+        } else {
+            println!("Missed target fps by {:?}", tick_rate.as_secs_f32() - elapsed.as_secs_f32());
+        }
     }
 }
 

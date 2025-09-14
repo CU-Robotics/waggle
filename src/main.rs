@@ -22,7 +22,7 @@ use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
 use tower_http::services::ServeDir;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageData {
     /// PNG-encoded image bytes as base64.
@@ -107,24 +107,18 @@ async fn ws_connected(
         tokio::select! {
             Some(Ok(msg)) = socket.next() => {
                 if matches!(msg, Message::Text(_) | Message::Binary(_)) {
-                    let mut ready = clients_ready.lock();
-                    *ready = true;
+                    *clients_ready.lock() = true;
                 } else if matches!(msg, Message::Close(_)) {
                     break;
                 }
             }
             Some(msg) = rx.recv() => {
-                // warn!("msg received {:?}", msg);
-                // update_clients(&clients, &buffer, &clients_ready);
-                let mut ready = clients_ready.lock();
-                *ready = true;
-                // if socket.send(msg).await.is_err() {
-                //     break;
-                // }
+                debug!("Received message: {:?}", msg);
+                if socket.send(msg).await.is_err() {
+                    break;
+                }
             }
-            else => {
-                break;
-            }
+            else => { break; }
         }
     }
 
@@ -149,34 +143,13 @@ async fn batch_handler(
             }
         }
     }
-
+    info!("received batch data");
     {
         let mut buf = buffer.lock();
         buf.push(data.clone());
-        if buf.len() > 1000 {
+        if buf.len() > 10 {
             buf.remove(0);
         }
-    }
-
-    // update_clients(clients, &buffer);
-}
-
-async fn update_clients(clients: &Clients, buffer: &Buffer, client_ready: &ClientsReady) {
-    while *client_ready.lock() == false {
-        warn!("waiting for client {}", *client_ready.lock());
-    }
-    let to_send;
-    {
-        let mut clients_ready_lock = client_ready.lock();
-        to_send = buffer.lock().iter().cloned().collect::<Vec<_>>();
-        *clients_ready_lock = false;
-    }
-    // println!("sending {:?}", to_send);
-    let json = serde_json::to_string(&to_send).unwrap_or("{}".into());
-    info!("Sending...");
-    for tx in clients.lock().values() {
-        let _ = tx.send(Message::Text(json.clone()));
-        info!("Sent")
     }
 }
 
@@ -192,14 +165,15 @@ async fn main() {
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_millis(1000 / 3));
+        let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
         loop {
             interval.tick().await;
-            info!("reeeeee");
+
             if *clients_ready_clone.lock() {
                 let to_send = {
-                    let buf = buffer_clone.lock();
-                    serde_json::to_string(&*buf).unwrap_or("{}".into())
+                    let mut buf = buffer_clone.lock();
+                    let drained: Vec<_> = buf.drain(..).collect();
+                    serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into())
                 };
 
                 let mut failed_ids = Vec::new();
@@ -216,7 +190,6 @@ async fn main() {
             }
         }
     });
-
     let app = Router::new()
         .route("/batch", post(batch_handler))
         .route("/ws", get(ws_handler))
