@@ -98,11 +98,6 @@ func main() {
 	router.Methods("POST").Path("/batch").Name("batchHandler").Handler(LoggerHandler(http.HandlerFunc(batchHandler), "batchHandler"))
 	router.Methods("GET").Path("/ws").Name("WebSocketStart").Handler(http.HandlerFunc(wsHandler))
 
-	// File editor
-	router.Methods("POST").Path("/get-folder").Name("getFolderHandler").Handler(LoggerHandler(http.HandlerFunc(getFolderHandler), "getFolderHandler"))
-	router.Methods("POST").Path("/get-file").Name("getFileHandler").Handler(LoggerHandler(http.HandlerFunc(getFileHandler), "getFileHandler"))
-	router.Methods("POST").Path("/put-file").Name("putFileHandler").Handler(LoggerHandler(http.HandlerFunc(putFileHandler), "putFileHandler"))
-
 	staticDir := "./client/dist/"
 	fs := http.FileServer(http.Dir(staticDir))
 	router.NotFoundHandler = fs
