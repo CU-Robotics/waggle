@@ -5,10 +5,11 @@ use easy_svg::elements::Svg;
 use rand::Rng;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use rand::distributions::Alphanumeric;
-use waggle::main::{StringData, SvgData, WaggleData};
+use waggle::main::{GraphData, StringData, SvgData, WaggleData};
 use reqwest::Client;
+use tracing_subscriber::fmt::time;
 use tracing_subscriber::registry::Data;
 
 fn create_svg(cx: f64, cy: f64) -> Svg {
@@ -40,15 +41,21 @@ async fn main() {
         let mut svg_data = HashMap::<String, SvgData>::new();
         svg_data.insert("demo_svg_1".to_string(), SvgData{ svg_string: create_svg(((i * 1) % 500) as f64, 80.).to_string() });
         svg_data.insert("demo_svg_2".to_string(), SvgData{ svg_string: create_svg(((i * 3) % 500) as f64, 80.).to_string() });
-        // svg_data.insert("demo_svg_3".to_string(), SvgData{ svg_string: create_svg(((i * 5) % 500) as f64, 80.).to_string() });
-        // svg_data.insert("demo_svg_4".to_string(), SvgData{ svg_string: create_svg(((i * 10) % 500) as f64, 80.).to_string() });
-        // svg_data.insert("demo_svg_5".to_string(), SvgData{ svg_string: create_svg(((i * 15) % 500) as f64, 80.).to_string() });
+        svg_data.insert("demo_svg_3".to_string(), SvgData{ svg_string: create_svg(((i * 5) % 500) as f64, 80.).to_string() });
+        svg_data.insert("demo_svg_4".to_string(), SvgData{ svg_string: create_svg(((i * 10) % 500) as f64, 80.).to_string() });
+        svg_data.insert("demo_svg_5".to_string(), SvgData{ svg_string: create_svg(((i * 15) % 500) as f64, 80.).to_string() });
 
+
+        let mut graph_data = HashMap::<String, Vec<GraphData>>::new();
+        graph_data.insert("cosine".to_string()  ,vec![ GraphData{
+            x: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64(),
+            y: f64::cos(i as f64 / 200.),
+        }]);
         let request = WaggleData {
             sent_timestamp: 0,
             images: HashMap::new(),
             svg_data,
-            graph_data: Default::default(),
+            graph_data,
             string_data,
         };
 
@@ -58,8 +65,8 @@ async fn main() {
             .post(url)
             .json(&request)
             .send()
-            .await.unwrap();
-        tokio::time::sleep(Duration::from_millis(1000/30)).await;
+            .await;
+        tokio::time::sleep(Duration::from_millis(1000/60)).await;
     }
 }
 

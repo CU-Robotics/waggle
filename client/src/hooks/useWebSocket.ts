@@ -22,91 +22,6 @@ export function useWebSocket() {
   const maxReconnectAttempts = 20;
   const reconnectDelay = 5000;
 
-  useEffect(() => {
-    connectWebSocket();
-    return () => {
-      if (wsRef.current) wsRef.current.close();
-    };
-  }, []);
-
-  const connectWebSocket = () => {
-    if (
-      wsRef.current &&
-      (wsRef.current.readyState === WebSocket.OPEN ||
-        wsRef.current.readyState === WebSocket.CONNECTING)
-    ) {
-      console.log("WebSocket is already connected or connecting");
-      return;
-    }
-
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      console.log("Max reconnection attempts reached. Stopping reconnection.");
-      return;
-    }
-
-    // TODO - Change to dynamic URL
-    wsRef.current = new WebSocket(`ws://${window.location.host}/ws`);
-
-    wsRef.current.onopen = (event) => {
-      console.log("WebSocket Connected", event);
-      setIsConnected(true);
-      reconnectAttemptsRef.current = 0;
-
-      if (wsRef.current) {
-        wsRef.current.send("Hello from client");
-      }
-    };
-
-    wsRef.current.onmessage = (event) => {
-      console.log("message received")
-      const robot_data: RobotData[] = JSON.parse(event.data);
-      frame_timestamps.push(Date.now());
-
-      if (robot_data.length == 0) {
-        if (wsRef.current) {
-          const responseData = {};
-          wsRef.current.send(responseData.toString());
-        } else {
-          console.log("wsRef.current is null");
-        }
-        return;
-      }
-
-      if (frame_timestamps.length > 100) {
-        frame_timestamps.shift();
-        const fps =
-          1000 /
-          ((frame_timestamps[frame_timestamps.length - 1] -
-            frame_timestamps[0]) /
-            frame_timestamps.length);
-        const fps_data: GraphData = {
-          x: Date.now(),
-          y: fps,
-        };
-
-        robot_data[robot_data.length - 1].graph_data.WAGGLE_FPS = [fps_data];
-      }
-      handleIncomingMessage(robot_data);
-
-      if (wsRef.current) {
-        const responseData = {};
-        wsRef.current.send(responseData.toString());
-      } else {
-        console.log("wsRef.current is null");
-      }
-    };
-
-    wsRef.current.onclose = (event) => {
-      console.log("WebSocket Disconnected", event);
-      setIsConnected(false);
-      reconnectAttemptsRef.current += 1;
-      setTimeout(connectWebSocket, reconnectDelay);
-    };
-
-    wsRef.current.onerror = (error) => {
-      console.error("WebSocket Error:", error);
-    };
-  };
   const handleIncomingMessage = useCallback(
     (all_data: RobotData[]) => {
       console.log(all_data)
@@ -220,6 +135,8 @@ export function useWebSocket() {
 
       wsRef.current.onmessage = (event) => {
         const robot_data: RobotData[] = JSON.parse(event.data);
+        console.log("recieved data", robot_data)
+
         if (robot_data.length == 0) {
           if (wsRef.current) {
             const responseData = {};
@@ -241,8 +158,13 @@ export function useWebSocket() {
             x: Date.now(),
             y: fps,
           };
-
-          robot_data[robot_data.length - 1].graph_data.WAGGLE_FPS = [fps_data];
+          if (robot_data.length > 0) {
+            const last_robot_data = robot_data[robot_data.length - 1];
+            if (!last_robot_data.graph_data) {
+              last_robot_data.graph_data = {};
+            }
+            last_robot_data.graph_data.WAGGLE_FPS = [fps_data];
+          }
         }
 
         // This will now use the updated handleIncomingMessage when maxDataPoints changes
@@ -273,6 +195,7 @@ export function useWebSocket() {
       if (wsRef.current) wsRef.current.close();
     };
   }, [handleIncomingMessage]); // Add handleIncomingMessage as a dependency
+
 
   return {
     isConnected,

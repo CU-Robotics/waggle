@@ -13,12 +13,16 @@ use futures::StreamExt;
 use image::ImageFormat;
 use parking_lot::Mutex;
 use rand::{Rng, random};
+use reqwest::ClientBuilder;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
+use std::ops::{Deref, DerefMut};
+use std::thread::sleep;
+use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
 use tower_http::services::ServeDir;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageData {
     /// PNG-encoded image bytes as base64.
@@ -50,7 +54,7 @@ impl Into<StringData> for String {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WaggleData {
     pub sent_timestamp: i64,
     pub images: HashMap<String, ImageData>,
@@ -58,38 +62,75 @@ pub struct WaggleData {
     pub graph_data: HashMap<String, Vec<GraphData>>,
     pub string_data: HashMap<String, StringData>,
 }
+impl Default for WaggleData {
+    fn default() -> Self {
+        Self {
+            sent_timestamp: 0,
+            images: HashMap::new(),
+            svg_data: HashMap::new(),
+            graph_data: HashMap::new(),
+            string_data: HashMap::new(),
+        }
+    }
+}
 
+type ClientsReady = Arc<Mutex<bool>>;
 type Clients = Arc<Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<Message>>>>;
 type Buffer = Arc<Mutex<Vec<WaggleData>>>;
 
 /// WebSocket handler
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    State((clients, buffer)): State<(Clients, Buffer)>,
+    State((clients, buffer, clients_ready)): State<(Clients, Buffer, ClientsReady)>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(|socket| ws_connected(socket, clients, buffer))
+    ws.on_upgrade(|socket| ws_connected(socket, clients, buffer, clients_ready))
 }
 
-async fn ws_connected(mut socket: WebSocket, clients: Clients, buffer: Buffer) {
+async fn ws_connected(
+    mut socket: WebSocket,
+    clients: Clients,
+    buffer: Buffer,
+    clients_ready: ClientsReady,
+) {
     let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
     let id = uuid::Uuid::new_v4();
-    clients.lock().insert(id, tx);
+    clients.lock().insert(id, tx.clone());
     info!("New client connected");
-    update_clients(&clients, &buffer);
 
-    // Reader loop
-    while let Some(Ok(msg)) = socket.next().await {
-        if matches!(msg, Message::Text(_) | Message::Binary(_)) {
-            // Lock, copy, unlock BEFORE await
-            let serialized = {
-                let buf = buffer.lock();
-                serde_json::to_string(&*buf).unwrap_or("[]".to_string())
-            };
-            info!("WS received {}", serialized);
+    let clients_cloned: Clients = Arc::clone(&clients);
+    let buffer_cloned = Arc::clone(&buffer);
+    let clients_ready_cloned = clients_ready.clone();
+    tokio::spawn(async move {
+        let _ = update_clients(&clients_cloned, &buffer_cloned, &clients_ready_cloned);
+        tokio::time::sleep(Duration::from_millis(1000 / 30)).await;
+    });
 
-            update_clients(&clients, &buffer);
-        } else if matches!(msg, Message::Close(_)) {
-            break;
+    // Ping loop
+    let clients_clone = clients.clone();
+    let buffer_clone = buffer.clone();
+    loop {
+        tokio::select! {
+            Some(Ok(msg)) = socket.next() => {
+                if matches!(msg, Message::Text(_) | Message::Binary(_)) {
+                    // This is the pong from the client
+                } else if matches!(msg, Message::Close(_)) {
+                    break;
+                }
+            }
+            Some(msg) = rx.recv() => {
+                // warn!("msg received {:?}", msg);
+                // update_clients(&clients, &buffer, &clients_ready);
+                {
+                    let mut client_ready = clients_ready.lock();
+                    *client_ready = true;
+                }
+                if socket.send(msg).await.is_err() {
+                    break;
+                }
+            }
+            else => {
+                break;
+            }
         }
     }
 
@@ -99,7 +140,7 @@ async fn ws_connected(mut socket: WebSocket, clients: Clients, buffer: Buffer) {
 
 /// POST /batch handler
 async fn batch_handler(
-    State((clients, buffer)): State<(Clients, Buffer)>,
+    State((clients, buffer, client_ready)): State<(Clients, Buffer, ClientsReady)>,
     Json(mut data): Json<WaggleData>,
 ) {
     // Example: resize images before storing
@@ -118,7 +159,7 @@ async fn batch_handler(
     {
         let mut buf = buffer.lock();
         buf.push(data.clone());
-        if buf.len() > 10 {
+        if buf.len() > 1000 {
             buf.remove(0);
         }
     }
@@ -126,18 +167,16 @@ async fn batch_handler(
     // update_clients(clients, &buffer);
 }
 
-fn update_clients(clients: &Clients, buffer: &Buffer) {
-    let to_send = if let Some(data) = buffer.lock().last().cloned() {
-        data
-    } else {
-        WaggleData {
-            sent_timestamp: 0,
-            images: Default::default(),
-            svg_data: Default::default(),
-            graph_data: Default::default(),
-            string_data: Default::default(),
-        }
-    };
+async fn update_clients(clients: &Clients, buffer: &Buffer, client_ready: &ClientsReady) {
+    while *client_ready.lock() == false {
+        warn!("waiting for client {}", *client_ready.lock());
+    }
+    let to_send;
+    {
+        let mut clients_ready_lock = client_ready.lock();
+        to_send = buffer.lock().iter().cloned().collect::<Vec<_>>();
+        *clients_ready_lock = false;
+    }
     // println!("sending {:?}", to_send);
     let json = serde_json::to_string(&to_send).unwrap_or("{}".into());
     info!("Sending...");
@@ -153,12 +192,13 @@ async fn main() {
 
     let clients: Clients = Arc::new(Mutex::new(HashMap::new()));
     let buffer: Buffer = Arc::new(Mutex::new(Vec::new()));
+    let client_ready: ClientsReady = Arc::new(Mutex::new(false));
 
     let app = Router::new()
         .route("/batch", post(batch_handler))
         .route("/ws", get(ws_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
-        .with_state((clients, buffer));
+        .with_state((clients, buffer, client_ready));
 
     info!("Starting server on :3000");
 
