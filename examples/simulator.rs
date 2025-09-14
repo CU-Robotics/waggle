@@ -13,6 +13,8 @@ use tracing_subscriber::registry::Data;
 
 fn create_svg(cx: f64, cy: f64) -> Svg {
     Svg::new()
+        .width(500)
+        .height(500)
         .add_child_shape_element(
             Rect::new()
                 .width(500.)
@@ -38,9 +40,9 @@ async fn main() {
         let mut svg_data = HashMap::<String, SvgData>::new();
         svg_data.insert("demo_svg_1".to_string(), SvgData{ svg_string: create_svg(((i * 1) % 500) as f64, 80.).to_string() });
         svg_data.insert("demo_svg_2".to_string(), SvgData{ svg_string: create_svg(((i * 3) % 500) as f64, 80.).to_string() });
-        svg_data.insert("demo_svg_3".to_string(), SvgData{ svg_string: create_svg(((i * 5) % 500) as f64, 80.).to_string() });
-        svg_data.insert("demo_svg_4".to_string(), SvgData{ svg_string: create_svg(((i * 10) % 500) as f64, 80.).to_string() });
-        svg_data.insert("demo_svg_5".to_string(), SvgData{ svg_string: create_svg(((i * 15) % 500) as f64, 80.).to_string() });
+        // svg_data.insert("demo_svg_3".to_string(), SvgData{ svg_string: create_svg(((i * 5) % 500) as f64, 80.).to_string() });
+        // svg_data.insert("demo_svg_4".to_string(), SvgData{ svg_string: create_svg(((i * 10) % 500) as f64, 80.).to_string() });
+        // svg_data.insert("demo_svg_5".to_string(), SvgData{ svg_string: create_svg(((i * 15) % 500) as f64, 80.).to_string() });
 
         let request = WaggleData {
             sent_timestamp: 0,
