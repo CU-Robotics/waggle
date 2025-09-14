@@ -1,18 +1,18 @@
 use axum::handler::HandlerWithoutStateExt;
 use axum::{
-    Json, Router,
     extract::{
-        State,
         ws::{Message, WebSocket, WebSocketUpgrade},
-    },
-    response::IntoResponse,
+        State,
+    }, response::IntoResponse,
     routing::{get, post},
+    Json,
+    Router,
 };
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use futures::StreamExt;
 use image::ImageFormat;
 use parking_lot::Mutex;
-use rand::{Rng, random};
+use rand::{random, Rng};
 use reqwest::ClientBuilder;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
@@ -96,15 +96,10 @@ async fn ws_connected(
     let id = uuid::Uuid::new_v4();
     clients.lock().insert(id, tx.clone());
     info!("New client connected");
-
-    let clients_cloned: Clients = Arc::clone(&clients);
-    let buffer_cloned = Arc::clone(&buffer);
-    let clients_ready_cloned = clients_ready.clone();
-    tokio::spawn(async move {
-        let _ = update_clients(&clients_cloned, &buffer_cloned, &clients_ready_cloned);
-        tokio::time::sleep(Duration::from_millis(1000 / 30)).await;
-    });
-
+    {
+        let mut ready = clients_ready.lock();
+        *ready = true;
+    }
     // Ping loop
     let clients_clone = clients.clone();
     let buffer_clone = buffer.clone();
@@ -112,7 +107,8 @@ async fn ws_connected(
         tokio::select! {
             Some(Ok(msg)) = socket.next() => {
                 if matches!(msg, Message::Text(_) | Message::Binary(_)) {
-                    // This is the pong from the client
+                    let mut ready = clients_ready.lock();
+                    *ready = true;
                 } else if matches!(msg, Message::Close(_)) {
                     break;
                 }
@@ -120,13 +116,11 @@ async fn ws_connected(
             Some(msg) = rx.recv() => {
                 // warn!("msg received {:?}", msg);
                 // update_clients(&clients, &buffer, &clients_ready);
-                {
-                    let mut client_ready = clients_ready.lock();
-                    *client_ready = true;
-                }
-                if socket.send(msg).await.is_err() {
-                    break;
-                }
+                let mut ready = clients_ready.lock();
+                *ready = true;
+                // if socket.send(msg).await.is_err() {
+                //     break;
+                // }
             }
             else => {
                 break;
@@ -194,6 +188,35 @@ async fn main() {
     let buffer: Buffer = Arc::new(Mutex::new(Vec::new()));
     let client_ready: ClientsReady = Arc::new(Mutex::new(false));
 
+    let clients_clone: Clients = Arc::clone(&clients);
+    let buffer_clone = Arc::clone(&buffer);
+    let clients_ready_clone = Arc::clone(&client_ready);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(1000 / 3));
+        loop {
+            interval.tick().await;
+            info!("reeeeee");
+            if *clients_ready_clone.lock() {
+                let to_send = {
+                    let buf = buffer_clone.lock();
+                    serde_json::to_string(&*buf).unwrap_or("{}".into())
+                };
+
+                let mut failed_ids = Vec::new();
+                for (id, tx) in clients_clone.lock().iter() {
+                    if tx.send(Message::Text(to_send.clone())).is_err() {
+                        failed_ids.push(*id);
+                    }
+                }
+                // Clean up failed clients
+                let mut guard = clients_clone.lock();
+                for id in failed_ids {
+                    guard.remove(&id);
+                }
+            }
+        }
+    });
+
     let app = Router::new()
         .route("/batch", post(batch_handler))
         .route("/ws", get(ws_handler))
@@ -204,7 +227,5 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
-    axum::serve(listener, app.into_make_service())
-        .await
-        .unwrap();
+    axum::serve(listener, app.into_make_service()).await.unwrap();
 }

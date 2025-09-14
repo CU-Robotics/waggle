@@ -1,0 +1,13 @@
+# Always use spaces (disable tabs, avoids drift)
+hard_tabs = false
+tab_spaces = 4
+
+# Force consistent block indentation
+use_small_heuristics = "Max"
+
+# Match alignment strictly
+match_block_trailing_comma = true
+match_arm_leading_pipes = "Preserve"
+
+indent_style = "Block"
+format_macro_bodies = true
