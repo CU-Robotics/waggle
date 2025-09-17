@@ -100,7 +100,6 @@ async fn ws_connected(
         let mut ready = clients_ready.lock();
         *ready = true;
     }
-    // Ping loop
     let clients_clone = clients.clone();
     let buffer_clone = buffer.clone();
     loop {
@@ -126,12 +125,10 @@ async fn ws_connected(
     clients.lock().remove(&id);
 }
 
-/// POST /batch handler
 async fn batch_handler(
     State((clients, buffer, client_ready)): State<(Clients, Buffer, ClientsReady)>,
     Json(mut data): Json<WaggleData>,
 ) {
-    // Example: resize images before storing
     for (_name, img) in data.images.iter_mut() {
         if let Ok(bin) = general_purpose::STANDARD.decode(&img.image_data) {
             let cursor = Cursor::new(bin);
@@ -182,7 +179,7 @@ async fn main() {
                         failed_ids.push(*id);
                     }
                 }
-                // Clean up failed clients
+
                 let mut guard = clients_clone.lock();
                 for id in failed_ids {
                     guard.remove(&id);
