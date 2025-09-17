@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
 import {
-  IconFileFilled,
   IconMoonFilled,
   IconBrightnessDownFilled,
   IconDownload,
@@ -78,13 +77,8 @@ function App() {
     <>
       <div className="min-h-screen w-full dark:bg-neutral-800 dark:text-white">
         <div className="mb-2 flex justify-between border-b p-2">
-          <div className="flex items-center gap-1">
-            <IconFileFilled size={20} />
-            <p className="underline">
-              <a href="/">file editor</a>
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center w-full gap-4">
+            <div className="flex-grow"></div>
             <ConnectionStatus connectionStatus={isConnected} />
             <button onClick={handleToggle}>
               {isDarkMode ? (

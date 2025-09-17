@@ -23,3 +23,8 @@ replays/
 tools/image-export
 
 replay_counter.txt
+
+
+# Added by cargo
+
+/target
