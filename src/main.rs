@@ -176,9 +176,7 @@ async fn main() {
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
 
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
-
+    let handle = std::thread::spawn(move || {
         let event1_size = unsafe { Event::size_of(None) };
         let event2_size = unsafe { Event::size_of(None) };
         let message_size = core::mem::size_of::<SharedMessage>();
@@ -245,7 +243,7 @@ async fn main() {
         info!("Opened existing 'Reader to Writer' Event from shared memory.");
 
         let writer_to_reader_event = match
-            unsafe { Event::from_existing(writer_to_reader_event_ptr)}{
+        unsafe { Event::from_existing(writer_to_reader_event_ptr)}{
             Ok(m) => {
                 m
             }
@@ -262,7 +260,7 @@ async fn main() {
         loop {
             //shmem stuff
             debug!("Waiting for writer to signal");
-            match writer_to_reader_event.wait(Timeout::Infinite) {
+            match writer_to_reader_event.0.wait(Timeout::Infinite) {
                 Ok(_) => debug!("Signal received! Data is ready."),
 
                 Err(e) => {
@@ -271,31 +269,35 @@ async fn main() {
             };
 
             let received_message_bytes = &reader_message.message_buffer[..reader_message.message_len];
-            let received_message = match std::str::from_utf8(received_message_bytes){
+            let received_message = match std::str::from_utf8(received_message_bytes) {
                 Ok(m) => {
                     m
                 }
                 Err(e) => {
-                    panic!("Unable to convert received message to UTF-8");//todo: replace panic
+                    panic!("Unable to convert received message to UTF-8"); //todo: replace panic
                 }
             };
             info!("Received message: '{}'", received_message);
 
             debug!("Signaling 'Reader to Writer' event back to the writer that data has been read...");
-            match reader_to_writer_event.set(EventState::Signaled){
-                Ok(m) =>{
-                   m
+            match reader_to_writer_event.0.set(EventState::Signaled) {
+                Ok(m) => {
+                    m
                 }
-                Err(e) =>{
-                    panic!("Failed to send reader signal to writer")//todo: replace panic
+                Err(e) => {
+                    panic!("Failed to send reader signal to writer") //todo: replace panic
                 }
             };
             debug!("'Reader to Writer' Event sent back.");
 
             debug!("Reader process done.");
-            //
-            interval.tick().await;
+        }
+    });
 
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
+            interval.tick().await;
+        loop {
             if *clients_ready_clone.lock() {
                 let to_send = {
                     let mut buf = buffer_clone.lock();
