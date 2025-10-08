@@ -296,8 +296,9 @@ async fn main() {
 
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
-            interval.tick().await;
+
         loop {
+            interval.tick().await;
             if *clients_ready_clone.lock() {
                 let to_send = {
                     let mut buf = buffer_clone.lock();
