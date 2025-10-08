@@ -176,7 +176,7 @@ async fn main() {
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
 
-    let handle = std::thread::spawn(move || {
+    tokio::spawn(async move {
         let event1_size = unsafe { Event::size_of(None) };
         let event2_size = unsafe { Event::size_of(None) };
         let message_size = core::mem::size_of::<SharedMessage>();
@@ -269,6 +269,8 @@ async fn main() {
             };
 
             let received_message_bytes = &reader_message.message_buffer[..reader_message.message_len];
+
+
             let received_message = match std::str::from_utf8(received_message_bytes) {
                 Ok(m) => {
                     m
@@ -278,6 +280,8 @@ async fn main() {
                 }
             };
             info!("Received message: '{}'", received_message);
+
+
 
             debug!("Signaling 'Reader to Writer' event back to the writer that data has been read...");
             match reader_to_writer_event.0.set(EventState::Signaled) {
