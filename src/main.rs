@@ -31,6 +31,7 @@ use shared_memory::{ShmemConf, ShmemError};
 use std::io::{self, BufRead, BufReader, Write};
 use std::str::Utf8Error;
 use std::{error::Error, fmt, mem, ptr, time::Duration};
+use anyhow::Result;
 
 
 pub struct SharedMessage {
@@ -143,6 +144,10 @@ async fn batch_handler(
     State((clients, buffer, client_ready)): State<(Clients, Buffer, ClientsReady)>,
     Json(mut data): Json<WaggleData>,
 ) {
+    add_data_to_batch(buffer, data);
+}
+
+fn add_data_to_batch(buffer: Buffer, mut data: WaggleData) {
     for (_name, img) in data.images.iter_mut() {
         if let Ok(bin) = general_purpose::STANDARD.decode(&img.image_data) {
             let cursor = Cursor::new(bin);
@@ -281,6 +286,14 @@ async fn main() {
             };
             info!("Received message: '{}'", received_message);
 
+            let waggle_data_result: Result<WaggleData, _> =  serde_json::from_str(received_message);
+            info!("waggle data result: {:?}", waggle_data_result);
+            if let Ok(waggle_data) = waggle_data_result {
+                info!("Deserialized waggle data: {:?}", waggle_data);
+                let loop_buffer_clone = Arc::clone(&buffer);
+                add_data_to_batch(loop_buffer_clone,waggle_data);
+            }
+
 
 
             debug!("Signaling 'Reader to Writer' event back to the writer that data has been read...");
@@ -298,37 +311,37 @@ async fn main() {
         }
     });
 
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
-
-        loop {
-            interval.tick().await;
-            if *clients_ready_clone.lock() {
-                let to_send = {
-                    let mut buf = buffer_clone.lock();
-                    let drained: Vec<_> = buf.drain(..).collect();
-                    serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into())
-                };
-
-                let mut failed_ids = Vec::new();
-                for (id, tx) in clients_clone.lock().iter() {
-                    if tx.send(Message::Text(to_send.clone())).is_err() {
-                        failed_ids.push(*id);
-                    }
-                }
-
-                let mut guard = clients_clone.lock();
-                for id in failed_ids {
-                    guard.remove(&id);
-                }
-            }
-        }
-    });
+    // tokio::spawn(async move {
+    //     let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
+    //
+    //     loop {
+    //         interval.tick().await;
+    //         if *clients_ready_clone.lock() {
+    //             let to_send = {
+    //                 let mut buf = buffer_clone.lock();
+    //                 let drained: Vec<_> = buf.drain(..).collect();
+    //                 serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into())
+    //             };
+    //
+    //             let mut failed_ids = Vec::new();
+    //             for (id, tx) in clients_clone.lock().iter() {
+    //                 if tx.send(Message::Text(to_send.clone())).is_err() {
+    //                     failed_ids.push(*id);
+    //                 }
+    //             }
+    //
+    //             let mut guard = clients_clone.lock();
+    //             for id in failed_ids {
+    //                 guard.remove(&id);
+    //             }
+    //         }
+    //     }
+    // });
     let app = Router::new()
         .route("/batch", post(batch_handler))
         .route("/ws", get(ws_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
-        .with_state((clients, buffer, client_ready));
+        .with_state((clients, buffer_clone, client_ready));
 
     info!("Starting server on :3000");
 
