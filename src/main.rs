@@ -193,9 +193,7 @@ async fn main() {
 
         let shmem_name = "/tmp/waggle_shared_memory";
 
-        info!("Attempting to create/open shared memory mapping '{}'",
-            shmem_name
-            );
+        info!("Attempting to create/open shared memory mapping '{}'", shmem_name);
 
         let mut shmem = match ShmemConf::new()
             .size(total_shmem_size)
@@ -275,7 +273,6 @@ async fn main() {
 
             let received_message_bytes = &reader_message.message_buffer[..reader_message.message_len];
 
-
             let received_message = match std::str::from_utf8(received_message_bytes) {
                 Ok(m) => {
                     m
@@ -288,13 +285,12 @@ async fn main() {
 
             let waggle_data_result: Result<WaggleData, _> =  serde_json::from_str(received_message);
             info!("waggle data result: {:?}", waggle_data_result);
+
             if let Ok(waggle_data) = waggle_data_result {
                 info!("Deserialized waggle data: {:?}", waggle_data);
-                let loop_buffer_clone = Arc::clone(&buffer);
-                add_data_to_batch(loop_buffer_clone,waggle_data);
+                let buffer_loop_clone = Arc::clone(&buffer_clone);
+                add_data_to_batch(buffer_loop_clone,waggle_data);
             }
-
-
 
             debug!("Signaling 'Reader to Writer' event back to the writer that data has been read...");
             match reader_to_writer_event.0.set(EventState::Signaled) {
@@ -311,32 +307,34 @@ async fn main() {
         }
     });
 
-    // tokio::spawn(async move {
-    //     let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
-    //
-    //     loop {
-    //         interval.tick().await;
-    //         if *clients_ready_clone.lock() {
-    //             let to_send = {
-    //                 let mut buf = buffer_clone.lock();
-    //                 let drained: Vec<_> = buf.drain(..).collect();
-    //                 serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into())
-    //             };
-    //
-    //             let mut failed_ids = Vec::new();
-    //             for (id, tx) in clients_clone.lock().iter() {
-    //                 if tx.send(Message::Text(to_send.clone())).is_err() {
-    //                     failed_ids.push(*id);
-    //                 }
-    //             }
-    //
-    //             let mut guard = clients_clone.lock();
-    //             for id in failed_ids {
-    //                 guard.remove(&id);
-    //             }
-    //         }
-    //     }
-    // });
+    let buffer_clone = Arc::clone(&buffer);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
+
+        loop {
+            interval.tick().await;
+            if *clients_ready_clone.lock() {
+                let to_send = {
+                    let mut buf = buffer_clone.lock();
+                    let drained: Vec<_> = buf.drain(..).collect();
+                    serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into())
+                };
+
+                let mut failed_ids = Vec::new();
+                for (id, tx) in clients_clone.lock().iter() {
+                    if tx.send(Message::Text(to_send.clone())).is_err() {
+                        failed_ids.push(*id);
+                    }
+                }
+
+                let mut guard = clients_clone.lock();
+                for id in failed_ids {
+                    guard.remove(&id);
+                }
+            }
+        }
+    });
+    let buffer_clone = Arc::clone(&buffer);
     let app = Router::new()
         .route("/batch", post(batch_handler))
         .route("/ws", get(ws_handler))
