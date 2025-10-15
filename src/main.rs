@@ -31,6 +31,7 @@ use shared_memory::{ShmemConf, ShmemError};
 use std::io::{self, BufRead, BufReader, Write};
 use std::str::Utf8Error;
 use std::{error::Error, fmt, mem, ptr, time::Duration};
+use std::sync::atomic::AtomicBool;
 use anyhow::Result;
 
 
@@ -181,15 +182,15 @@ async fn main() {
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
 
+    let flag: AtomicBool = AtomicBool::new(true);
+
     tokio::spawn(async move {
         let event1_size = unsafe { Event::size_of(None) };
         let event2_size = unsafe { Event::size_of(None) };
         let message_size = core::mem::size_of::<SharedMessage>();
         let total_shmem_size = (event1_size * 2) + message_size;
 
-        info!("Calculated sizes: Event1={} bytes, Event2={} bytes, Message={} bytes, Total={} bytes",
-            event1_size, event2_size, message_size, total_shmem_size
-            );
+        info!("Calculated sizes: Event1={} bytes, Event2={} bytes, Message={} bytes, Total={} bytes", event1_size, event2_size, message_size, total_shmem_size);
 
         let shmem_name = "/tmp/waggle_shared_memory";
 
@@ -223,18 +224,15 @@ async fn main() {
 
         };
 
-
         let base_ptr = shmem.as_ptr();
 
         let writer_to_reader_event_ptr = base_ptr;
         let reader_to_writer_event_ptr = unsafe { base_ptr.add(event1_size) };
-        let message_data_ptr: *mut SharedMessage =
-            unsafe { base_ptr.add(event1_size + event2_size) as *mut SharedMessage };
-
+        let message_data_ptr: *mut SharedMessage = unsafe { base_ptr.add(event1_size + event2_size) as *mut SharedMessage };
 
         info!("This process is a READER of the shared memory.");
 
-        let reader_to_writer_event = match
+        let (reader_to_writer_event,_) = match
         unsafe { Event::from_existing(reader_to_writer_event_ptr) }{
             Ok(m)=>{
                 m
@@ -245,7 +243,7 @@ async fn main() {
         };
         info!("Opened existing 'Reader to Writer' Event from shared memory.");
 
-        let writer_to_reader_event = match
+        let (writer_to_reader_event,_) = match
         unsafe { Event::from_existing(writer_to_reader_event_ptr)}{
             Ok(m) => {
                 m
@@ -263,7 +261,7 @@ async fn main() {
         loop {
             //shmem stuff
             debug!("Waiting for writer to signal");
-            match writer_to_reader_event.0.wait(Timeout::Infinite) {
+            match writer_to_reader_event.wait(Timeout::Infinite) {
                 Ok(_) => debug!("Signal received! Data is ready."),
 
                 Err(e) => {
@@ -292,8 +290,8 @@ async fn main() {
                 add_data_to_batch(buffer_loop_clone,waggle_data);
             }
 
-            debug!("Signaling 'Reader to Writer' event back to the writer that data has been read...");
-            match reader_to_writer_event.0.set(EventState::Signaled) {
+            info!("Signaling 'Reader to Writer' event back to the writer that data has been read...");
+            match reader_to_writer_event.set(EventState::Signaled) {
                 Ok(m) => {
                     m
                 }
@@ -301,9 +299,8 @@ async fn main() {
                     panic!("Failed to send reader signal to writer") //todo: replace panic
                 }
             };
-            debug!("'Reader to Writer' Event sent back.");
-
-            debug!("Reader process done.");
+            info!("'Reader to Writer' Event sent back.");
+            info!("Reader process done.");
         }
     });
 
@@ -334,6 +331,7 @@ async fn main() {
             }
         }
     });
+
     let buffer_clone = Arc::clone(&buffer);
     let app = Router::new()
         .route("/batch", post(batch_handler))
