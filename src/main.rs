@@ -257,11 +257,18 @@ async fn main() {
         let reader_message = unsafe { &*message_data_ptr };
         info!("Opened existing SharedMessage from shared memory.");
 
-
+        match reader_to_writer_event.set(EventState::Signaled) {
+            Ok(m) => {
+                m
+            }
+            Err(e) => {
+                panic!("Failed to send reader signal to writer") //todo: replace panic
+            }
+        };
         loop {
             //shmem stuff
             debug!("Waiting for writer to signal");
-            match writer_to_reader_event.wait(Timeout::Infinite) {
+            match writer_to_reader_event.wait(Timeout::Val(Duration::from_millis(3000))) {
                 Ok(_) => debug!("Signal received! Data is ready."),
 
                 Err(e) => {
