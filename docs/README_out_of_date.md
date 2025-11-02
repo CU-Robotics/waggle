@@ -1,4 +1,6 @@
-# Waggle Manual
+# Waggle Manual (Archived)
+
+> **Note:** This document has been superseded by the updated guides in `docs/README.md` and `docs/api.md`. It remains here for historical reference and may describe behavior from the legacy Go implementation.
 
 ## Table of Contents
 - [Overview](#overview)
