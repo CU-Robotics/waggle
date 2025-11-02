@@ -61,4 +61,4 @@ See `docs/api.md` for the full schema (images, SVG overlays, robot pose data, et
 - Run the formatting/linting commands above before opening a PR.
 - Capture screenshots or short screencasts when changing UI behavior.
 - Keep `docs/` in sync with new API fields or workflow changes.
-- Coordinate schema or dashboard updates with Ephram (dashboard lead) and the hive team so downstream consumers stay aligned.
+- Coordinate schema or dashboard updates with team lead and the hive team so downstream consumers stay aligned.
