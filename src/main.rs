@@ -18,11 +18,27 @@ use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 use std::ops::{Deref, DerefMut};
 use std::thread::sleep;
-use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
 use tower_http::services::ServeDir;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};// Added debug for more verbose tracing
+use raw_sync::events::{EventImpl, EventInit};
+use raw_sync::{
+    Timeout,
+    events::{Event, EventState},
+};
+use shared_memory::{ShmemConf, ShmemError};
+use std::io::{self, BufRead, BufReader, Write};
+use std::str::Utf8Error;
+use std::{error::Error, fmt, mem, ptr, time::Duration};
+use std::sync::atomic::AtomicBool;
+use anyhow::Result;
+
+
+pub struct SharedMessage {
+    message_len: usize,
+    message_buffer: [u8; 10000],
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageData {
     /// PNG-encoded image bytes as base64.
@@ -129,6 +145,10 @@ async fn batch_handler(
     State((clients, buffer, client_ready)): State<(Clients, Buffer, ClientsReady)>,
     Json(mut data): Json<WaggleData>,
 ) {
+    add_data_to_batch(buffer, data);
+}
+
+fn add_data_to_batch(buffer: Buffer, mut data: WaggleData) {
     for (_name, img) in data.images.iter_mut() {
         if let Ok(bin) = general_purpose::STANDARD.decode(&img.image_data) {
             let cursor = Cursor::new(bin);
@@ -161,11 +181,142 @@ async fn main() {
     let clients_clone: Clients = Arc::clone(&clients);
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
+
+    let flag: AtomicBool = AtomicBool::new(true);
+
+    tokio::spawn(async move {
+        let event1_size = unsafe { Event::size_of(None) };
+        let event2_size = unsafe { Event::size_of(None) };
+        let message_size = core::mem::size_of::<SharedMessage>();
+        let total_shmem_size = (event1_size * 2) + message_size;
+
+        info!("Calculated sizes: Event1={} bytes, Event2={} bytes, Message={} bytes, Total={} bytes", event1_size, event2_size, message_size, total_shmem_size);
+
+        let shmem_name = "/tmp/waggle_shared_memory";
+
+        info!("Attempting to create/open shared memory mapping '{}'", shmem_name);
+
+        let mut shmem = match ShmemConf::new()
+            .size(total_shmem_size)
+            .flink("/tmp/waggle-shared-memory")
+            .create()
+        {
+            Ok(m) => {
+                m
+            }
+            Err(ShmemError::LinkExists) => {
+                match  ShmemConf::new().flink("/tmp/waggle-shared-memory").open(){
+                    Ok(m) => {
+                        m
+                    }
+                    Err(e) => {
+                        error!("Failed to create/open shared memory: {:?}", e);
+                        panic!("Failed to open shared memory");
+                        //todo: please don't panic when actual robot code
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Failed to create/open shared memory: {:?}", e);
+                panic!("Failed to open shared memory");
+                //todo: please don't panic when actual robot code
+            }
+
+        };
+
+        let base_ptr = shmem.as_ptr();
+
+        let writer_to_reader_event_ptr = base_ptr;
+        let reader_to_writer_event_ptr = unsafe { base_ptr.add(event1_size) };
+        let message_data_ptr: *mut SharedMessage = unsafe { base_ptr.add(event1_size + event2_size) as *mut SharedMessage };
+
+        info!("This process is a READER of the shared memory.");
+
+        let (reader_to_writer_event,_) = match
+        unsafe { Event::from_existing(reader_to_writer_event_ptr) }{
+            Ok(m)=>{
+                m
+            }
+            Err(e) =>{
+                panic!("unable to open reader to writer event");//todo: do not panic when using for actual robot
+            }
+        };
+        info!("Opened existing 'Reader to Writer' Event from shared memory.");
+
+        let (writer_to_reader_event,_) = match
+        unsafe { Event::from_existing(writer_to_reader_event_ptr)}{
+            Ok(m) => {
+                m
+            }
+            Err(e) => {
+                panic!("unable to open writer to reader event");//todo: do not panic when using for actual robot
+            }
+        };
+        info!("Opened existing 'Writer to Reader' Event from shared memory.");
+
+        let reader_message = unsafe { &*message_data_ptr };
+        info!("Opened existing SharedMessage from shared memory.");
+
+        match reader_to_writer_event.set(EventState::Signaled) {
+            Ok(m) => {
+                m
+            }
+            Err(e) => {
+                panic!("Failed to send reader signal to writer") //todo: replace panic
+            }
+        };
+        loop {
+            //shmem stuff
+            debug!("Waiting for writer to signal");
+            match writer_to_reader_event.wait(Timeout::Val(Duration::from_millis(3000))) {
+                Ok(_) => debug!("Signal received! Data is ready."),
+
+                Err(e) => {
+                    error!("Error waiting for signal: {:?}", e);
+                }
+            };
+
+            let received_message_bytes = &reader_message.message_buffer[..reader_message.message_len];
+
+            let received_message = match std::str::from_utf8(received_message_bytes) {
+                Ok(m) => {
+                    m
+                }
+                Err(e) => {
+                    panic!("Unable to convert received message to UTF-8"); //todo: replace panic
+                }
+            };
+            info!("Received message: '{}'", received_message);
+
+            let waggle_data_result: Result<WaggleData, _> =  serde_json::from_str(received_message);
+            info!("waggle data result: {:?}", waggle_data_result);
+
+            if let Ok(waggle_data) = waggle_data_result {
+                info!("Deserialized waggle data: {:?}", waggle_data);
+                let buffer_loop_clone = Arc::clone(&buffer_clone);
+                add_data_to_batch(buffer_loop_clone,waggle_data);
+            }
+
+            info!("Signaling 'Reader to Writer' event back to the writer that data has been read...");
+            match reader_to_writer_event.set(EventState::Signaled) {
+                Ok(m) => {
+                    m
+                }
+                Err(e) => {
+                    panic!("Failed to send reader signal to writer") //todo: replace panic
+                }
+            };
+            info!("'Reader to Writer' Event sent back.");
+            info!("Reader process done.");
+        }
+    });
+
+    let buffer_clone = Arc::clone(&buffer);
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
+
         loop {
             interval.tick().await;
-
             if *clients_ready_clone.lock() {
                 let to_send = {
                     let mut buf = buffer_clone.lock();
@@ -187,11 +338,13 @@ async fn main() {
             }
         }
     });
+
+    let buffer_clone = Arc::clone(&buffer);
     let app = Router::new()
         .route("/batch", post(batch_handler))
         .route("/ws", get(ws_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
-        .with_state((clients, buffer, client_ready));
+        .with_state((clients, buffer_clone, client_ready));
 
     info!("Starting server on :3000");
 
