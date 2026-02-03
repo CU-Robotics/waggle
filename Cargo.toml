@@ -23,7 +23,6 @@ easy-svg = "0.3.0"
 rand = "0.8.5"
 reqwest = { version = "0.12.23", features = ["json"] }
 shared_memory = "0.12.4"
-raw_sync = "0.1.5"
 log = "0.4.28"
 bincode = "2.0.1"
 anyhow = "1.0.100"

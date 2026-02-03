@@ -3,6 +3,7 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {GraphData, RobotData} from "../types";
 
 const frame_timestamps: number[] = [];
+const event_timestamps: number[] = [];
 
 export function useWebSocket() {
     const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -24,6 +25,7 @@ export function useWebSocket() {
 
     const handleIncomingMessage = useCallback(
         (all_data: RobotData[]) => {
+            console.log("data received:", Date.now(), all_data.length)
             for (let i = 0; i < all_data.length; i++) {
                 const data = all_data[i];
                 const lastFrame = i === all_data.length - 1;
@@ -145,6 +147,10 @@ export function useWebSocket() {
                 }
                 frame_timestamps.push(Date.now());
 
+                if (robot_data.length > 0) {
+                    event_timestamps.push(Date.now());
+                }
+
                 if (frame_timestamps.length > 100) {
                     frame_timestamps.shift();
                     const fps =
@@ -162,6 +168,26 @@ export function useWebSocket() {
                             last_robot_data.graph_data = {};
                         }
                         last_robot_data.graph_data.WAGGLE_FPS = [fps_data];
+                    }
+                }
+
+                if (event_timestamps.length > 100) {
+                    event_timestamps.shift();
+                    const eps =
+                        1000 /
+                        ((event_timestamps[event_timestamps.length - 1] -
+                                event_timestamps[0]) /
+                            event_timestamps.length);
+                    const eps_data: GraphData = {
+                        x: Date.now(),
+                        y: eps,
+                    };
+                    if (robot_data.length > 0) {
+                        const last_robot_data = robot_data[robot_data.length - 1];
+                        if (!last_robot_data.graph_data) {
+                            last_robot_data.graph_data = {};
+                        }
+                        last_robot_data.graph_data.EVENTS_PER_SECOND = [eps_data];
                     }
                 }
 

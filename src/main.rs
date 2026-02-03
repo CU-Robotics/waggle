@@ -1,4 +1,3 @@
-use axum::handler::HandlerWithoutStateExt;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -12,30 +11,18 @@ use base64::{engine::general_purpose, Engine as _};
 use futures::StreamExt;
 use image::ImageFormat;
 use parking_lot::Mutex;
-use rand::{random, Rng};
-use reqwest::ClientBuilder;
 use serde::{Deserialize, Serialize};
+use shared_memory::ShmemConf;
 use std::io::Cursor;
-use std::ops::{Deref, DerefMut};
-use std::thread::sleep;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
-use tower_http::services::ServeDir;
-use tracing::{debug, error, info, warn};// Added debug for more verbose tracing
-use raw_sync::events::{EventImpl, EventInit};
-use raw_sync::{
-    Timeout,
-    events::{Event, EventState},
-};
-use shared_memory::{ShmemConf, ShmemError};
-use std::io::{self, BufRead, BufReader, Write};
-use std::str::Utf8Error;
-use std::{error::Error, fmt, mem, ptr, time::Duration};
-use std::sync::atomic::AtomicBool;
-use anyhow::Result;
+use tracing::{debug, error, info};
 
-
-pub struct SharedMessage {
+#[repr(C)]
+pub struct SharedMemHeader {
+    /// Odd = write in progress, Even = data stable
+    sequence: AtomicU64,
     message_len: usize,
     message_buffer: [u8; 10000],
 }
@@ -116,8 +103,6 @@ async fn ws_connected(
         let mut ready = clients_ready.lock();
         *ready = true;
     }
-    let clients_clone = clients.clone();
-    let buffer_clone = buffer.clone();
     loop {
         tokio::select! {
             Some(Ok(msg)) = socket.next() => {
@@ -142,8 +127,8 @@ async fn ws_connected(
 }
 
 async fn batch_handler(
-    State((clients, buffer, client_ready)): State<(Clients, Buffer, ClientsReady)>,
-    Json(mut data): Json<WaggleData>,
+    State((_clients, buffer, _client_ready)): State<(Clients, Buffer, ClientsReady)>,
+    Json(data): Json<WaggleData>,
 ) {
     add_data_to_batch(buffer, data);
 }
@@ -182,132 +167,85 @@ async fn main() {
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
 
-    let flag: AtomicBool = AtomicBool::new(true);
+    // Channel for shmem thread to send parsed data to async runtime
+    let (shmem_tx, mut shmem_rx) = mpsc::unbounded_channel::<WaggleData>();
 
-    tokio::spawn(async move {
-        let event1_size = unsafe { Event::size_of(None) };
-        let event2_size = unsafe { Event::size_of(None) };
-        let message_size = core::mem::size_of::<SharedMessage>();
-        let total_shmem_size = (event1_size * 2) + message_size;
+    // Blocking thread for shared memory (Shmem contains raw pointers, not Send)
+    std::thread::spawn(move || {
+        let shmem_path = "/tmp/waggle-shared-memory";
 
-        info!("Calculated sizes: Event1={} bytes, Event2={} bytes, Message={} bytes, Total={} bytes", event1_size, event2_size, message_size, total_shmem_size);
+        info!("Waiting for writer to create shared memory at '{}'...", shmem_path);
 
-        let shmem_name = "/tmp/waggle_shared_memory";
-
-        info!("Attempting to create/open shared memory mapping '{}'", shmem_name);
-
-        let mut shmem = match ShmemConf::new()
-            .size(total_shmem_size)
-            .flink("/tmp/waggle-shared-memory")
-            .create()
-        {
-            Ok(m) => {
-                m
-            }
-            Err(ShmemError::LinkExists) => {
-                match  ShmemConf::new().flink("/tmp/waggle-shared-memory").open(){
-                    Ok(m) => {
-                        m
-                    }
-                    Err(e) => {
-                        error!("Failed to create/open shared memory: {:?}", e);
-                        panic!("Failed to open shared memory");
-                        //todo: please don't panic when actual robot code
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Failed to create/open shared memory: {:?}", e);
-                panic!("Failed to open shared memory");
-                //todo: please don't panic when actual robot code
-            }
-
-        };
-
-        let base_ptr = shmem.as_ptr();
-
-        let writer_to_reader_event_ptr = base_ptr;
-        let reader_to_writer_event_ptr = unsafe { base_ptr.add(event1_size) };
-        let message_data_ptr: *mut SharedMessage = unsafe { base_ptr.add(event1_size + event2_size) as *mut SharedMessage };
-
-        info!("This process is a READER of the shared memory.");
-
-        let (reader_to_writer_event,_) = match
-        unsafe { Event::from_existing(reader_to_writer_event_ptr) }{
-            Ok(m)=>{
-                m
-            }
-            Err(e) =>{
-                panic!("unable to open reader to writer event");//todo: do not panic when using for actual robot
-            }
-        };
-        info!("Opened existing 'Reader to Writer' Event from shared memory.");
-
-        let (writer_to_reader_event,_) = match
-        unsafe { Event::from_existing(writer_to_reader_event_ptr)}{
-            Ok(m) => {
-                m
-            }
-            Err(e) => {
-                panic!("unable to open writer to reader event");//todo: do not panic when using for actual robot
-            }
-        };
-        info!("Opened existing 'Writer to Reader' Event from shared memory.");
-
-        let reader_message = unsafe { &*message_data_ptr };
-        info!("Opened existing SharedMessage from shared memory.");
-
-        match reader_to_writer_event.set(EventState::Signaled) {
-            Ok(m) => {
-                m
-            }
-            Err(e) => {
-                panic!("Failed to send reader signal to writer") //todo: replace panic
-            }
-        };
-        loop {
-            //shmem stuff
-            debug!("Waiting for writer to signal");
-            match writer_to_reader_event.wait(Timeout::Val(Duration::from_millis(3000))) {
-                Ok(_) => debug!("Signal received! Data is ready."),
-
-                Err(e) => {
-                    error!("Error waiting for signal: {:?}", e);
-                }
-            };
-
-            let received_message_bytes = &reader_message.message_buffer[..reader_message.message_len];
-
-            let received_message = match std::str::from_utf8(received_message_bytes) {
+        let shmem = loop {
+            match ShmemConf::new().flink(shmem_path).open() {
                 Ok(m) => {
-                    m
-                }
+                    info!("Successfully opened shared memory.");
+                    break m;
+                },
                 Err(e) => {
-                    panic!("Unable to convert received message to UTF-8"); //todo: replace panic
-                }
-            };
-            info!("Received message: '{}'", received_message);
+                    debug!("Shared memory not ready yet ({:?}), retrying in 500ms...", e);
+                    std::thread::sleep(Duration::from_millis(500));
+                },
+            }
+        };
 
-            let waggle_data_result: Result<WaggleData, _> =  serde_json::from_str(received_message);
-            info!("waggle data result: {:?}", waggle_data_result);
+        let header = unsafe { &*(shmem.as_ptr() as *const SharedMemHeader) };
+        info!("Shared memory opened, starting seqlock reader loop");
+
+        let mut last_seq: u64 = 0;
+
+        loop {
+            // Spin until sequence is even (stable) and different from last read
+            let seq = loop {
+                let s = header.sequence.load(Ordering::Acquire);
+                if s % 2 == 0 && s != last_seq {
+                    break s;
+                }
+                // Small yield to avoid burning CPU when no new data
+                std::hint::spin_loop();
+            };
+
+            // Read the data
+            let msg_len = header.message_len;
+            let msg_bytes = &header.message_buffer[..msg_len];
+
+            // Verify sequence hasn't changed (no write occurred during our read)
+            let seq_after = header.sequence.load(Ordering::Acquire);
+            if seq_after != seq {
+                debug!("Seqlock retry: sequence changed during read ({} -> {})", seq, seq_after);
+                continue;
+            }
+
+            last_seq = seq;
+
+            // Parse and process the message
+            let received_message = match std::str::from_utf8(msg_bytes) {
+                Ok(m) => m,
+                Err(e) => {
+                    error!("Unable to convert received message to UTF-8: {:?}", e);
+                    continue;
+                },
+            };
+
+            let waggle_data_result: Result<WaggleData, _> = serde_json::from_str(received_message);
 
             if let Ok(waggle_data) = waggle_data_result {
-                info!("Deserialized waggle data: {:?}", waggle_data);
-                let buffer_loop_clone = Arc::clone(&buffer_clone);
-                add_data_to_batch(buffer_loop_clone,waggle_data);
+                debug!("Received waggle data (seq {})", seq);
+                if shmem_tx.send(waggle_data).is_err() {
+                    error!("Failed to send waggle data to async runtime");
+                    break;
+                }
+            } else {
+                error!("Failed to parse waggle data: {:?}", waggle_data_result);
             }
+        }
+    });
 
-            info!("Signaling 'Reader to Writer' event back to the writer that data has been read...");
-            match reader_to_writer_event.set(EventState::Signaled) {
-                Ok(m) => {
-                    m
-                }
-                Err(e) => {
-                    panic!("Failed to send reader signal to writer") //todo: replace panic
-                }
-            };
-            info!("'Reader to Writer' Event sent back.");
-            info!("Reader process done.");
+    // Async task to receive from shmem thread and add to buffer
+    let buffer_shmem = Arc::clone(&buffer);
+    tokio::spawn(async move {
+        while let Some(waggle_data) = shmem_rx.recv().await {
+            add_data_to_batch(Arc::clone(&buffer_shmem), waggle_data);
         }
     });
 
