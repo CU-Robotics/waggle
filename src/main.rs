@@ -21,10 +21,8 @@ use tracing::{debug, error, info};
 
 #[repr(C)]
 pub struct SharedMemHeader {
-    /// Incremented by writer after each write
-    write_seq: AtomicU64,
-    /// Incremented by reader after each read
-    read_seq: AtomicU64,
+    write_counter: AtomicU64,
+    read_counter: AtomicU64,
     message_len: usize,
     message_buffer: [u8; 10000],
 }
@@ -169,10 +167,8 @@ async fn main() {
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
 
-    // Channel for shmem thread to send parsed data to async runtime
     let (shmem_tx, mut shmem_rx) = mpsc::unbounded_channel::<WaggleData>();
 
-    // Blocking thread for shared memory (Shmem contains raw pointers, not Send)
     std::thread::spawn(move || {
         let shmem_path = "/tmp/waggle-shared-memory";
 
@@ -195,35 +191,30 @@ async fn main() {
         info!("Shared memory opened, starting backpressure reader loop");
 
         loop {
-            // Wait for new data (write_seq > read_seq)
-            let read_seq = header.read_seq.load(Ordering::Acquire);
+            let read_seq = header.read_counter.load(Ordering::Acquire);
             loop {
-                let write_seq = header.write_seq.load(Ordering::Acquire);
+                let write_seq = header.write_counter.load(Ordering::Acquire);
                 if write_seq > read_seq {
                     break;
                 }
                 std::hint::spin_loop();
             }
 
-            // Read the data
             let msg_len = header.message_len;
             let msg_bytes = &header.message_buffer[..msg_len];
 
-            // Parse and process the message
             let received_message = match std::str::from_utf8(msg_bytes) {
                 Ok(m) => m,
                 Err(e) => {
                     error!("Unable to convert received message to UTF-8: {:?}", e);
-                    // Signal read complete even on error to unblock writer
-                    header.read_seq.store(read_seq + 1, Ordering::Release);
+                    header.read_counter.store(read_seq + 1, Ordering::Release);
                     continue;
                 },
             };
 
             let waggle_data_result: Result<WaggleData, _> = serde_json::from_str(received_message);
 
-            // Signal read complete to unblock writer
-            header.read_seq.store(read_seq + 1, Ordering::Release);
+            header.read_counter.store(read_seq + 1, Ordering::Release);
 
             if let Ok(waggle_data) = waggle_data_result {
                 debug!("Received waggle data (read_seq {})", read_seq + 1);
@@ -237,7 +228,6 @@ async fn main() {
         }
     });
 
-    // Async task to receive from shmem thread and add to buffer
     let buffer_shmem = Arc::clone(&buffer);
     tokio::spawn(async move {
         while let Some(waggle_data) = shmem_rx.recv().await {
