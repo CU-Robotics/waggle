@@ -21,8 +21,10 @@ use tracing::{debug, error, info};
 
 #[repr(C)]
 pub struct SharedMemHeader {
-    /// Odd = write in progress, Even = data stable
-    sequence: AtomicU64,
+    /// Incremented by writer after each write
+    write_seq: AtomicU64,
+    /// Incremented by reader after each read
+    read_seq: AtomicU64,
     message_len: usize,
     message_buffer: [u8; 10000],
 }
@@ -190,47 +192,41 @@ async fn main() {
         };
 
         let header = unsafe { &*(shmem.as_ptr() as *const SharedMemHeader) };
-        info!("Shared memory opened, starting seqlock reader loop");
-
-        let mut last_seq: u64 = 0;
+        info!("Shared memory opened, starting backpressure reader loop");
 
         loop {
-            // Spin until sequence is even (stable) and different from last read
-            let seq = loop {
-                let s = header.sequence.load(Ordering::Acquire);
-                if s % 2 == 0 && s != last_seq {
-                    break s;
+            // Wait for new data (write_seq > read_seq)
+            let read_seq = header.read_seq.load(Ordering::Acquire);
+            loop {
+                let write_seq = header.write_seq.load(Ordering::Acquire);
+                if write_seq > read_seq {
+                    break;
                 }
-                // Small yield to avoid burning CPU when no new data
                 std::hint::spin_loop();
-            };
+            }
 
             // Read the data
             let msg_len = header.message_len;
             let msg_bytes = &header.message_buffer[..msg_len];
-
-            // Verify sequence hasn't changed (no write occurred during our read)
-            let seq_after = header.sequence.load(Ordering::Acquire);
-            if seq_after != seq {
-                debug!("Seqlock retry: sequence changed during read ({} -> {})", seq, seq_after);
-                continue;
-            }
-
-            last_seq = seq;
 
             // Parse and process the message
             let received_message = match std::str::from_utf8(msg_bytes) {
                 Ok(m) => m,
                 Err(e) => {
                     error!("Unable to convert received message to UTF-8: {:?}", e);
+                    // Signal read complete even on error to unblock writer
+                    header.read_seq.store(read_seq + 1, Ordering::Release);
                     continue;
                 },
             };
 
             let waggle_data_result: Result<WaggleData, _> = serde_json::from_str(received_message);
 
+            // Signal read complete to unblock writer
+            header.read_seq.store(read_seq + 1, Ordering::Release);
+
             if let Ok(waggle_data) = waggle_data_result {
-                debug!("Received waggle data (seq {})", seq);
+                debug!("Received waggle data (read_seq {})", read_seq + 1);
                 if shmem_tx.send(waggle_data).is_err() {
                     error!("Failed to send waggle data to async runtime");
                     break;
