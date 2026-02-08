@@ -43,7 +43,7 @@ pub struct SvgData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphData {
-    pub x: f64,
+    pub x: Option<f64>,
     pub y: f64,
 }
 

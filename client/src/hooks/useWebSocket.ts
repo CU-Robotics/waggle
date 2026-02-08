@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import {useCallback, useEffect, useRef, useState} from "react";
-import {GraphData, RobotData} from "../types";
+import {GraphData, WaggleData} from "../types";
 
 const frame_timestamps: number[] = [];
 const event_timestamps: number[] = [];
@@ -9,22 +9,19 @@ export function useWebSocket() {
     const [isConnected, setIsConnected] = useState<boolean>(false);
     const [maxDataPoints, setMaxDataPoints] = useState<number>(5000);
 
-    const [graphData, setGraphData] = useState<RobotData["graph_data"]>({});
-    const [imageData, setImageData] = useState<RobotData["images"]>({});
-    const [svgData, setSvgData] = useState<RobotData["svg_data"]>({});
+    const [graphData, setGraphData] = useState<WaggleData["graph_data"]>({});
+    const [imageData, setImageData] = useState<WaggleData["images"]>({});
+    const [svgData, setSvgData] = useState<WaggleData["svg_data"]>({});
 
-    const [stringData, setStringData] = useState<RobotData["string_data"]>({});
+    const [stringData, setStringData] = useState<WaggleData["string_data"]>({});
 
-    const [robotPosition, setRobotPosition] = useState<
-        RobotData["robot_position"]
-    >({x: 0, y: 0, heading: 0});
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectAttemptsRef = useRef(0);
     const maxReconnectAttempts = 20;
     const reconnectDelay = 5000;
 
     const handleIncomingMessage = useCallback(
-        (all_data: RobotData[]) => {
+        (all_data: WaggleData[]) => {
             console.log("data received:", Date.now(), all_data.length)
             for (let i = 0; i < all_data.length; i++) {
                 const data = all_data[i];
@@ -51,7 +48,6 @@ export function useWebSocket() {
                                     }
                                     continue;
                                 }
-
                                 updatedArray.push(point);
                             }
                             const trimmedArray =
@@ -95,9 +91,6 @@ export function useWebSocket() {
                     });
                 }
 
-                if (data.robot_position && lastFrame) {
-                    setRobotPosition(data.robot_position);
-                }
             }
         },
         [maxDataPoints],
@@ -135,7 +128,7 @@ export function useWebSocket() {
             };
 
             wsRef.current.onmessage = (event) => {
-                const robot_data: RobotData[] = JSON.parse(event.data);
+                const robot_data: WaggleData[] = JSON.parse(event.data);
 
                 if (robot_data.length == 0) {
                     if (wsRef.current) {
@@ -227,7 +220,6 @@ export function useWebSocket() {
         imageData,
         svgData,
         stringData,
-        robotPosition,
         maxDataPoints,
         setMaxDataPoints,
     };
