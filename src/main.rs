@@ -24,7 +24,7 @@ pub struct SharedMemHeader {
     write_counter: AtomicU64,
     read_counter: AtomicU64,
     message_len: usize,
-    message_buffer: [u8; 10000],
+    message_buffer: [u8; 10000000],
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageData {
