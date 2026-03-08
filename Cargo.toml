@@ -15,7 +15,6 @@ tower = "0.4"
 bytes = "1.5"
 tokio-stream = "0.1"
 uuid = { version = "1", features = ["v4"] }
-image = "0.25"
 base64 = "0.21"
 parking_lot = "0.12"
 tower-http = { version = "0.5", features = ["fs"] }
