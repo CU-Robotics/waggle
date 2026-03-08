@@ -58,25 +58,30 @@ async fn main() {
 
         let mut log_data = HashMap::<String, LogData>::new();
         let (level, color_code) = match i % 4 {
-            0 => ("INFO", "\x1b[36m"),    // cyan
-            1 => ("DEBUG", "\x1b[90m"),   // gray
-            2 => ("WARN", "\x1b[33m"),    // yellow
-            _ => ("ERROR", "\x1b[31m"),   // red
+            0 => ("INFO", "\x1b[36m"),  // cyan
+            1 => ("DEBUG", "\x1b[90m"), // gray
+            2 => ("WARN", "\x1b[33m"),  // yellow
+            _ => ("ERROR", "\x1b[31m"), // red
         };
         let line = format!(
             "{}[{}]\x1b[0m tick {} cos={:.4} str={}",
-            color_code, level, i, f64::cos(i as f64 / 10.), string_data.get("test").unwrap().value
+            color_code,
+            level,
+            i,
+            f64::cos(i as f64 / 10.),
+            string_data.get("test").unwrap().value
         );
-        log_data.insert(
-            "simulator".to_string(),
-            LogData { lines: vec![line] },
-        );
+        log_data.insert("simulator1".to_string(), LogData { lines: vec![line.clone()] });
+
+        log_data.insert("simulator2".to_string(), LogData { lines: vec![line] });
 
         let mut graph_data = HashMap::<String, Vec<GraphData>>::new();
         graph_data.insert(
             "cosine".to_string(),
             vec![GraphData {
-                x: Some(SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64()),
+                x: Some(
+                    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64(),
+                ),
                 y: f64::cos(i as f64 / 10.),
             }],
         );

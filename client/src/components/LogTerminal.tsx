@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 
 interface LogTerminalProps {
     title: string;
@@ -25,15 +25,17 @@ const ANSI_BG_COLORS: Record<number, string> = {
     104: "#93c5fd", 105: "#d8b4fe", 106: "#67e8f9", 107: "#ffffff",
 };
 
+// eslint-disable-next-line no-control-regex
+const ANSI_REGEX = /\x1b\[([0-9;]*)m/g;
+
 function parseAnsi(line: string): AnsiSpan[] {
     const spans: AnsiSpan[] = [];
-    // eslint-disable-next-line no-control-regex
-    const regex = /\x1b\[([0-9;]*)m/g;
+    ANSI_REGEX.lastIndex = 0;
     let style: React.CSSProperties = {};
     let lastIndex = 0;
     let match;
 
-    while ((match = regex.exec(line)) !== null) {
+    while ((match = ANSI_REGEX.exec(line)) !== null) {
         if (match.index > lastIndex) {
             spans.push({text: line.slice(lastIndex, match.index), style: {...style}});
         }
@@ -57,7 +59,7 @@ function parseAnsi(line: string): AnsiSpan[] {
                 style.backgroundColor = ANSI_BG_COLORS[code];
             }
         }
-        lastIndex = regex.lastIndex;
+        lastIndex = ANSI_REGEX.lastIndex;
     }
     if (lastIndex < line.length) {
         spans.push({text: line.slice(lastIndex), style: {...style}});
@@ -68,15 +70,46 @@ function parseAnsi(line: string): AnsiSpan[] {
     return spans;
 }
 
+const LINE_HEIGHT = 20;
+const OVERSCAN = 10;
+
 function LogTerminal({title, lines, isDarkMode}: LogTerminalProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoScroll, setAutoScroll] = useState(true);
+    const [scrollTop, setScrollTop] = useState(0);
+    const [viewHeight, setViewHeight] = useState(256);
+
+    const parsedCacheRef = useRef<Map<string, AnsiSpan[]>>(new Map());
+
+    const getParsed = useCallback((line: string): AnsiSpan[] => {
+        const cache = parsedCacheRef.current;
+        let result = cache.get(line);
+        if (!result) {
+            result = parseAnsi(line);
+            cache.set(line, result);
+            if (cache.size > 5000) {
+                const iter = cache.keys();
+                for (let i = 0; i < 1000; i++) {
+                    const key = iter.next().value;
+                    if (key !== undefined) cache.delete(key);
+                }
+            }
+        }
+        return result;
+    }, []);
 
     const handleScroll = useCallback(() => {
         const el = scrollRef.current;
         if (!el) return;
+        setScrollTop(el.scrollTop);
         const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20;
         setAutoScroll(atBottom);
+    }, []);
+
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        setViewHeight(el.clientHeight);
     }, []);
 
     useEffect(() => {
@@ -85,7 +118,9 @@ function LogTerminal({title, lines, isDarkMode}: LogTerminalProps) {
         }
     }, [lines, autoScroll]);
 
-    const parsedLines = useMemo(() => lines.map(parseAnsi), [lines]);
+    const totalHeight = lines.length * LINE_HEIGHT;
+    const startIdx = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN);
+    const endIdx = Math.min(lines.length, Math.ceil((scrollTop + viewHeight) / LINE_HEIGHT) + OVERSCAN);
 
     return (
         <div className="flex flex-col w-full ">
@@ -114,19 +149,36 @@ function LogTerminal({title, lines, isDarkMode}: LogTerminalProps) {
             <div
                 ref={scrollRef}
                 onScroll={handleScroll}
-                className={`h-64 overflow-y-auto font-mono text-xs leading-5 p-2 rounded-b-md border ${
+                className={`h-64 overflow-y-auto font-mono text-xs p-2 rounded-b-md border ${
                     isDarkMode
                         ? "bg-neutral-900 text-green-400 border-neutral-600"
                         : "bg-neutral-950 text-green-400 border-neutral-300"
                 }`}
             >
-                {parsedLines.map((spans, i) => (
-                    <div key={i} className="whitespace-pre-wrap break-all">
-                        {spans.map((span, j) => (
-                            <span key={j} style={span.style}>{span.text}</span>
-                        ))}
-                    </div>
-                ))}
+                <div style={{height: totalHeight, position: "relative"}}>
+                    {lines.slice(startIdx, endIdx).map((line, i) => {
+                        const idx = startIdx + i;
+                        const spans = getParsed(line);
+                        return (
+                            <div
+                                key={idx}
+                                style={{
+                                    position: "absolute",
+                                    top: idx * LINE_HEIGHT,
+                                    left: 0,
+                                    right: 0,
+                                    height: LINE_HEIGHT,
+                                    lineHeight: `${LINE_HEIGHT}px`,
+                                }}
+                                className="whitespace-pre-wrap break-all"
+                            >
+                                {spans.map((span, j) => (
+                                    <span key={j} style={span.style}>{span.text}</span>
+                                ))}
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
