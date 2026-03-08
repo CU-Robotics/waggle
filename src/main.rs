@@ -1,19 +1,17 @@
 use axum::{
+    Json, Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State,
-    }, response::IntoResponse,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
+    response::IntoResponse,
     routing::{get, post},
-    Json,
-    Router,
 };
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use futures::StreamExt;
-use image::ImageFormat;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use shared_memory::ShmemConf;
-use std::io::Cursor;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
@@ -28,7 +26,7 @@ pub struct SharedMemHeader {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageData {
-    /// PNG-encoded image bytes as base64.
+    /// JPEG-encoded image bytes as base64.
     pub image_data: String,
     /// Scale factor applied when rendering on the dashboard (1.0 = native).
     pub scale: i32,
@@ -83,6 +81,88 @@ impl Default for WaggleData {
             log_data: HashMap::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct WaggleNonImageData {
+    pub sent_timestamp: i64,
+    pub svg_data: HashMap<String, SvgData>,
+    pub graph_data: HashMap<String, Vec<GraphData>>,
+    pub string_data: HashMap<String, StringData>,
+    #[serde(default)]
+    pub log_data: HashMap<String, LogData>,
+}
+
+fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
+    let mut pos = 0;
+
+    let read_u32 = |pos: &mut usize| -> Result<u32, String> {
+        if *pos + 4 > buf.len() {
+            return Err("unexpected end of buffer reading u32".into());
+        }
+        let val = u32::from_le_bytes(buf[*pos..*pos + 4].try_into().unwrap());
+        *pos += 4;
+        Ok(val)
+    };
+
+    let read_i32 = |pos: &mut usize| -> Result<i32, String> {
+        if *pos + 4 > buf.len() {
+            return Err("unexpected end of buffer reading i32".into());
+        }
+        let val = i32::from_le_bytes(buf[*pos..*pos + 4].try_into().unwrap());
+        *pos += 4;
+        Ok(val)
+    };
+
+    let json_len = read_u32(&mut pos)? as usize;
+    if pos + json_len > buf.len() {
+        return Err("json section exceeds buffer".into());
+    }
+    let meta: WaggleNonImageData = serde_json::from_slice(&buf[pos..pos + json_len])
+        .map_err(|e| format!("json parse error: {e}"))?;
+    pos += json_len;
+
+    // Images section
+    let num_images = read_u32(&mut pos)? as usize;
+    let mut images = HashMap::with_capacity(num_images);
+
+    for _ in 0..num_images {
+        let name_len = read_u32(&mut pos)? as usize;
+        if pos + name_len > buf.len() {
+            return Err("image name exceeds buffer".into());
+        }
+        let name = std::str::from_utf8(&buf[pos..pos + name_len])
+            .map_err(|e| format!("invalid image name: {e}"))?
+            .to_owned();
+        pos += name_len;
+
+        let scale = read_i32(&mut pos)?;
+
+        if pos >= buf.len() {
+            return Err("unexpected end of buffer reading flip".into());
+        }
+        let flip = buf[pos] != 0;
+        pos += 1;
+
+        let data_len = read_u32(&mut pos)? as usize;
+        if pos + data_len > buf.len() {
+            return Err("image data exceeds buffer".into());
+        }
+        // Raw JPEG bytes → base64 for the browser
+        let b64 = general_purpose::STANDARD.encode(&buf[pos..pos + data_len]);
+        pos += data_len;
+
+        images.insert(name, ImageData { image_data: b64, scale, flip });
+    }
+
+    Ok(WaggleData {
+        sent_timestamp: meta.sent_timestamp,
+        images,
+        svg_data: meta.svg_data,
+        graph_data: meta.graph_data,
+        string_data: meta.string_data,
+        log_data: meta.log_data,
+    })
 }
 
 type ClientsReady = Arc<Mutex<bool>>;
@@ -141,22 +221,12 @@ async fn batch_handler(
     add_data_to_batch(buffer, data);
 }
 
-fn add_data_to_batch(buffer: Buffer, mut data: WaggleData) {
-    for (_name, img) in data.images.iter_mut() {
-        if let Ok(bin) = general_purpose::STANDARD.decode(&img.image_data) {
-            let cursor = Cursor::new(bin);
-            if let Ok(decoded) = image::load(cursor, ImageFormat::Png) {
-                let resized = decoded.thumbnail(500, 500);
-                let mut buf = Vec::new();
-                let _ = resized.write_to(&mut Cursor::new(&mut buf), ImageFormat::Jpeg);
-                img.image_data = general_purpose::STANDARD.encode(&buf);
-            }
-        }
-    }
+fn add_data_to_batch(buffer: Buffer, data: WaggleData) {
+    // Images are already downscaled JPEG (base64-encoded) from hive-rs.
     info!("received batch data");
     {
         let mut buf = buffer.lock();
-        buf.push(data.clone());
+        buf.push(data);
         if buf.len() > 10 {
             buf.remove(0);
         }
@@ -211,27 +281,21 @@ async fn main() {
             let msg_len = header.message_len;
             let msg_bytes = &header.message_buffer[..msg_len];
 
-            let received_message = match std::str::from_utf8(msg_bytes) {
-                Ok(m) => m,
-                Err(e) => {
-                    error!("Unable to convert received message to UTF-8: {:?}", e);
-                    header.read_counter.store(read_seq + 1, Ordering::Release);
-                    continue;
-                },
-            };
-
-            let waggle_data_result: Result<WaggleData, _> = serde_json::from_str(received_message);
+            let waggle_data_result = parse_shmem_message(msg_bytes);
 
             header.read_counter.store(read_seq + 1, Ordering::Release);
 
-            if let Ok(waggle_data) = waggle_data_result {
-                debug!("Received waggle data (read_seq {})", read_seq + 1);
-                if shmem_tx.send(waggle_data).is_err() {
-                    error!("Failed to send waggle data to async runtime");
-                    break;
-                }
-            } else {
-                error!("Failed to parse waggle data: {:?}", waggle_data_result);
+            match waggle_data_result {
+                Ok(waggle_data) => {
+                    debug!("Received waggle data (read_seq {})", read_seq + 1);
+                    if shmem_tx.send(waggle_data).is_err() {
+                        error!("Failed to send waggle data to async runtime");
+                        break;
+                    }
+                },
+                Err(e) => {
+                    error!("Failed to parse waggle data: {}", e);
+                },
             }
         }
     });

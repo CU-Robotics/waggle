@@ -1,7 +1,7 @@
 use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
-use rand::distributions::Alphanumeric;
 use rand::Rng;
+use rand::distributions::Alphanumeric;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime};
