@@ -205,7 +205,7 @@ async fn main() {
                 if write_seq > read_seq {
                     break;
                 }
-                std::hint::spin_loop();
+                std::thread::sleep(std::time::Duration::from_micros(100));
             }
 
             let msg_len = header.message_len;
