@@ -413,9 +413,9 @@ dependencies = [
 
 [[package]]
 name = "easy-svg"
-version = "0.3.0"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b20dddbbc801cd29134f218d5df544444e255ae18aacf40ab5b3a415bb34b40f"
+checksum = "8f07b2a2931bc913077d5c869668cd2fab4f46d88b7a0ecdff2fe18bb1869fa0"
 dependencies = [
  "indexmap",
  "prettyplease",

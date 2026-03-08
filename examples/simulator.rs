@@ -1,5 +1,4 @@
-use easy_svg::elements::Svg;
-use easy_svg::elements::{Circle, Rect, Text};
+use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
@@ -61,7 +60,7 @@ async fn main() {
         graph_data.insert(
             "cosine".to_string(),
             vec![GraphData {
-                x: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64(),
+                x: Some(SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64()),
                 y: f64::cos(i as f64 / 10.),
             }],
         );
