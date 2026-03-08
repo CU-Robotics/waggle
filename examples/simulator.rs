@@ -5,7 +5,7 @@ use rand::Rng;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime};
-use waggle::main::{GraphData, StringData, SvgData, WaggleData};
+use waggle::main::{GraphData, LogData, StringData, SvgData, WaggleData};
 
 fn create_svg(cx: f64, cy: f64) -> Svg {
     Svg::new()
@@ -56,6 +56,14 @@ async fn main() {
             SvgData { svg_string: create_svg(((i * 15) % 500) as f64, 80.).to_string() },
         );
 
+        let mut log_data = HashMap::<String, LogData>::new();
+        log_data.insert(
+            "simulator".to_string(),
+            LogData {
+                lines: vec![format!("[tick {}] cos={:.4} str={}", i, f64::cos(i as f64 / 10.), string_data.get("test").unwrap().value)],
+            },
+        );
+
         let mut graph_data = HashMap::<String, Vec<GraphData>>::new();
         graph_data.insert(
             "cosine".to_string(),
@@ -70,6 +78,7 @@ async fn main() {
             svg_data,
             graph_data,
             string_data,
+            log_data,
         };
 
         let url = "http://localhost:3000/batch";

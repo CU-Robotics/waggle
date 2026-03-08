@@ -51,6 +51,11 @@ pub struct GraphData {
 pub struct StringData {
     pub value: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogData {
+    pub lines: Vec<String>,
+}
 impl Into<StringData> for String {
     fn into(self) -> StringData {
         StringData { value: self }
@@ -64,6 +69,8 @@ pub struct WaggleData {
     pub svg_data: HashMap<String, SvgData>,
     pub graph_data: HashMap<String, Vec<GraphData>>,
     pub string_data: HashMap<String, StringData>,
+    #[serde(default)]
+    pub log_data: HashMap<String, LogData>,
 }
 impl Default for WaggleData {
     fn default() -> Self {
@@ -73,6 +80,7 @@ impl Default for WaggleData {
             svg_data: HashMap::new(),
             graph_data: HashMap::new(),
             string_data: HashMap::new(),
+            log_data: HashMap::new(),
         }
     }
 }

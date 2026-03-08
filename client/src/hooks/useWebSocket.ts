@@ -8,12 +8,14 @@ const event_timestamps: number[] = [];
 export function useWebSocket() {
     const [isConnected, setIsConnected] = useState<boolean>(false);
     const [maxDataPoints, setMaxDataPoints] = useState<number>(5000);
+    const [maxLogLines, setMaxLogLines] = useState<number>(1000);
 
     const [graphData, setGraphData] = useState<WaggleData["graph_data"]>({});
     const [imageData, setImageData] = useState<WaggleData["images"]>({});
     const [svgData, setSvgData] = useState<WaggleData["svg_data"]>({});
 
     const [stringData, setStringData] = useState<WaggleData["string_data"]>({});
+    const [logData, setLogData] = useState<{ [key: string]: string[] }>({});
 
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectAttemptsRef = useRef(0);
@@ -91,10 +93,26 @@ export function useWebSocket() {
                     });
                 }
 
+                if (data.log_data) {
+                    setLogData((prevData) => {
+                        const newData = {...prevData};
+                        for (const [key, value] of Object.entries(data.log_data)) {
+                            if (!newData[key]) {
+                                newData[key] = [];
+                            }
+                            const updated = [...newData[key], ...value.lines];
+                            newData[key] = updated.length > maxLogLines
+                                ? updated.slice(updated.length - maxLogLines)
+                                : updated;
+                        }
+                        return newData;
+                    });
+                }
+
             }
         },
-        [maxDataPoints],
-    ); // Add maxDataPoints as a dependency
+        [maxDataPoints, maxLogLines],
+    );
 
     useEffect(() => {
         const connectWebSocket = () => {
@@ -220,7 +238,10 @@ export function useWebSocket() {
         imageData,
         svgData,
         stringData,
+        logData,
         maxDataPoints,
         setMaxDataPoints,
+        maxLogLines,
+        setMaxLogLines,
     };
 }
