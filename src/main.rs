@@ -53,25 +53,8 @@ pub struct StringData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LogLine {
-    pub text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub color: Option<String>,
-}
-impl From<String> for LogLine {
-    fn from(text: String) -> Self {
-        Self { text, color: None }
-    }
-}
-impl From<&str> for LogLine {
-    fn from(text: &str) -> Self {
-        Self { text: text.to_string(), color: None }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogData {
-    pub lines: Vec<LogLine>,
+    pub lines: Vec<String>,
 }
 impl Into<StringData> for String {
     fn into(self) -> StringData {

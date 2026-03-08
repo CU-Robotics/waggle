@@ -1,26 +1,71 @@
-import {useCallback, useEffect, useRef, useState} from "react";
-import {LogLine} from "../types";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 
 interface LogTerminalProps {
     title: string;
-    lines: LogLine[];
+    lines: string[];
     isDarkMode: boolean;
 }
 
-const LEVEL_COLORS: Record<string, string> = {
-    ERROR: "#ef4444",
-    WARN: "#eab308",
-    INFO: "#22d3ee",
-    DEBUG: "#a3a3a3",
-    TRACE: "#737373",
+interface AnsiSpan {
+    text: string;
+    style: React.CSSProperties;
+}
+
+const ANSI_COLORS: Record<number, string> = {
+    30: "#1e1e1e", 31: "#ef4444", 32: "#22c55e", 33: "#eab308",
+    34: "#3b82f6", 35: "#a855f7", 36: "#22d3ee", 37: "#d4d4d4",
+    90: "#737373", 91: "#fca5a5", 92: "#86efac", 93: "#fde047",
+    94: "#93c5fd", 95: "#d8b4fe", 96: "#67e8f9", 97: "#ffffff",
 };
 
-function getLineColor(line: LogLine): string | undefined {
-    if (line.color) return line.color;
-    for (const [level, color] of Object.entries(LEVEL_COLORS)) {
-        if (line.text.startsWith(`[${level}]`)) return color;
+const ANSI_BG_COLORS: Record<number, string> = {
+    40: "#1e1e1e", 41: "#ef4444", 42: "#22c55e", 43: "#eab308",
+    44: "#3b82f6", 45: "#a855f7", 46: "#22d3ee", 47: "#d4d4d4",
+    100: "#737373", 101: "#fca5a5", 102: "#86efac", 103: "#fde047",
+    104: "#93c5fd", 105: "#d8b4fe", 106: "#67e8f9", 107: "#ffffff",
+};
+
+function parseAnsi(line: string): AnsiSpan[] {
+    const spans: AnsiSpan[] = [];
+    // eslint-disable-next-line no-control-regex
+    const regex = /\x1b\[([0-9;]*)m/g;
+    let style: React.CSSProperties = {};
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(line)) !== null) {
+        if (match.index > lastIndex) {
+            spans.push({text: line.slice(lastIndex, match.index), style: {...style}});
+        }
+        const codes = match[1].split(";").map(Number);
+        for (const code of codes) {
+            if (code === 0 || isNaN(code)) {
+                style = {};
+            } else if (code === 1) {
+                style.fontWeight = "bold";
+            } else if (code === 2) {
+                style.opacity = 0.7;
+            } else if (code === 3) {
+                style.fontStyle = "italic";
+            } else if (code === 4) {
+                style.textDecoration = "underline";
+            } else if (code === 9) {
+                style.textDecoration = "line-through";
+            } else if (ANSI_COLORS[code]) {
+                style.color = ANSI_COLORS[code];
+            } else if (ANSI_BG_COLORS[code]) {
+                style.backgroundColor = ANSI_BG_COLORS[code];
+            }
+        }
+        lastIndex = regex.lastIndex;
     }
-    return undefined;
+    if (lastIndex < line.length) {
+        spans.push({text: line.slice(lastIndex), style: {...style}});
+    }
+    if (spans.length === 0) {
+        spans.push({text: line, style: {}});
+    }
+    return spans;
 }
 
 function LogTerminal({title, lines, isDarkMode}: LogTerminalProps) {
@@ -39,6 +84,8 @@ function LogTerminal({title, lines, isDarkMode}: LogTerminalProps) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [lines, autoScroll]);
+
+    const parsedLines = useMemo(() => lines.map(parseAnsi), [lines]);
 
     return (
         <div className="flex flex-col w-full ">
@@ -73,13 +120,11 @@ function LogTerminal({title, lines, isDarkMode}: LogTerminalProps) {
                         : "bg-neutral-950 text-green-400 border-neutral-300"
                 }`}
             >
-                {lines.map((line, i) => (
-                    <div
-                        key={i}
-                        className="whitespace-pre-wrap break-all"
-                        style={getLineColor(line) ? {color: getLineColor(line)} : undefined}
-                    >
-                        {line.text}
+                {parsedLines.map((spans, i) => (
+                    <div key={i} className="whitespace-pre-wrap break-all">
+                        {spans.map((span, j) => (
+                            <span key={j} style={span.style}>{span.text}</span>
+                        ))}
                     </div>
                 ))}
             </div>
