@@ -1,9 +1,26 @@
 import {useCallback, useEffect, useRef, useState} from "react";
+import {LogLine} from "../types";
 
 interface LogTerminalProps {
     title: string;
-    lines: string[];
+    lines: LogLine[];
     isDarkMode: boolean;
+}
+
+const LEVEL_COLORS: Record<string, string> = {
+    ERROR: "#ef4444",
+    WARN: "#eab308",
+    INFO: "#22d3ee",
+    DEBUG: "#a3a3a3",
+    TRACE: "#737373",
+};
+
+function getLineColor(line: LogLine): string | undefined {
+    if (line.color) return line.color;
+    for (const [level, color] of Object.entries(LEVEL_COLORS)) {
+        if (line.text.startsWith(`[${level}]`)) return color;
+    }
+    return undefined;
 }
 
 function LogTerminal({title, lines, isDarkMode}: LogTerminalProps) {
@@ -57,8 +74,12 @@ function LogTerminal({title, lines, isDarkMode}: LogTerminalProps) {
                 }`}
             >
                 {lines.map((line, i) => (
-                    <div key={i} className="whitespace-pre-wrap break-all">
-                        {line}
+                    <div
+                        key={i}
+                        className="whitespace-pre-wrap break-all"
+                        style={getLineColor(line) ? {color: getLineColor(line)} : undefined}
+                    >
+                        {line.text}
                     </div>
                 ))}
             </div>

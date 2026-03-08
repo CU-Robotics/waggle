@@ -22,8 +22,13 @@ interface StringData {
     value: string;
 }
 
+interface LogLine {
+    text: string;
+    color?: string;
+}
+
 interface LogData {
-    lines: string[];
+    lines: LogLine[];
 }
 
 interface WaggleData {
@@ -39,6 +44,7 @@ export type {
     ImageData,
     GraphDataPoint as GraphData,
     StringData,
+    LogLine,
     LogData,
     WaggleData,
 };

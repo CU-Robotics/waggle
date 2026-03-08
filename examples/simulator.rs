@@ -5,7 +5,7 @@ use rand::Rng;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime};
-use waggle::main::{GraphData, LogData, StringData, SvgData, WaggleData};
+use waggle::main::{GraphData, LogData, LogLine, StringData, SvgData, WaggleData};
 
 fn create_svg(cx: f64, cy: f64) -> Svg {
     Svg::new()
@@ -57,11 +57,19 @@ async fn main() {
         );
 
         let mut log_data = HashMap::<String, LogData>::new();
+        let level = match i % 4 {
+            0 => "INFO",
+            1 => "DEBUG",
+            2 => "WARN",
+            _ => "ERROR",
+        };
+        let line = LogLine {
+            text: format!("[{}] tick {} cos={:.4} str={}", level, i, f64::cos(i as f64 / 10.), string_data.get("test").unwrap().value),
+            color: None,
+        };
         log_data.insert(
             "simulator".to_string(),
-            LogData {
-                lines: vec![format!("[tick {}] cos={:.4} str={}", i, f64::cos(i as f64 / 10.), string_data.get("test").unwrap().value)],
-            },
+            LogData { lines: vec![line] },
         );
 
         let mut graph_data = HashMap::<String, Vec<GraphData>>::new();

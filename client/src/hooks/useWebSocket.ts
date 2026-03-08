@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import {useCallback, useEffect, useRef, useState} from "react";
-import {GraphData, WaggleData} from "../types";
+import {GraphData, LogLine, WaggleData} from "../types";
 
 const frame_timestamps: number[] = [];
 const event_timestamps: number[] = [];
@@ -15,7 +15,7 @@ export function useWebSocket() {
     const [svgData, setSvgData] = useState<WaggleData["svg_data"]>({});
 
     const [stringData, setStringData] = useState<WaggleData["string_data"]>({});
-    const [logData, setLogData] = useState<{ [key: string]: string[] }>({});
+    const [logData, setLogData] = useState<{ [key: string]: LogLine[] }>({});
 
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectAttemptsRef = useRef(0);
