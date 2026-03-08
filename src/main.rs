@@ -1,13 +1,13 @@
 use axum::{
+    Json, Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State,
-    }, response::IntoResponse,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
+    response::IntoResponse,
     routing::{get, post},
-    Json,
-    Router,
 };
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use futures::StreamExt;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
