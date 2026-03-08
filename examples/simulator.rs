@@ -1,12 +1,11 @@
-use easy_svg::elements::Svg;
-use easy_svg::elements::{Circle, Rect, Text};
+use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime};
-use waggle::main::{GraphData, StringData, SvgData, WaggleData};
+use waggle::main::{GraphData, LogData, StringData, SvgData, WaggleData};
 
 fn create_svg(cx: f64, cy: f64) -> Svg {
     Svg::new()
@@ -57,11 +56,32 @@ async fn main() {
             SvgData { svg_string: create_svg(((i * 15) % 500) as f64, 80.).to_string() },
         );
 
+        let mut log_data = HashMap::<String, LogData>::new();
+        let (level, color_code) = match i % 4 {
+            0 => ("INFO", "\x1b[36m"),  // cyan
+            1 => ("DEBUG", "\x1b[90m"), // gray
+            2 => ("WARN", "\x1b[33m"),  // yellow
+            _ => ("ERROR", "\x1b[31m"), // red
+        };
+        let line = format!(
+            "{}[{}]\x1b[0m tick {} cos={:.4} str={}",
+            color_code,
+            level,
+            i,
+            f64::cos(i as f64 / 10.),
+            string_data.get("test").unwrap().value
+        );
+        log_data.insert("simulator1".to_string(), LogData { lines: vec![line.clone()] });
+
+        log_data.insert("simulator2".to_string(), LogData { lines: vec![line] });
+
         let mut graph_data = HashMap::<String, Vec<GraphData>>::new();
         graph_data.insert(
             "cosine".to_string(),
             vec![GraphData {
-                x: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64(),
+                x: Some(
+                    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64(),
+                ),
                 y: f64::cos(i as f64 / 10.),
             }],
         );
@@ -71,6 +91,7 @@ async fn main() {
             svg_data,
             graph_data,
             string_data,
+            log_data,
         };
 
         let url = "http://localhost:3000/batch";

@@ -7,6 +7,7 @@ import {
 } from "@tabler/icons-react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
+import LogTerminal from "./components/LogTerminal";
 import { GraphDataToCSV, saveFile } from "./csvHelpter";
 // import gameField from "./assets/game_field.png";
 
@@ -17,8 +18,11 @@ function App() {
     imageData,
     svgData,
     stringData,
+    logData,
     maxDataPoints,
     setMaxDataPoints,
+    maxLogLines,
+    setMaxLogLines,
   } = useWebSocket();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
@@ -108,7 +112,22 @@ function App() {
                 className="w-36 rounded border px-2 py-1 dark:bg-neutral-800"
               />
             </div>
-            <div>
+            <label htmlFor="maxLogLines" className="mb-2 mt-4 block">
+              Max Log Lines per Terminal:
+            </label>
+            <div className="flex items-center">
+              <input
+                type="number"
+                min="1"
+                value={maxLogLines}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  setMaxLogLines(value);
+                }}
+                className="w-36 rounded border px-2 py-1 dark:bg-neutral-800"
+              />
+            </div>
+            <div className="mt-4">
               <button
                 onClick={handleDownloadData}
                 className="flex items-center gap-2 rounded-md border bg-slate-300 px-3 py-2 text-black hover:bg-slate-600 dark:bg-slate-700 dark:text-white"
@@ -149,6 +168,23 @@ function App() {
                   title={key}
                   data={graphData[key] || []}
                   onRemove={() => removeGraph(key)}
+                  isDarkMode={isDarkMode}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Log Data Section */}
+        {Object.keys(logData).length > 0 && (
+          <div className="m-2 rounded-lg border p-4">
+            <h2 className="mb-4 text-lg font-semibold">Logs</h2>
+            <div className="flex flex-wrap gap-4">
+              {Object.entries(logData).map(([key, lines]) => (
+                <LogTerminal
+                  key={key}
+                  title={key}
+                  lines={lines}
                   isDarkMode={isDarkMode}
                 />
               ))}
