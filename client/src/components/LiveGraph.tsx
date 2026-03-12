@@ -1,104 +1,145 @@
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { useEffect, useRef, useMemo, useCallback } from "react";
+import uPlot from "uplot";
+import "uplot/dist/uPlot.min.css";
 import { GraphData } from "../types";
 import { IconX } from "@tabler/icons-react";
-import { useMemo } from "react";
 
 interface LiveGraphProps {
   title: string;
   data: GraphData[];
   onRemove: () => void;
-  isDarkMode: boolean;
 }
 
-function LiveGraph({ title, data, onRemove, isDarkMode }: LiveGraphProps) {
-  const gridStroke = isDarkMode ? "#ddd" : "#111";
-  const axisTickFill = isDarkMode ? "#ddd" : "#777";
-  const tooltipContentStyle = {
-    background: isDarkMode ? "#333" : "#fff",
-    border: isDarkMode ? "1px solid #ddd" : "1px solid #333",
-    color: isDarkMode ? "#ddd" : "#333",
-  };
+const STROKE_COLOR = "#6366f1";
+const FILL_COLOR = "rgba(99, 102, 241, 0.08)";
 
-  // Calculate domains based on data
-  const domains = useMemo(() => {
-    if (data.length === 0) return { x: [0, 100], y: [0, 100] };
+function LiveGraph({ title, data, onRemove }: LiveGraphProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const uplotRef = useRef<uPlot | null>(null);
 
-    const xValues = data.map((d) => d.x);
-    const yValues = data.map((d) => d.y);
+  const latestValue = data.length > 0 ? data[data.length - 1].y : 0;
 
-    const xMin = Math.min(...xValues);
-    const xMax = Math.max(...xValues);
-    const yMin = Math.min(...yValues);
-    const yMax = Math.max(...yValues);
-
-    // Add some padding to the domains
-    const xPadding = (xMax - xMin) * 0.01;
-    const yPadding = (yMax - yMin) * 0.01;
-
-    return {
-      x: [xMin - xPadding, xMax + xPadding],
-      y: [yMin - yPadding, yMax + yPadding],
-    };
+  // Convert [{x,y},...] to uPlot's columnar [[xs],[ys]]
+  const aligned = useMemo((): [number[], number[]] => {
+    const xs = new Array(data.length);
+    const ys = new Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+      xs[i] = data[i].x;
+      ys[i] = data[i].y;
+    }
+    return [xs, ys];
   }, [data]);
 
+  const makeOpts = useCallback(
+    (width: number): uPlot.Options => ({
+      width,
+      height: 200,
+      cursor: {
+        show: true,
+        drag: { x: true, y: false },
+      },
+      legend: { show: false },
+      scales: {
+        x: { time: false },
+        y: { auto: true, range: (_u, min, max) => {
+          const pad = (max - min) * 0.05 || 1;
+          return [min - pad, max + pad];
+        }},
+      },
+      axes: [
+        {
+          stroke: "var(--color-text-muted)",
+          grid: { show: false },
+          ticks: { show: false },
+          font: "10px var(--font-mono)",
+          gap: 4,
+          size: 28,
+          values: (_u, vals) => vals.map((v) => v.toFixed(1)),
+        },
+        {
+          stroke: "var(--color-text-muted)",
+          grid: { show: false },
+          ticks: { show: false },
+          font: "10px var(--font-mono)",
+          gap: 4,
+          size: 50,
+          values: (_u, vals) => vals.map((v) => v.toFixed(2)),
+        },
+      ],
+      series: [
+        {},
+        {
+          stroke: STROKE_COLOR,
+          width: 1.5,
+          fill: FILL_COLOR,
+          points: { show: false },
+        },
+      ],
+    }),
+    [],
+  );
+
+  // Create uPlot instance
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const width = el.clientWidth;
+    const opts = makeOpts(width);
+    const plot = new uPlot(opts, aligned, el);
+    uplotRef.current = plot;
+
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry && uplotRef.current) {
+        const w = Math.floor(entry.contentRect.width);
+        if (w > 0 && w !== uplotRef.current.width) {
+          uplotRef.current.setSize({ width: w, height: 200 });
+        }
+      }
+    });
+    ro.observe(el);
+
+    return () => {
+      ro.disconnect();
+      plot.destroy();
+      uplotRef.current = null;
+    };
+  }, [makeOpts]);
+
+  // Update data without recreating the chart
+  useEffect(() => {
+    if (uplotRef.current && aligned[0].length > 0) {
+      uplotRef.current.setData(aligned);
+    }
+  }, [aligned]);
+
   return (
-    <div className="flex h-[300px] w-[450px] flex-col rounded-lg border p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-semibold">{title}</h3>
-        <button
-          onClick={onRemove}
-          className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-          aria-label="Remove graph"
-        >
-          <IconX size={16} />
-        </button>
+    <div className="glass-panel glow-hover flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b px-4 py-2.5 border-[var(--color-border)]">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="size-2 rounded-full shrink-0 bg-[#6366f1]" />
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
+            {title}
+          </h3>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-mono font-bold tabular-nums text-[#6366f1]">
+            {latestValue.toFixed(2)}
+          </span>
+          <button
+            onClick={onRemove}
+            className="rounded-md p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors"
+            aria-label="Remove graph"
+          >
+            <IconX size={14} />
+          </button>
+        </div>
       </div>
-      <div className="flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-            <XAxis
-              type="number"
-              dataKey="x"
-              stroke={axisTickFill}
-              domain={domains.x}
-              allowDataOverflow={true}
-              tickFormatter={(x) => `${Math.round(x * 100) / 100}`}
-            />
-            <YAxis
-              type="number"
-              stroke={axisTickFill}
-              domain={domains.y}
-              allowDataOverflow={true}
-              tickFormatter={(y) => `${Math.round(y * 100) / 100}`}
-            />
-            <Tooltip
-              contentStyle={tooltipContentStyle}
-              labelFormatter={(x) => `X: ${x}`}
-              formatter={(y: number) => [
-                `${Math.round(y * 100) / 100}`,
-                "Value",
-              ]}
-            />
-            <Line
-              type="monotone"
-              dataKey="y"
-              stroke="#8884d8"
-              dot={false}
-              isAnimationActive={false}
-              connectNulls={true}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+
+      {/* Chart - uPlot mounts here */}
+      <div ref={containerRef} className="no-transition w-full" />
     </div>
   );
 }

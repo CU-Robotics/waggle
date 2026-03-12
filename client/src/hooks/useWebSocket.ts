@@ -1,247 +1,255 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-import {useCallback, useEffect, useRef, useState} from "react";
-import {GraphData, WaggleData} from "../types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { GraphData, WaggleData } from "../types";
 
-const frame_timestamps: number[] = [];
 const event_timestamps: number[] = [];
 
 export function useWebSocket() {
-    const [isConnected, setIsConnected] = useState<boolean>(false);
-    const [maxDataPoints, setMaxDataPoints] = useState<number>(5000);
-    const [maxLogLines, setMaxLogLines] = useState<number>(1000);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [maxDataPoints, setMaxDataPoints] = useState<number>(5000);
+  const [maxLogLines, setMaxLogLines] = useState<number>(1000);
 
-    const [graphData, setGraphData] = useState<WaggleData["graph_data"]>({});
-    const [imageData, setImageData] = useState<WaggleData["images"]>({});
-    const [svgData, setSvgData] = useState<WaggleData["svg_data"]>({});
+  // Use refs to accumulate data between animation frames
+  const graphDataRef = useRef<WaggleData["graph_data"]>({});
+  const imageDataRef = useRef<WaggleData["images"]>({});
+  const svgDataRef = useRef<WaggleData["svg_data"]>({});
+  const stringDataRef = useRef<WaggleData["string_data"]>({});
+  const logDataRef = useRef<{ [key: string]: string[] }>({});
+  const dirtyRef = useRef(false);
+  const rafRef = useRef<number>(0);
 
-    const [stringData, setStringData] = useState<WaggleData["string_data"]>({});
-    const [logData, setLogData] = useState<{ [key: string]: string[] }>({});
+  // State that triggers re-renders (flushed via RAF)
+  const [graphData, setGraphData] = useState<WaggleData["graph_data"]>({});
+  const [imageData, setImageData] = useState<WaggleData["images"]>({});
+  const [svgData, setSvgData] = useState<WaggleData["svg_data"]>({});
+  const [stringData, setStringData] = useState<WaggleData["string_data"]>({});
+  const [logData, setLogData] = useState<{ [key: string]: string[] }>({});
 
-    const wsRef = useRef<WebSocket | null>(null);
-    const reconnectAttemptsRef = useRef(0);
+  const maxDataPointsRef = useRef(maxDataPoints);
+  const maxLogLinesRef = useRef(maxLogLines);
+  useEffect(() => {
+    maxDataPointsRef.current = maxDataPoints;
+  }, [maxDataPoints]);
+  useEffect(() => {
+    maxLogLinesRef.current = maxLogLines;
+  }, [maxLogLines]);
+
+  // Track actual DOM render FPS via RAF timestamps
+  const renderTimestamps = useRef<number[]>([]);
+
+  // Flush accumulated ref data to state on animation frame.
+  // Must create new array references so React detects changes.
+  const flushToState = useCallback(() => {
+    if (!dirtyRef.current) return;
+    dirtyRef.current = false;
+
+    // Measure real render FPS from RAF callback timing
+    const now = performance.now();
+    const rt = renderTimestamps.current;
+    rt.push(now);
+    if (rt.length > 61) rt.shift();
+    if (rt.length >= 2) {
+      const elapsed = rt[rt.length - 1] - rt[0];
+      const fps = ((rt.length - 1) / elapsed) * 1000;
+      if (!graphDataRef.current.WAGGLE_FPS) {
+        graphDataRef.current.WAGGLE_FPS = [];
+      }
+      graphDataRef.current.WAGGLE_FPS.push({ x: Date.now(), y: fps });
+      const mdp = maxDataPointsRef.current;
+      if (graphDataRef.current.WAGGLE_FPS.length > mdp) {
+        graphDataRef.current.WAGGLE_FPS = graphDataRef.current.WAGGLE_FPS.slice(-mdp);
+      }
+    }
+
+    const gd: WaggleData["graph_data"] = {};
+    for (const k in graphDataRef.current) {
+      gd[k] = graphDataRef.current[k].slice();
+    }
+    setGraphData(gd);
+
+    setImageData({ ...imageDataRef.current });
+    setSvgData({ ...svgDataRef.current });
+    setStringData({ ...stringDataRef.current });
+
+    const ld: { [key: string]: string[] } = {};
+    for (const k in logDataRef.current) {
+      ld[k] = logDataRef.current[k].slice();
+    }
+    setLogData(ld);
+  }, []);
+
+  const scheduleFlush = useCallback(() => {
+    if (!dirtyRef.current) {
+      dirtyRef.current = true;
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(flushToState);
+    }
+  }, [flushToState]);
+
+  const handleIncomingMessage = useCallback(
+    (all_data: WaggleData[]) => {
+      const mdp = maxDataPointsRef.current;
+      const mll = maxLogLinesRef.current;
+
+      for (let i = 0; i < all_data.length; i++) {
+        const data = all_data[i];
+        const lastFrame = i === all_data.length - 1;
+
+        // Accumulate graph data directly into ref
+        if (data.graph_data) {
+          for (const [graph_name, _graph_points] of Object.entries(
+            data.graph_data,
+          )) {
+            const graph_points: GraphData[] = _graph_points;
+            if (!graphDataRef.current[graph_name]) {
+              graphDataRef.current[graph_name] = [];
+            }
+            const arr = graphDataRef.current[graph_name];
+
+            for (const point of graph_points) {
+              if (point.settings?.clear_data) {
+                arr.length = 0;
+                continue;
+              }
+              arr.push(point);
+            }
+
+            if (arr.length > mdp) {
+              graphDataRef.current[graph_name] = arr.slice(arr.length - mdp);
+            }
+          }
+        }
+
+        if (data.images && lastFrame) {
+          for (const [key, value] of Object.entries(data.images)) {
+            imageDataRef.current[key] = value;
+          }
+        }
+
+        if (data.svg_data && lastFrame) {
+          for (const [key, value] of Object.entries(data.svg_data)) {
+            svgDataRef.current[key] = value;
+          }
+        }
+
+        if (data.string_data && lastFrame) {
+          for (const [key, value] of Object.entries(data.string_data)) {
+            stringDataRef.current[key] = value;
+          }
+        }
+
+        if (data.log_data) {
+          for (const [key, value] of Object.entries(data.log_data)) {
+            if (!logDataRef.current[key]) {
+              logDataRef.current[key] = [];
+            }
+            const updated = logDataRef.current[key];
+            updated.push(...value.lines);
+            if (updated.length > mll) {
+              logDataRef.current[key] = updated.slice(updated.length - mll);
+            }
+          }
+        }
+      }
+
+      scheduleFlush();
+    },
+    [scheduleFlush],
+  );
+
+  useEffect(() => {
+    const wsRef: { current: WebSocket | null } = { current: null };
+    let reconnectAttempts = 0;
     const maxReconnectAttempts = 20;
     const reconnectDelay = 5000;
 
-    const handleIncomingMessage = useCallback(
-        (all_data: WaggleData[]) => {
-            console.log("data received:", Date.now(), all_data.length)
-            for (let i = 0; i < all_data.length; i++) {
-                const data = all_data[i];
-                const lastFrame = i === all_data.length - 1;
-                //  Append graph data
-                if (data.graph_data) {
-                    setGraphData((prevData) => {
-                        const newData = {...prevData};
+    const connectWebSocket = () => {
+      if (
+        wsRef.current &&
+        (wsRef.current.readyState === WebSocket.OPEN ||
+          wsRef.current.readyState === WebSocket.CONNECTING)
+      ) {
+        return;
+      }
 
-                        for (const [graph_name, _graph_points] of Object.entries(
-                            data.graph_data,
-                        )) {
-                            const graph_points: GraphData[] = _graph_points;
-                            if (!newData[graph_name]) {
-                                newData[graph_name] = [];
-                            }
-                            const updatedArray = [...newData[graph_name]];
+      if (reconnectAttempts >= maxReconnectAttempts) {
+        return;
+      }
 
-                            for (const point of graph_points) {
-                                if (point.settings?.clear_data) {
-                                    console.log(`Clearing ${graph_name}`);
-                                    if (updatedArray.length > 0) {
-                                        updatedArray.splice(0, updatedArray.length);
-                                    }
-                                    continue;
-                                }
-                                updatedArray.push(point);
-                            }
-                            const trimmedArray =
-                                updatedArray.length > maxDataPoints
-                                    ? updatedArray.slice(updatedArray.length - maxDataPoints)
-                                    : updatedArray;
-                            newData[graph_name] = trimmedArray;
-                        }
-                        return newData;
-                    });
-                }
+      wsRef.current = new WebSocket(`ws://${window.location.host}/ws`);
 
-                // Update image data
-                if (data.images && lastFrame) {
-                    setImageData((prevData) => {
-                        const newData = {...prevData};
-                        for (const [key, value] of Object.entries(data.images)) {
-                            newData[key] = value;
-                        }
-                        return newData;
-                    });
-                }
+      wsRef.current.onopen = (event) => {
+        console.log("WebSocket Connected", event);
+        setIsConnected(true);
+        reconnectAttempts = 0;
+        if (wsRef.current) {
+          wsRef.current.send("Hello from client");
+        }
+      };
 
-                if (data.svg_data && lastFrame) {
-                    setSvgData((prevData) => {
-                        const newData = {...prevData};
-                        for (const [key, value] of Object.entries(data.svg_data)) {
-                            newData[key] = value;
-                        }
-                        return newData;
-                    });
-                }
+      wsRef.current.onmessage = (event) => {
+        const robot_data: WaggleData[] = JSON.parse(event.data);
 
-                if (data.string_data && lastFrame) {
-                    setStringData((prevData) => {
-                        const newData = {...prevData};
-                        for (const [key, value] of Object.entries(data.string_data)) {
-                            newData[key] = value;
-                        }
-                        return newData;
-                    });
-                }
+        if (robot_data.length === 0) {
+          if (wsRef.current) {
+            wsRef.current.send("{}");
+          }
+        }
 
-                if (data.log_data) {
-                    setLogData((prevData) => {
-                        const newData = {...prevData};
-                        for (const [key, value] of Object.entries(data.log_data)) {
-                            if (!newData[key]) {
-                                newData[key] = [];
-                            }
-                            const updated = [...newData[key], ...value.lines];
-                            newData[key] = updated.length > maxLogLines
-                                ? updated.slice(updated.length - maxLogLines)
-                                : updated;
-                        }
-                        return newData;
-                    });
-                }
+        if (robot_data.length > 0) {
+          event_timestamps.push(Date.now());
+        }
 
-            }
-        },
-        [maxDataPoints, maxLogLines],
-    );
+        if (event_timestamps.length > 100) {
+          event_timestamps.shift();
+          const eps =
+            1000 /
+            ((event_timestamps[event_timestamps.length - 1] -
+              event_timestamps[0]) /
+              event_timestamps.length);
+          const eps_data: GraphData = { x: Date.now(), y: eps };
+          if (robot_data.length > 0) {
+            const last = robot_data[robot_data.length - 1];
+            if (!last.graph_data) last.graph_data = {};
+            last.graph_data.EVENTS_PER_SECOND = [eps_data];
+          }
+        }
 
-    useEffect(() => {
-        const connectWebSocket = () => {
-            if (
-                wsRef.current &&
-                (wsRef.current.readyState === WebSocket.OPEN ||
-                    wsRef.current.readyState === WebSocket.CONNECTING)
-            ) {
-                console.log("WebSocket is already connected or connecting");
-                return;
-            }
+        handleIncomingMessage(robot_data);
 
-            if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-                console.log(
-                    "Max reconnection attempts reached. Stopping reconnection.",
-                );
-                return;
-            }
+        if (wsRef.current) {
+          wsRef.current.send("{}");
+        }
+      };
 
-            // TODO - Change to dynamic URL
-            wsRef.current = new WebSocket(`ws://${window.location.host}/ws`);
+      wsRef.current.onclose = (event) => {
+        console.log("WebSocket Disconnected", event);
+        setIsConnected(false);
+        reconnectAttempts += 1;
+        setTimeout(connectWebSocket, reconnectDelay);
+      };
 
-            wsRef.current.onopen = (event) => {
-                console.log("WebSocket Connected", event);
-                setIsConnected(true);
-                reconnectAttemptsRef.current = 0;
-
-                if (wsRef.current) {
-                    wsRef.current.send("Hello from client");
-                }
-            };
-
-            wsRef.current.onmessage = (event) => {
-                const robot_data: WaggleData[] = JSON.parse(event.data);
-
-                if (robot_data.length == 0) {
-                    if (wsRef.current) {
-                        const responseData = {};
-                        wsRef.current.send(responseData.toString());
-                    } else {
-                        console.log("wsRef.current is null");
-                    }
-                }
-                frame_timestamps.push(Date.now());
-
-                if (robot_data.length > 0) {
-                    event_timestamps.push(Date.now());
-                }
-
-                if (frame_timestamps.length > 100) {
-                    frame_timestamps.shift();
-                    const fps =
-                        1000 /
-                        ((frame_timestamps[frame_timestamps.length - 1] -
-                                frame_timestamps[0]) /
-                            frame_timestamps.length);
-                    const fps_data: GraphData = {
-                        x: Date.now(),
-                        y: fps,
-                    };
-                    if (robot_data.length > 0) {
-                        const last_robot_data = robot_data[robot_data.length - 1];
-                        if (!last_robot_data.graph_data) {
-                            last_robot_data.graph_data = {};
-                        }
-                        last_robot_data.graph_data.WAGGLE_FPS = [fps_data];
-                    }
-                }
-
-                if (event_timestamps.length > 100) {
-                    event_timestamps.shift();
-                    const eps =
-                        1000 /
-                        ((event_timestamps[event_timestamps.length - 1] -
-                                event_timestamps[0]) /
-                            event_timestamps.length);
-                    const eps_data: GraphData = {
-                        x: Date.now(),
-                        y: eps,
-                    };
-                    if (robot_data.length > 0) {
-                        const last_robot_data = robot_data[robot_data.length - 1];
-                        if (!last_robot_data.graph_data) {
-                            last_robot_data.graph_data = {};
-                        }
-                        last_robot_data.graph_data.EVENTS_PER_SECOND = [eps_data];
-                    }
-                }
-
-                // This will now use the updated handleIncomingMessage when maxDataPoints changes
-                handleIncomingMessage(robot_data);
-
-                if (wsRef.current) {
-                    const responseData = {};
-                    wsRef.current.send(responseData.toString());
-                } else {
-                    console.log("wsRef.current is null");
-                }
-            };
-
-            wsRef.current.onclose = (event) => {
-                console.log("WebSocket Disconnected", event);
-                setIsConnected(false);
-                reconnectAttemptsRef.current += 1;
-                setTimeout(connectWebSocket, reconnectDelay);
-            };
-
-            wsRef.current.onerror = (error) => {
-                console.error("WebSocket Error:", error);
-            };
-        };
-
-        connectWebSocket();
-        return () => {
-            if (wsRef.current) wsRef.current.close();
-        };
-    }, [handleIncomingMessage]); // Add handleIncomingMessage as a dependency
-
-
-    return {
-        isConnected,
-        graphData,
-        imageData,
-        svgData,
-        stringData,
-        logData,
-        maxDataPoints,
-        setMaxDataPoints,
-        maxLogLines,
-        setMaxLogLines,
+      wsRef.current.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+      };
     };
+
+    connectWebSocket();
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [handleIncomingMessage]);
+
+  return {
+    isConnected,
+    graphData,
+    imageData,
+    svgData,
+    stringData,
+    logData,
+    maxDataPoints,
+    setMaxDataPoints,
+    maxLogLines,
+    setMaxLogLines,
+  };
 }
