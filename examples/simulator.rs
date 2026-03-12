@@ -2,8 +2,8 @@ use clap::Parser;
 use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
 use parking_lot::Mutex;
-use rand::Rng;
 use rand::distributions::Alphanumeric;
+use rand::Rng;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -33,11 +33,6 @@ fn create_svg(cx: f64, cy: f64) -> Svg {
         )
         .add_child_shape_element(Circle::new().fill(Color::DarkBlue).r(20.).cx(cx).cy(cy))
 }
-
-/// Spawn a background thread that continuously captures camera frames,
-/// JPEG-encodes them, and stores the latest raw JPEG bytes.
-/// The main loop just reads whatever is current — never blocks.
-/// Camera is created inside the thread since nokhwa::Camera isn't Send.
 fn spawn_camera_thread() -> Arc<Mutex<Option<Vec<u8>>>> {
     let latest: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
     let latest_clone = Arc::clone(&latest);
@@ -52,37 +47,28 @@ fn spawn_camera_thread() -> Arc<Mutex<Option<Vec<u8>>>> {
                 cam.open_stream().expect("Failed to open camera stream");
                 println!("Camera opened successfully");
                 cam
-            }
+            },
             Err(e) => {
                 eprintln!("Failed to open camera: {e}. Running without camera.");
                 return;
-            }
+            },
         };
 
         loop {
-            let Ok(frame) = cam.frame() else { continue };
-            let img = frame.decode_image::<nokhwa::pixel_format::RgbFormat>().unwrap();
+            let Ok(frame) = cam.frame_raw() else {
+                continue;
+            };
 
-            // Encode to JPEG bytes (no base64 — sent as raw binary)
-            let mut jpeg_buf = std::io::Cursor::new(Vec::new());
-            img.write_to(&mut jpeg_buf, image::ImageFormat::Jpeg).unwrap();
-
-            *latest_clone.lock() = Some(jpeg_buf.into_inner());
-        }
+            *latest_clone.lock() = Some(frame.to_vec());        }
     });
 
     latest
 }
-
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
 
-    let camera_frame = if args.camera {
-        Some(spawn_camera_thread())
-    } else {
-        None
-    };
+    let camera_frame = if args.camera { Some(spawn_camera_thread()) } else { None };
 
     let target_fps = 60;
     let tick_rate = Duration::from_micros(1_000_000 / target_fps);
@@ -171,7 +157,8 @@ async fn main() {
                     println!("Sending image frame: {} bytes", jpeg_bytes.len());
                     let c = client.clone();
                     tokio::spawn(async move {
-                        if let Err(e) = c.post("http://localhost:3000/image/webcam")
+                        if let Err(e) = c
+                            .post("http://localhost:3000/image/webcam")
                             .header("content-type", "application/octet-stream")
                             .body(jpeg_bytes)
                             .send()
@@ -180,12 +167,12 @@ async fn main() {
                             eprintln!("Image send failed: {e}");
                         }
                     });
-                }
+                },
                 None => {
                     if i % 60 == 0 {
                         println!("No camera frame available yet");
                     }
-                }
+                },
             }
         }
 

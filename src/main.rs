@@ -166,25 +166,46 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
     })
 }
 
-/// Raw image frame stored as JPEG bytes with metadata.
+/// Raw image frame stored as pre-encoded binary WS frame.
 #[derive(Debug, Clone)]
 struct RawImageFrame {
-    jpeg_bytes: Vec<u8>,
-    scale: i32,
-    flip: bool,
+    /// Pre-encoded binary WS frame: [name_len:u16][name][scale:i32][flip:u8][jpeg_bytes]
+    encoded_frame: Vec<u8>,
+    /// Monotonic sequence number — incremented on each new image upload.
+    seq: u64,
 }
 
 type ClientsReady = Arc<Mutex<bool>>;
 type Clients = Arc<Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<Message>>>>;
 type Buffer = Arc<Mutex<Vec<WaggleData>>>;
 type ImageBuffer = Arc<Mutex<HashMap<String, RawImageFrame>>>;
+type ImageSeq = Arc<AtomicU64>;
 
-type AppState = (Clients, Buffer, ClientsReady, ImageBuffer);
+type AppState = (Clients, Buffer, ClientsReady, ImageBuffer, ImageSeq);
+
+/// Encode image as a binary WebSocket frame.
+/// Format: [name_len:u16][name:utf8][scale:i32 LE][flip:u8][jpeg_bytes]
+fn encode_image_frame(name: &str, scale: i32, flip: bool, jpeg_bytes: &[u8]) -> Vec<u8> {
+    let name_bytes = name.as_bytes();
+    let mut buf = Vec::with_capacity(2 + name_bytes.len() + 4 + 1 + jpeg_bytes.len());
+    buf.extend_from_slice(&(name_bytes.len() as u16).to_le_bytes());
+    buf.extend_from_slice(name_bytes);
+    buf.extend_from_slice(&scale.to_le_bytes());
+    buf.push(if flip { 1 } else { 0 });
+    buf.extend_from_slice(jpeg_bytes);
+    buf
+}
+
+fn insert_image(image_buffer: &ImageBuffer, image_seq: &ImageSeq, name: String, scale: i32, flip: bool, jpeg_bytes: Vec<u8>) {
+    let seq = image_seq.fetch_add(1, Ordering::Relaxed) + 1;
+    let encoded_frame = encode_image_frame(&name, scale, flip, &jpeg_bytes);
+    image_buffer.lock().insert(name, RawImageFrame { encoded_frame, seq });
+}
 
 /// WebSocket handler
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    State((clients, buffer, clients_ready, _images)): State<AppState>,
+    State((clients, buffer, clients_ready, _, _)): State<AppState>,
 ) -> impl IntoResponse {
     ws.on_upgrade(|socket| ws_connected(socket, clients, buffer, clients_ready))
 }
@@ -227,19 +248,14 @@ async fn ws_connected(
 }
 
 async fn batch_handler(
-    State((_clients, buffer, _client_ready, image_buffer)): State<AppState>,
+    State((_clients, buffer, _client_ready, image_buffer, image_seq)): State<AppState>,
     Json(mut data): Json<WaggleData>,
 ) {
-    // Extract images from the JSON payload and store as raw bytes in the image buffer
+    // Extract images from the JSON payload and store as raw bytes
     if !data.images.is_empty() {
-        let mut img_buf = image_buffer.lock();
         for (name, img) in data.images.drain() {
             if let Ok(jpeg_bytes) = general_purpose::STANDARD.decode(&img.image_data) {
-                img_buf.insert(name, RawImageFrame {
-                    jpeg_bytes,
-                    scale: img.scale,
-                    flip: img.flip,
-                });
+                insert_image(&image_buffer, &image_seq, name, img.scale, img.flip, jpeg_bytes);
             }
         }
     }
@@ -258,17 +274,12 @@ fn default_scale() -> i32 { 1 }
 
 /// Binary image upload: POST /image/:name with raw JPEG body
 async fn image_handler(
-    State((_clients, _buffer, _client_ready, image_buffer)): State<AppState>,
+    State((_clients, _buffer, _client_ready, image_buffer, image_seq)): State<AppState>,
     Path(name): Path<String>,
     Query(params): Query<ImageParams>,
     body: Bytes,
 ) {
-    info!("received image '{}' ({} bytes)", name, body.len());
-    image_buffer.lock().insert(name, RawImageFrame {
-        jpeg_bytes: body.to_vec(),
-        scale: params.scale,
-        flip: params.flip,
-    });
+    insert_image(&image_buffer, &image_seq, name, params.scale, params.flip, body.to_vec());
 }
 
 fn add_data_to_batch(buffer: Buffer, data: WaggleData) {
@@ -282,19 +293,6 @@ fn add_data_to_batch(buffer: Buffer, data: WaggleData) {
     }
 }
 
-/// Encode image as a binary WebSocket frame.
-/// Format: [name_len:u16][name:utf8][scale:i32 LE][flip:u8][jpeg_bytes]
-fn encode_image_frame(name: &str, frame: &RawImageFrame) -> Vec<u8> {
-    let name_bytes = name.as_bytes();
-    let mut buf = Vec::with_capacity(2 + name_bytes.len() + 4 + 1 + frame.jpeg_bytes.len());
-    buf.extend_from_slice(&(name_bytes.len() as u16).to_le_bytes());
-    buf.extend_from_slice(name_bytes);
-    buf.extend_from_slice(&frame.scale.to_le_bytes());
-    buf.push(if frame.flip { 1 } else { 0 });
-    buf.extend_from_slice(&frame.jpeg_bytes);
-    buf
-}
-
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -303,11 +301,13 @@ async fn main() {
     let buffer: Buffer = Arc::new(Mutex::new(Vec::new()));
     let client_ready: ClientsReady = Arc::new(Mutex::new(false));
     let image_buffer: ImageBuffer = Arc::new(Mutex::new(HashMap::new()));
+    let image_seq: ImageSeq = Arc::new(AtomicU64::new(0));
 
     let clients_clone: Clients = Arc::clone(&clients);
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
     let image_buffer_clone = Arc::clone(&image_buffer);
+    let image_seq_clone = Arc::clone(&image_seq);
 
     let (shmem_tx, mut shmem_rx) = mpsc::unbounded_channel::<WaggleData>();
 
@@ -354,14 +354,9 @@ async fn main() {
                     debug!("Received waggle data (read_seq {})", read_seq + 1);
                     // Extract images from shmem data into the image buffer
                     if !waggle_data.images.is_empty() {
-                        let mut img_buf = image_buffer_clone.lock();
                         for (name, img) in waggle_data.images.drain() {
                             if let Ok(jpeg_bytes) = general_purpose::STANDARD.decode(&img.image_data) {
-                                img_buf.insert(name, RawImageFrame {
-                                    jpeg_bytes,
-                                    scale: img.scale,
-                                    flip: img.flip,
-                                });
+                                insert_image(&image_buffer_clone, &image_seq_clone, name, img.scale, img.flip, jpeg_bytes);
                             }
                         }
                     }
@@ -386,8 +381,10 @@ async fn main() {
 
     let buffer_clone = Arc::clone(&buffer);
     let image_buffer_broadcast = Arc::clone(&image_buffer);
+    let image_seq_broadcast = Arc::clone(&image_seq);
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
+        let mut last_sent_seq: u64 = 0;
 
         loop {
             interval.tick().await;
@@ -399,10 +396,14 @@ async fn main() {
                     serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into())
                 };
 
-                // Encode all current images as binary frames
-                let image_frames: Vec<Vec<u8>> = {
+                // Only send images if they've changed since last broadcast
+                let current_seq = image_seq_broadcast.load(Ordering::Relaxed);
+                let image_frames: Option<Vec<Vec<u8>>> = if current_seq > last_sent_seq {
+                    last_sent_seq = current_seq;
                     let img_buf = image_buffer_broadcast.lock();
-                    img_buf.iter().map(|(name, frame)| encode_image_frame(name, frame)).collect()
+                    Some(img_buf.values().map(|frame| frame.encoded_frame.clone()).collect())
+                } else {
+                    None
                 };
 
                 let mut failed_ids = Vec::new();
@@ -412,11 +413,13 @@ async fn main() {
                         failed_ids.push(*id);
                         continue;
                     }
-                    // Send each image as a binary frame
-                    for frame_bytes in &image_frames {
-                        if tx.send(Message::Binary(frame_bytes.clone())).is_err() {
-                            failed_ids.push(*id);
-                            break;
+                    // Send each image as a binary frame (only if changed)
+                    if let Some(ref frames) = image_frames {
+                        for frame_bytes in frames {
+                            if tx.send(Message::Binary(frame_bytes.clone())).is_err() {
+                                failed_ids.push(*id);
+                                break;
+                            }
                         }
                     }
                 }
@@ -436,7 +439,7 @@ async fn main() {
         .route("/ws", get(ws_handler))
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
-        .with_state((clients, buffer_clone, client_ready, image_buffer));
+        .with_state((clients, buffer_clone, client_ready, image_buffer, image_seq));
 
     info!("Starting server on :3000");
 
