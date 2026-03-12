@@ -8,7 +8,7 @@ use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
-use waggle::main::{GraphData, ImageData, LogData, StringData, SvgData, WaggleData};
+use waggle::main::{GraphData, LogData, StringData, SvgData, WaggleData};
 
 #[derive(Parser)]
 #[command(about = "Waggle simulator that streams demo data")]
@@ -35,11 +35,11 @@ fn create_svg(cx: f64, cy: f64) -> Svg {
 }
 
 /// Spawn a background thread that continuously captures camera frames,
-/// JPEG-encodes + base64-encodes them, and stores the latest result.
+/// JPEG-encodes them, and stores the latest raw JPEG bytes.
 /// The main loop just reads whatever is current — never blocks.
 /// Camera is created inside the thread since nokhwa::Camera isn't Send.
-fn spawn_camera_thread() -> Arc<Mutex<Option<ImageData>>> {
-    let latest: Arc<Mutex<Option<ImageData>>> = Arc::new(Mutex::new(None));
+fn spawn_camera_thread() -> Arc<Mutex<Option<Vec<u8>>>> {
+    let latest: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
     let latest_clone = Arc::clone(&latest);
 
     std::thread::spawn(move || {
@@ -63,20 +63,11 @@ fn spawn_camera_thread() -> Arc<Mutex<Option<ImageData>>> {
             let Ok(frame) = cam.frame() else { continue };
             let img = frame.decode_image::<nokhwa::pixel_format::RgbFormat>().unwrap();
 
-            // Encode to JPEG
+            // Encode to JPEG bytes (no base64 — sent as raw binary)
             let mut jpeg_buf = std::io::Cursor::new(Vec::new());
             img.write_to(&mut jpeg_buf, image::ImageFormat::Jpeg).unwrap();
 
-            let b64 = base64::Engine::encode(
-                &base64::engine::general_purpose::STANDARD,
-                jpeg_buf.get_ref(),
-            );
-
-            *latest_clone.lock() = Some(ImageData {
-                image_data: b64,
-                scale: 1,
-                flip: false,
-            });
+            *latest_clone.lock() = Some(jpeg_buf.into_inner());
         }
     });
 
@@ -96,6 +87,7 @@ async fn main() {
     let target_fps = 60;
     let tick_rate = Duration::from_micros(1_000_000 / target_fps);
     let mut i = 0;
+    let client = Client::new();
 
     loop {
         i += 1;
@@ -154,29 +146,49 @@ async fn main() {
             }],
         );
 
-        let mut images = HashMap::new();
-        if let Some(ref latest) = camera_frame {
-            if let Some(frame) = latest.lock().clone() {
-                images.insert("webcam".to_string(), frame);
-            }
-        }
-
         let request = WaggleData {
             sent_timestamp: 0,
-            images,
+            images: HashMap::new(),
             svg_data,
             graph_data,
             string_data,
             log_data,
         };
 
-        let url = "http://localhost:3000/batch";
-        let client = Client::new();
+        // Send non-image data as JSON
+        let c = client.clone();
         tokio::spawn(async move {
-            if let Err(e) = client.post(url).json(&request).send().await {
+            if let Err(e) = c.post("http://localhost:3000/batch").json(&request).send().await {
                 eprintln!("Send failed: {e}");
             }
         });
+
+        // Send camera frame as raw binary to /image/webcam
+        if let Some(ref latest) = camera_frame {
+            let frame = latest.lock().clone();
+            match frame {
+                Some(jpeg_bytes) => {
+                    println!("Sending image frame: {} bytes", jpeg_bytes.len());
+                    let c = client.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = c.post("http://localhost:3000/image/webcam")
+                            .header("content-type", "application/octet-stream")
+                            .body(jpeg_bytes)
+                            .send()
+                            .await
+                        {
+                            eprintln!("Image send failed: {e}");
+                        }
+                    });
+                }
+                None => {
+                    if i % 60 == 0 {
+                        println!("No camera frame available yet");
+                    }
+                }
+            }
+        }
+
         let elapsed = start.elapsed();
 
         if elapsed < tick_rate {

@@ -1,7 +1,8 @@
 use axum::{
     Json, Router,
+    body::Bytes,
     extract::{
-        DefaultBodyLimit, State,
+        DefaultBodyLimit, Path, Query, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
@@ -165,14 +166,25 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
     })
 }
 
+/// Raw image frame stored as JPEG bytes with metadata.
+#[derive(Debug, Clone)]
+struct RawImageFrame {
+    jpeg_bytes: Vec<u8>,
+    scale: i32,
+    flip: bool,
+}
+
 type ClientsReady = Arc<Mutex<bool>>;
 type Clients = Arc<Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<Message>>>>;
 type Buffer = Arc<Mutex<Vec<WaggleData>>>;
+type ImageBuffer = Arc<Mutex<HashMap<String, RawImageFrame>>>;
+
+type AppState = (Clients, Buffer, ClientsReady, ImageBuffer);
 
 /// WebSocket handler
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    State((clients, buffer, clients_ready)): State<(Clients, Buffer, ClientsReady)>,
+    State((clients, buffer, clients_ready, _images)): State<AppState>,
 ) -> impl IntoResponse {
     ws.on_upgrade(|socket| ws_connected(socket, clients, buffer, clients_ready))
 }
@@ -215,14 +227,51 @@ async fn ws_connected(
 }
 
 async fn batch_handler(
-    State((_clients, buffer, _client_ready)): State<(Clients, Buffer, ClientsReady)>,
-    Json(data): Json<WaggleData>,
+    State((_clients, buffer, _client_ready, image_buffer)): State<AppState>,
+    Json(mut data): Json<WaggleData>,
 ) {
+    // Extract images from the JSON payload and store as raw bytes in the image buffer
+    if !data.images.is_empty() {
+        let mut img_buf = image_buffer.lock();
+        for (name, img) in data.images.drain() {
+            if let Ok(jpeg_bytes) = general_purpose::STANDARD.decode(&img.image_data) {
+                img_buf.insert(name, RawImageFrame {
+                    jpeg_bytes,
+                    scale: img.scale,
+                    flip: img.flip,
+                });
+            }
+        }
+    }
     add_data_to_batch(buffer, data);
 }
 
+/// Query params for the binary image upload endpoint.
+#[derive(Deserialize)]
+struct ImageParams {
+    #[serde(default = "default_scale")]
+    scale: i32,
+    #[serde(default)]
+    flip: bool,
+}
+fn default_scale() -> i32 { 1 }
+
+/// Binary image upload: POST /image/:name with raw JPEG body
+async fn image_handler(
+    State((_clients, _buffer, _client_ready, image_buffer)): State<AppState>,
+    Path(name): Path<String>,
+    Query(params): Query<ImageParams>,
+    body: Bytes,
+) {
+    info!("received image '{}' ({} bytes)", name, body.len());
+    image_buffer.lock().insert(name, RawImageFrame {
+        jpeg_bytes: body.to_vec(),
+        scale: params.scale,
+        flip: params.flip,
+    });
+}
+
 fn add_data_to_batch(buffer: Buffer, data: WaggleData) {
-    // Images are already downscaled JPEG (base64-encoded) from hive-rs.
     info!("received batch data");
     {
         let mut buf = buffer.lock();
@@ -233,6 +282,19 @@ fn add_data_to_batch(buffer: Buffer, data: WaggleData) {
     }
 }
 
+/// Encode image as a binary WebSocket frame.
+/// Format: [name_len:u16][name:utf8][scale:i32 LE][flip:u8][jpeg_bytes]
+fn encode_image_frame(name: &str, frame: &RawImageFrame) -> Vec<u8> {
+    let name_bytes = name.as_bytes();
+    let mut buf = Vec::with_capacity(2 + name_bytes.len() + 4 + 1 + frame.jpeg_bytes.len());
+    buf.extend_from_slice(&(name_bytes.len() as u16).to_le_bytes());
+    buf.extend_from_slice(name_bytes);
+    buf.extend_from_slice(&frame.scale.to_le_bytes());
+    buf.push(if frame.flip { 1 } else { 0 });
+    buf.extend_from_slice(&frame.jpeg_bytes);
+    buf
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -240,10 +302,12 @@ async fn main() {
     let clients: Clients = Arc::new(Mutex::new(HashMap::new()));
     let buffer: Buffer = Arc::new(Mutex::new(Vec::new()));
     let client_ready: ClientsReady = Arc::new(Mutex::new(false));
+    let image_buffer: ImageBuffer = Arc::new(Mutex::new(HashMap::new()));
 
     let clients_clone: Clients = Arc::clone(&clients);
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
+    let image_buffer_clone = Arc::clone(&image_buffer);
 
     let (shmem_tx, mut shmem_rx) = mpsc::unbounded_channel::<WaggleData>();
 
@@ -286,8 +350,21 @@ async fn main() {
             header.read_counter.store(read_seq + 1, Ordering::Release);
 
             match waggle_data_result {
-                Ok(waggle_data) => {
+                Ok(mut waggle_data) => {
                     debug!("Received waggle data (read_seq {})", read_seq + 1);
+                    // Extract images from shmem data into the image buffer
+                    if !waggle_data.images.is_empty() {
+                        let mut img_buf = image_buffer_clone.lock();
+                        for (name, img) in waggle_data.images.drain() {
+                            if let Ok(jpeg_bytes) = general_purpose::STANDARD.decode(&img.image_data) {
+                                img_buf.insert(name, RawImageFrame {
+                                    jpeg_bytes,
+                                    scale: img.scale,
+                                    flip: img.flip,
+                                });
+                            }
+                        }
+                    }
                     if shmem_tx.send(waggle_data).is_err() {
                         error!("Failed to send waggle data to async runtime");
                         break;
@@ -308,22 +385,39 @@ async fn main() {
     });
 
     let buffer_clone = Arc::clone(&buffer);
+    let image_buffer_broadcast = Arc::clone(&image_buffer);
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
 
         loop {
             interval.tick().await;
             if *clients_ready_clone.lock() {
+                // Send non-image data as JSON text
                 let to_send = {
                     let mut buf = buffer_clone.lock();
                     let drained: Vec<_> = buf.drain(..).collect();
                     serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into())
                 };
 
+                // Encode all current images as binary frames
+                let image_frames: Vec<Vec<u8>> = {
+                    let img_buf = image_buffer_broadcast.lock();
+                    img_buf.iter().map(|(name, frame)| encode_image_frame(name, frame)).collect()
+                };
+
                 let mut failed_ids = Vec::new();
                 for (id, tx) in clients_clone.lock().iter() {
+                    // Send text JSON (non-image data)
                     if tx.send(Message::Text(to_send.clone())).is_err() {
                         failed_ids.push(*id);
+                        continue;
+                    }
+                    // Send each image as a binary frame
+                    for frame_bytes in &image_frames {
+                        if tx.send(Message::Binary(frame_bytes.clone())).is_err() {
+                            failed_ids.push(*id);
+                            break;
+                        }
                     }
                 }
 
@@ -338,10 +432,11 @@ async fn main() {
     let buffer_clone = Arc::clone(&buffer);
     let app = Router::new()
         .route("/batch", post(batch_handler))
+        .route("/image/:name", post(image_handler))
         .route("/ws", get(ws_handler))
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
-        .with_state((clients, buffer_clone, client_ready));
+        .with_state((clients, buffer_clone, client_ready, image_buffer));
 
     info!("Starting server on :3000");
 

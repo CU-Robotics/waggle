@@ -3,6 +3,47 @@ import { GraphData, WaggleData } from "../types";
 
 const event_timestamps: number[] = [];
 
+/** Parse a binary WebSocket frame into an image.
+ *  Format: [name_len:u16 LE][name:utf8][scale:i32 LE][flip:u8][jpeg_bytes]
+ */
+function parseBinaryImageFrame(buf: ArrayBuffer): {
+  name: string;
+  scale: number;
+  flip: boolean;
+  blobUrl: string;
+} | null {
+  const view = new DataView(buf);
+  if (buf.byteLength < 7) return null; // minimum: 2 + 0 + 4 + 1
+
+  let offset = 0;
+  const nameLen = view.getUint16(offset, true);
+  offset += 2;
+
+  if (offset + nameLen + 5 > buf.byteLength) return null;
+
+  const nameBytes = new Uint8Array(buf, offset, nameLen);
+  const name = new TextDecoder().decode(nameBytes);
+  offset += nameLen;
+
+  const scale = view.getInt32(offset, true);
+  offset += 4;
+
+  const flip = view.getUint8(offset) !== 0;
+  offset += 1;
+
+  const jpegBytes = new Uint8Array(buf, offset);
+  const blob = new Blob([jpegBytes], { type: "image/jpeg" });
+  const blobUrl = URL.createObjectURL(blob);
+
+  return { name, scale, flip, blobUrl };
+}
+
+export interface BlobImageData {
+  blobUrl: string;
+  scale: number;
+  flip: boolean;
+}
+
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [maxDataPoints, setMaxDataPoints] = useState<number>(5000);
@@ -10,16 +51,19 @@ export function useWebSocket() {
 
   // Use refs to accumulate data between animation frames
   const graphDataRef = useRef<WaggleData["graph_data"]>({});
-  const imageDataRef = useRef<WaggleData["images"]>({});
+  const imageDataRef = useRef<{ [key: string]: BlobImageData }>({});
   const svgDataRef = useRef<WaggleData["svg_data"]>({});
   const stringDataRef = useRef<WaggleData["string_data"]>({});
   const logDataRef = useRef<{ [key: string]: string[] }>({});
   const dirtyRef = useRef(false);
   const rafRef = useRef<number>(0);
 
+  // Track old blob URLs to revoke them
+  const oldBlobUrls = useRef<string[]>([]);
+
   // State that triggers re-renders (flushed via RAF)
   const [graphData, setGraphData] = useState<WaggleData["graph_data"]>({});
-  const [imageData, setImageData] = useState<WaggleData["images"]>({});
+  const [imageData, setImageData] = useState<{ [key: string]: BlobImageData }>({});
   const [svgData, setSvgData] = useState<WaggleData["svg_data"]>({});
   const [stringData, setStringData] = useState<WaggleData["string_data"]>({});
   const [logData, setLogData] = useState<{ [key: string]: string[] }>({});
@@ -65,6 +109,12 @@ export function useWebSocket() {
       gd[k] = graphDataRef.current[k].slice();
     }
     setGraphData(gd);
+
+    // Revoke old blob URLs before setting new ones
+    for (const url of oldBlobUrls.current) {
+      URL.revokeObjectURL(url);
+    }
+    oldBlobUrls.current = Object.values(imageDataRef.current).map((v) => v.blobUrl);
 
     setImageData({ ...imageDataRef.current });
     setSvgData({ ...svgDataRef.current });
@@ -119,9 +169,21 @@ export function useWebSocket() {
           }
         }
 
+        // Legacy base64 image support (from JSON)
         if (data.images && lastFrame) {
           for (const [key, value] of Object.entries(data.images)) {
-            imageDataRef.current[key] = value;
+            // Convert base64 to blob URL for consistency
+            const binary = atob(value.image_data);
+            const bytes = new Uint8Array(binary.length);
+            for (let b = 0; b < binary.length; b++) bytes[b] = binary.charCodeAt(b);
+            const blob = new Blob([bytes], { type: "image/jpeg" });
+            const old = imageDataRef.current[key];
+            if (old) URL.revokeObjectURL(old.blobUrl);
+            imageDataRef.current[key] = {
+              blobUrl: URL.createObjectURL(blob),
+              scale: value.scale,
+              flip: value.flip,
+            };
           }
         }
 
@@ -156,6 +218,27 @@ export function useWebSocket() {
     [scheduleFlush],
   );
 
+  /** Handle a binary WebSocket message (image frame) */
+  const handleBinaryMessage = useCallback(
+    (buf: ArrayBuffer) => {
+      const parsed = parseBinaryImageFrame(buf);
+      if (!parsed) return;
+
+      // Revoke old blob URL for this image name
+      const old = imageDataRef.current[parsed.name];
+      if (old) URL.revokeObjectURL(old.blobUrl);
+
+      imageDataRef.current[parsed.name] = {
+        blobUrl: parsed.blobUrl,
+        scale: parsed.scale,
+        flip: parsed.flip,
+      };
+
+      scheduleFlush();
+    },
+    [scheduleFlush],
+  );
+
   useEffect(() => {
     const wsRef: { current: WebSocket | null } = { current: null };
     let reconnectAttempts = 0;
@@ -176,6 +259,7 @@ export function useWebSocket() {
       }
 
       wsRef.current = new WebSocket(`ws://${window.location.host}/ws`);
+      wsRef.current.binaryType = "arraybuffer";
 
       wsRef.current.onopen = (event) => {
         console.log("WebSocket Connected", event);
@@ -187,6 +271,13 @@ export function useWebSocket() {
       };
 
       wsRef.current.onmessage = (event) => {
+        // Binary message = image frame
+        if (event.data instanceof ArrayBuffer) {
+          handleBinaryMessage(event.data);
+          return;
+        }
+
+        // Text message = JSON data
         const robot_data: WaggleData[] = JSON.parse(event.data);
 
         if (robot_data.length === 0) {
@@ -237,8 +328,12 @@ export function useWebSocket() {
     return () => {
       if (wsRef.current) wsRef.current.close();
       cancelAnimationFrame(rafRef.current);
+      // Clean up all blob URLs
+      for (const img of Object.values(imageDataRef.current)) {
+        URL.revokeObjectURL(img.blobUrl);
+      }
     };
-  }, [handleIncomingMessage]);
+  }, [handleIncomingMessage, handleBinaryMessage]);
 
   return {
     isConnected,
