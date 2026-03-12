@@ -1,7 +1,7 @@
 use axum::{
     Json, Router,
     extract::{
-        State,
+        DefaultBodyLimit, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
@@ -339,6 +339,7 @@ async fn main() {
     let app = Router::new()
         .route("/batch", post(batch_handler))
         .route("/ws", get(ws_handler))
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
         .with_state((clients, buffer_clone, client_ready));
 

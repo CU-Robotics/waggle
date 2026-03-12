@@ -260,7 +260,7 @@ function App() {
                                     {Object.entries(imageData).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => (
                                         <div key={key} className="flex flex-col items-center gap-1.5">
                                             <img
-                                                src={`data:image/png;base64,${value.image_data}`}
+                                                src={`data:image/jpeg;base64,${value.image_data}`}
                                                 className={`rounded-lg border border-[var(--color-border)] max-h-[300px] ${value.flip ? "-scale-x-100" : ""} ${value.scale > 2 ? "[image-rendering:pixelated]" : ""}`}
                                                 alt={key}
                                             />
