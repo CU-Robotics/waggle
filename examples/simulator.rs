@@ -1,11 +1,26 @@
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use clap::Parser;
 use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
-use rand::Rng;
+use image::ImageFormat;
+use nokhwa::pixel_format::RgbFormat;
+use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
+use nokhwa::Camera;
 use rand::distributions::Alphanumeric;
+use rand::Rng;
 use reqwest::Client;
 use std::collections::HashMap;
+use std::io::Cursor;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
-use waggle::main::{GraphData, LogData, StringData, SvgData, WaggleData};
+use waggle::main::{GraphData, ImageData, LogData, StringData, SvgData, WaggleData};
+
+#[derive(Parser)]
+struct Args {
+    /// Enable camera capture and send frames as image data
+    #[arg(long)]
+    camera: bool,
+}
 
 fn create_svg(cx: f64, cy: f64) -> Svg {
     Svg::new()
@@ -24,9 +39,40 @@ fn create_svg(cx: f64, cy: f64) -> Svg {
 }
 #[tokio::main]
 async fn main() {
-    let target_fps = 60;
+    let args = Args::parse();
+
+    let target_fps = 100;
     let tick_rate = Duration::from_micros(1_000_000 / target_fps);
     let mut i = 0;
+
+    let url = "http://localhost:3000/batch";
+    let client = Client::new();
+
+    let latest_frame: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+
+    if args.camera {
+        let frame_ref = Arc::clone(&latest_frame);
+        std::thread::spawn(move || {
+            let index = CameraIndex::Index(0);
+            let requested =
+                RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
+            let mut cam = Camera::new(index, requested).expect("Failed to open camera");
+            cam.open_stream().expect("Failed to open camera stream");
+            println!("Camera opened successfully");
+            loop {
+                if let Ok(frame) = cam.frame() {
+                    let rgb_image =
+                        frame.decode_image::<RgbFormat>().expect("Failed to decode frame");
+                    let mut jpeg_buf = Cursor::new(Vec::new());
+                    rgb_image
+                        .write_to(&mut jpeg_buf, ImageFormat::Jpeg)
+                        .expect("Failed to encode JPEG");
+                    let b64 = BASE64.encode(jpeg_buf.into_inner());
+                    *frame_ref.lock().unwrap() = Some(b64);
+                }
+            }
+        });
+    }
 
     loop {
         i += 1;
@@ -85,17 +131,16 @@ async fn main() {
                 y: f64::cos(i as f64 / 10.),
             }],
         );
-        let request = WaggleData {
-            sent_timestamp: 0,
-            images: HashMap::new(),
-            svg_data,
-            graph_data,
-            string_data,
-            log_data,
-        };
+        let mut images = HashMap::<String, ImageData>::new();
 
-        let url = "http://localhost:3000/batch";
-        let client = Client::new();
+        if let Some(b64) = latest_frame.lock().unwrap().take() {
+            images
+                .insert("camera".to_string(), ImageData { image_data: b64, scale: 1, flip: false });
+        }
+
+        let request =
+            WaggleData { sent_timestamp: 0, images, svg_data, graph_data, string_data, log_data };
+        let client = client.clone();
         tokio::spawn(async move {
             client.post(url).json(&request).send().await.expect("TODO: panic message");
         });
