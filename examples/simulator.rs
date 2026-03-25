@@ -2,15 +2,12 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use clap::Parser;
 use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
-use image::ImageFormat;
-use nokhwa::pixel_format::RgbFormat;
-use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
+use nokhwa::utils::{CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
 use nokhwa::Camera;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use reqwest::Client;
 use std::collections::HashMap;
-use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use waggle::main::{GraphData, ImageData, LogData, StringData, SvgData, WaggleData};
@@ -54,21 +51,32 @@ async fn main() {
         let frame_ref = Arc::clone(&latest_frame);
         std::thread::spawn(move || {
             let index = CameraIndex::Index(0);
-            let requested =
-                RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
+            let format = CameraFormat::new(
+                Resolution::new(640, 480),
+                FrameFormat::MJPEG,
+                30,
+            );
+            let requested = RequestedFormat::with_formats(
+                RequestedFormatType::Exact(format),
+                &[FrameFormat::MJPEG],
+            );
             let mut cam = Camera::new(index, requested).expect("Failed to open camera");
             cam.open_stream().expect("Failed to open camera stream");
-            println!("Camera opened successfully");
+            println!("Camera opened successfully (MJPEG)");
             loop {
+                let t0 = Instant::now();
                 if let Ok(frame) = cam.frame() {
-                    let rgb_image =
-                        frame.decode_image::<RgbFormat>().expect("Failed to decode frame");
-                    let mut jpeg_buf = Cursor::new(Vec::new());
-                    rgb_image
-                        .write_to(&mut jpeg_buf, ImageFormat::Jpeg)
-                        .expect("Failed to encode JPEG");
-                    let b64 = BASE64.encode(jpeg_buf.into_inner());
+                    let t_capture = t0.elapsed();
+
+                    let t1 = Instant::now();
+                    let b64 = BASE64.encode(frame.buffer());
+                    let t_b64 = t1.elapsed();
+
                     *frame_ref.lock().unwrap() = Some(b64);
+                    println!(
+                        "camera: capture={:?} b64={:?} total={:?}",
+                        t_capture, t_b64, t0.elapsed()
+                    );
                 }
             }
         });
