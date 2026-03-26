@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
+use crate::replay::ReplayManager;
 
 #[repr(C)]
 pub struct SharedMemHeader {
@@ -219,6 +220,7 @@ async fn batch_handler(
     Json(data): Json<WaggleData>,
 ) {
     add_data_to_batch(buffer, data);
+
 }
 
 fn add_data_to_batch(buffer: Buffer, data: WaggleData) {
@@ -244,6 +246,8 @@ async fn main() {
     let clients_clone: Clients = Arc::clone(&clients);
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
+
+    let mut replay_manager = ReplayManager::new();
 
     let (shmem_tx, mut shmem_rx) = mpsc::unbounded_channel::<WaggleData>();
 
@@ -303,6 +307,7 @@ async fn main() {
     let buffer_shmem = Arc::clone(&buffer);
     tokio::spawn(async move {
         while let Some(waggle_data) = shmem_rx.recv().await {
+            replay_manager.write_to_file(&waggle_data);
             add_data_to_batch(Arc::clone(&buffer_shmem), waggle_data);
         }
     });
