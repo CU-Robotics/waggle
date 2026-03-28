@@ -1,13 +1,13 @@
 use axum::{
-    Json, Router,
     extract::{
-        State,
         ws::{Message, WebSocket, WebSocketUpgrade},
-    },
-    response::IntoResponse,
+        State,
+    }, response::IntoResponse,
     routing::{get, post},
+    Json,
+    Router,
 };
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use futures::StreamExt;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ pub struct SharedMemHeader {
     write_counter: AtomicU64,
     read_counter: AtomicU64,
     message_len: usize,
-    message_buffer: [u8; 10000000],
+    message_buffer: [u8; 50000000],
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageData {
@@ -173,7 +173,12 @@ type LatestImages = Arc<Mutex<HashMap<String, ImageData>>>;
 /// WebSocket handler
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    State((clients, buffer, clients_ready, _latest_images)): State<(Clients, Buffer, ClientsReady, LatestImages)>,
+    State((clients, buffer, clients_ready, _latest_images)): State<(
+        Clients,
+        Buffer,
+        ClientsReady,
+        LatestImages,
+    )>,
 ) -> impl IntoResponse {
     ws.on_upgrade(|socket| ws_connected(socket, clients, buffer, clients_ready))
 }
@@ -216,7 +221,12 @@ async fn ws_connected(
 }
 
 async fn batch_handler(
-    State((_clients, buffer, _client_ready, _latest_images)): State<(Clients, Buffer, ClientsReady, LatestImages)>,
+    State((_clients, buffer, _client_ready, _latest_images)): State<(
+        Clients,
+        Buffer,
+        ClientsReady,
+        LatestImages,
+    )>,
     Json(data): Json<WaggleData>,
 ) {
     add_data_to_batch(buffer, data);
@@ -225,15 +235,17 @@ async fn batch_handler(
 /// Accepts raw JPEG bytes with image name and metadata in headers.
 /// Much faster than JSON-encoding large base64 strings.
 async fn image_handler(
-    State((_clients, _buffer, _client_ready, latest_images)): State<(Clients, Buffer, ClientsReady, LatestImages)>,
+    State((_clients, _buffer, _client_ready, latest_images)): State<(
+        Clients,
+        Buffer,
+        ClientsReady,
+        LatestImages,
+    )>,
     headers: axum::http::HeaderMap,
     body: axum::body::Bytes,
 ) {
-    let name = headers
-        .get("x-image-name")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("camera")
-        .to_string();
+    let name =
+        headers.get("x-image-name").and_then(|v| v.to_str().ok()).unwrap_or("camera").to_string();
     let scale = headers
         .get("x-image-scale")
         .and_then(|v| v.to_str().ok())
@@ -354,11 +366,7 @@ async fn main() {
                     // Clone instead of take so the image persists until replaced by a new frame
                     let current_images = {
                         let imgs = latest_images_clone.lock();
-                        if imgs.is_empty() {
-                            None
-                        } else {
-                            Some(imgs.clone())
-                        }
+                        if imgs.is_empty() { None } else { Some(imgs.clone()) }
                     };
                     if let Some(imgs) = current_images {
                         if let Some(last) = drained.last_mut() {
@@ -392,7 +400,10 @@ async fn main() {
                 if has_images {
                     info!(
                         "broadcast: serialize={:?} total={:?} json_size={}KB entries={}",
-                        t_serialize, t_total, json_len / 1024, num_entries
+                        t_serialize,
+                        t_total,
+                        json_len / 1024,
+                        num_entries
                     );
                 }
 
