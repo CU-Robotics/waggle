@@ -25,3 +25,5 @@ shared_memory = "0.12.4"
 log = "0.4.28"
 bincode = "2.0.1"
 anyhow = "1.0.100"
+clap = { version = "4", features = ["derive"] }
+nokhwa = { version = "0.10", features = ["input-native"] }
