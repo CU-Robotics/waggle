@@ -232,8 +232,6 @@ async fn batch_handler(
     add_data_to_batch(buffer, data);
 }
 
-/// Accepts raw JPEG bytes with image name and metadata in headers.
-/// Much faster than JSON-encoding large base64 strings.
 async fn image_handler(
     State((_clients, _buffer, _client_ready, latest_images)): State<(
         Clients,
@@ -263,7 +261,6 @@ async fn image_handler(
 }
 
 fn add_data_to_batch(buffer: Buffer, data: WaggleData) {
-    // Images are already downscaled JPEG (base64-encoded) from hive-rs.
     info!("received batch data");
     {
         let mut buf = buffer.lock();
@@ -362,8 +359,6 @@ async fn main() {
                     let mut buf = buffer_clone.lock();
                     let mut drained: Vec<_> = buf.drain(..).collect();
 
-                    // Merge latest images from the binary endpoint into the last entry
-                    // Clone instead of take so the image persists until replaced by a new frame
                     let current_images = {
                         let imgs = latest_images_clone.lock();
                         if imgs.is_empty() { None } else { Some(imgs.clone()) }
@@ -394,7 +389,6 @@ async fn main() {
                 }
                 let t_total = t0.elapsed();
 
-                // Re-enable backpressure: wait for client ack before next send
                 *clients_ready_clone.lock() = false;
 
                 if has_images {

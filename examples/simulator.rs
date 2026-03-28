@@ -1,7 +1,9 @@
 use clap::Parser;
 use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
-use nokhwa::utils::{CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
+use nokhwa::utils::{
+    CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
+};
 use nokhwa::Camera;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
@@ -13,7 +15,6 @@ use waggle::main::{GraphData, LogData, StringData, SvgData, WaggleData};
 
 #[derive(Parser)]
 struct Args {
-    /// Enable camera capture and send frames as image data
     #[arg(long)]
     camera: bool,
 }
@@ -48,11 +49,7 @@ async fn main() {
         let cam_client = Client::new();
         std::thread::spawn(move || {
             let index = CameraIndex::Index(0);
-            let format = CameraFormat::new(
-                Resolution::new(640, 480),
-                FrameFormat::MJPEG,
-                30,
-            );
+            let format = CameraFormat::new(Resolution::new(640, 480), FrameFormat::MJPEG, 30);
             let requested = RequestedFormat::with_formats(
                 RequestedFormatType::Exact(format),
                 &[FrameFormat::MJPEG],
@@ -60,10 +57,7 @@ async fn main() {
             let mut cam = Camera::new(index, requested).expect("Failed to open camera");
             cam.open_stream().expect("Failed to open camera stream");
             println!("Camera opened successfully (MJPEG)");
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap();
+            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
             loop {
                 let t0 = Instant::now();
                 if let Ok(frame) = cam.frame() {
@@ -88,13 +82,16 @@ async fn main() {
                             if !r.status().is_success() {
                                 println!("image POST failed: {}", r.status());
                             }
-                        }
+                        },
                         Err(e) => println!("image POST error: {}", e),
                     }
                     let t_send = t1.elapsed();
                     println!(
                         "camera: capture={:?} send={:?} total={:?} hash={:?}",
-                        t_capture, t_send, t0.elapsed(), prefix
+                        t_capture,
+                        t_send,
+                        t0.elapsed(),
+                        prefix
                     );
                 }
             }
