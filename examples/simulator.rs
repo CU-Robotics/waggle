@@ -1,4 +1,3 @@
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use clap::Parser;
 use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
@@ -8,9 +7,9 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use reqwest::Client;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::{Duration, Instant, SystemTime};
-use waggle::main::{GraphData, ImageData, LogData, StringData, SvgData, WaggleData};
+use waggle::main::{GraphData, LogData, StringData, SvgData, WaggleData};
 
 #[derive(Parser)]
 struct Args {
@@ -45,10 +44,8 @@ async fn main() {
     let url = "http://localhost:3000/batch";
     let client = Client::new();
 
-    let latest_frame: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-
     if args.camera {
-        let frame_ref = Arc::clone(&latest_frame);
+        let cam_client = Client::new();
         std::thread::spawn(move || {
             let index = CameraIndex::Index(0);
             let format = CameraFormat::new(
@@ -63,19 +60,41 @@ async fn main() {
             let mut cam = Camera::new(index, requested).expect("Failed to open camera");
             cam.open_stream().expect("Failed to open camera stream");
             println!("Camera opened successfully (MJPEG)");
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
             loop {
                 let t0 = Instant::now();
                 if let Ok(frame) = cam.frame() {
                     let t_capture = t0.elapsed();
-
+                    let jpeg_bytes = frame.buffer().to_vec();
                     let t1 = Instant::now();
-                    let b64 = BASE64.encode(frame.buffer());
-                    let t_b64 = t1.elapsed();
-
-                    *frame_ref.lock().unwrap() = Some(b64);
+                    let mut hasher = DefaultHasher::new();
+                    jpeg_bytes.hash(&mut hasher);
+                    let prefix = hasher.finish();
+                    let resp = rt.block_on(async {
+                        cam_client
+                            .post("http://localhost:3000/image")
+                            .header("x-image-name", "camera")
+                            .header("x-image-scale", "1")
+                            .header("x-image-flip", "false")
+                            .body(jpeg_bytes)
+                            .send()
+                            .await
+                    });
+                    match resp {
+                        Ok(r) => {
+                            if !r.status().is_success() {
+                                println!("image POST failed: {}", r.status());
+                            }
+                        }
+                        Err(e) => println!("image POST error: {}", e),
+                    }
+                    let t_send = t1.elapsed();
                     println!(
-                        "camera: capture={:?} b64={:?} total={:?}",
-                        t_capture, t_b64, t0.elapsed()
+                        "camera: capture={:?} send={:?} total={:?} hash={:?}",
+                        t_capture, t_send, t0.elapsed(), prefix
                     );
                 }
             }
@@ -139,15 +158,14 @@ async fn main() {
                 y: f64::cos(i as f64 / 10.),
             }],
         );
-        let mut images = HashMap::<String, ImageData>::new();
-
-        if let Some(b64) = latest_frame.lock().unwrap().take() {
-            images
-                .insert("camera".to_string(), ImageData { image_data: b64, scale: 1, flip: false });
-        }
-
-        let request =
-            WaggleData { sent_timestamp: 0, images, svg_data, graph_data, string_data, log_data };
+        let request = WaggleData {
+            sent_timestamp: 0,
+            images: HashMap::new(),
+            svg_data,
+            graph_data,
+            string_data,
+            log_data,
+        };
         let client = client.clone();
         tokio::spawn(async move {
             client.post(url).json(&request).send().await.expect("TODO: panic message");

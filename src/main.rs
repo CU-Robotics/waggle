@@ -168,11 +168,12 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
 type ClientsReady = Arc<Mutex<bool>>;
 type Clients = Arc<Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<Message>>>>;
 type Buffer = Arc<Mutex<Vec<WaggleData>>>;
+type LatestImages = Arc<Mutex<HashMap<String, ImageData>>>;
 
 /// WebSocket handler
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    State((clients, buffer, clients_ready)): State<(Clients, Buffer, ClientsReady)>,
+    State((clients, buffer, clients_ready, _latest_images)): State<(Clients, Buffer, ClientsReady, LatestImages)>,
 ) -> impl IntoResponse {
     ws.on_upgrade(|socket| ws_connected(socket, clients, buffer, clients_ready))
 }
@@ -215,10 +216,38 @@ async fn ws_connected(
 }
 
 async fn batch_handler(
-    State((_clients, buffer, _client_ready)): State<(Clients, Buffer, ClientsReady)>,
+    State((_clients, buffer, _client_ready, _latest_images)): State<(Clients, Buffer, ClientsReady, LatestImages)>,
     Json(data): Json<WaggleData>,
 ) {
     add_data_to_batch(buffer, data);
+}
+
+/// Accepts raw JPEG bytes with image name and metadata in headers.
+/// Much faster than JSON-encoding large base64 strings.
+async fn image_handler(
+    State((_clients, _buffer, _client_ready, latest_images)): State<(Clients, Buffer, ClientsReady, LatestImages)>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) {
+    let name = headers
+        .get("x-image-name")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("camera")
+        .to_string();
+    let scale = headers
+        .get("x-image-scale")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1i32);
+    let flip = headers
+        .get("x-image-flip")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v == "true")
+        .unwrap_or(false);
+
+    info!("received image '{}' ({} bytes)", name, body.len());
+    let b64 = general_purpose::STANDARD.encode(&body);
+    latest_images.lock().insert(name, ImageData { image_data: b64, scale, flip });
 }
 
 fn add_data_to_batch(buffer: Buffer, data: WaggleData) {
@@ -240,10 +269,12 @@ async fn main() {
     let clients: Clients = Arc::new(Mutex::new(HashMap::new()));
     let buffer: Buffer = Arc::new(Mutex::new(Vec::new()));
     let client_ready: ClientsReady = Arc::new(Mutex::new(false));
+    let latest_images: LatestImages = Arc::new(Mutex::new(HashMap::new()));
 
     let clients_clone: Clients = Arc::clone(&clients);
     let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
+    let latest_images_clone = Arc::clone(&latest_images);
 
     let (shmem_tx, mut shmem_rx) = mpsc::unbounded_channel::<WaggleData>();
 
@@ -314,17 +345,55 @@ async fn main() {
         loop {
             interval.tick().await;
             if *clients_ready_clone.lock() {
-                let to_send = {
+                let t0 = std::time::Instant::now();
+                let (to_send, has_images, num_entries) = {
                     let mut buf = buffer_clone.lock();
-                    let drained: Vec<_> = buf.drain(..).collect();
-                    serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into())
+                    let mut drained: Vec<_> = buf.drain(..).collect();
+
+                    // Merge latest images from the binary endpoint into the last entry
+                    // Clone instead of take so the image persists until replaced by a new frame
+                    let current_images = {
+                        let imgs = latest_images_clone.lock();
+                        if imgs.is_empty() {
+                            None
+                        } else {
+                            Some(imgs.clone())
+                        }
+                    };
+                    if let Some(imgs) = current_images {
+                        if let Some(last) = drained.last_mut() {
+                            last.images.extend(imgs);
+                        } else {
+                            let mut data = WaggleData::default();
+                            data.images = imgs;
+                            drained.push(data);
+                        }
+                    }
+
+                    let has_images = drained.iter().any(|d| !d.images.is_empty());
+                    let num = drained.len();
+                    let json = serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into());
+                    (json, has_images, num)
                 };
+                let t_serialize = t0.elapsed();
+                let json_len = to_send.len();
 
                 let mut failed_ids = Vec::new();
                 for (id, tx) in clients_clone.lock().iter() {
                     if tx.send(Message::Text(to_send.clone())).is_err() {
                         failed_ids.push(*id);
                     }
+                }
+                let t_total = t0.elapsed();
+
+                // Re-enable backpressure: wait for client ack before next send
+                *clients_ready_clone.lock() = false;
+
+                if has_images {
+                    info!(
+                        "broadcast: serialize={:?} total={:?} json_size={}KB entries={}",
+                        t_serialize, t_total, json_len / 1024, num_entries
+                    );
                 }
 
                 let mut guard = clients_clone.lock();
@@ -338,9 +407,10 @@ async fn main() {
     let buffer_clone = Arc::clone(&buffer);
     let app = Router::new()
         .route("/batch", post(batch_handler))
+        .route("/image", post(image_handler))
         .route("/ws", get(ws_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
-        .with_state((clients, buffer_clone, client_ready));
+        .with_state((clients, buffer_clone, client_ready, latest_images));
 
     info!("Starting server on :3000");
 
