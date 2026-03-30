@@ -23,7 +23,7 @@ pub struct SharedMemHeader {
     write_counter: AtomicU64,
     read_counter: AtomicU64,
     message_len: usize,
-    message_buffer: [u8; 10000000],
+    message_buffer: [u8; 50000000],
 }
 
 fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
@@ -102,6 +102,7 @@ struct WaggleServer {
     buffer: Mutex<Vec<WaggleData>>,
     clients_ready: Mutex<bool>,
     replay_manager: Mutex<ReplayManager>,
+    latest_images: Mutex<HashMap<String, ImageData>>,
 }
 
 impl WaggleServer {
@@ -111,6 +112,7 @@ impl WaggleServer {
             buffer: Mutex::new(Vec::new()),
             clients_ready: Mutex::new(false),
             replay_manager: Mutex::new(ReplayManager::default()),
+            latest_images: Mutex::new(HashMap::new()),
         }
     }
 
@@ -176,6 +178,29 @@ async fn batch_handler(
     Json(data): Json<WaggleData>,
 ) {
     server.add_data_to_batch(data);
+}
+
+async fn image_handler(
+    State(server): State<ServerState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) {
+    let name =
+        headers.get("x-image-name").and_then(|v| v.to_str().ok()).unwrap_or("camera").to_string();
+    let scale = headers
+        .get("x-image-scale")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1i32);
+    let flip = headers
+        .get("x-image-flip")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v == "true")
+        .unwrap_or(false);
+
+    info!("received image '{}' ({} bytes)", name, body.len());
+    let b64 = general_purpose::STANDARD.encode(&body);
+    server.latest_images.lock().insert(name, ImageData { image_data: b64, scale, flip });
 }
 
 #[tokio::main]
@@ -254,17 +279,51 @@ async fn main() {
         loop {
             interval.tick().await;
             if *server_broadcast.clients_ready.lock() {
-                let to_send = {
+                let t0 = std::time::Instant::now();
+                let (to_send, has_images, num_entries) = {
                     let mut buf = server_broadcast.buffer.lock();
-                    let drained: Vec<_> = buf.drain(..).collect();
-                    serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into())
+                    let mut drained: Vec<_> = buf.drain(..).collect();
+
+                    let current_images = {
+                        let imgs = server_broadcast.latest_images.lock();
+                        if imgs.is_empty() { None } else { Some(imgs.clone()) }
+                    };
+                    if let Some(imgs) = current_images {
+                        if let Some(last) = drained.last_mut() {
+                            last.images.extend(imgs);
+                        } else {
+                            let mut data = WaggleData::default();
+                            data.images = imgs;
+                            drained.push(data);
+                        }
+                    }
+
+                    let has_images = drained.iter().any(|d| !d.images.is_empty());
+                    let num = drained.len();
+                    let json = serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into());
+                    (json, has_images, num)
                 };
+                let t_serialize = t0.elapsed();
+                let json_len = to_send.len();
 
                 let mut failed_ids = Vec::new();
                 for (id, tx) in server_broadcast.clients.lock().iter() {
                     if tx.send(Message::Text(to_send.clone())).is_err() {
                         failed_ids.push(*id);
                     }
+                }
+                let t_total = t0.elapsed();
+
+                *server_broadcast.clients_ready.lock() = false;
+
+                if has_images {
+                    info!(
+                        "broadcast: serialize={:?} total={:?} json_size={}KB entries={}",
+                        t_serialize,
+                        t_total,
+                        json_len / 1024,
+                        num_entries
+                    );
                 }
 
                 let mut guard = server_broadcast.clients.lock();
@@ -277,6 +336,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/batch", post(batch_handler))
+        .route("/image", post(image_handler))
         .route("/ws", get(ws_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
         .with_state(server);

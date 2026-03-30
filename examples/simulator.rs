@@ -1,11 +1,23 @@
+use clap::Parser;
 use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
-use rand::Rng;
+use nokhwa::utils::{
+    CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
+};
+use nokhwa::Camera;
 use rand::distributions::Alphanumeric;
+use rand::Rng;
 use reqwest::Client;
 use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::{Duration, Instant, SystemTime};
 use waggle::waggle_data::{GraphData, LogData, StringData, SvgData, WaggleData};
+
+#[derive(Parser)]
+struct Args {
+    #[arg(long)]
+    camera: bool,
+}
 
 fn create_svg(cx: f64, cy: f64) -> Svg {
     Svg::new()
@@ -24,9 +36,67 @@ fn create_svg(cx: f64, cy: f64) -> Svg {
 }
 #[tokio::main]
 async fn main() {
-    let target_fps = 60;
+    let args = Args::parse();
+
+    let target_fps = 100;
     let tick_rate = Duration::from_micros(1_000_000 / target_fps);
     let mut i = 0;
+
+    let url = "http://localhost:3000/batch";
+    let client = Client::new();
+
+    if args.camera {
+        let cam_client = Client::new();
+        std::thread::spawn(move || {
+            let index = CameraIndex::Index(0);
+            let format = CameraFormat::new(Resolution::new(640, 480), FrameFormat::MJPEG, 30);
+            let requested = RequestedFormat::with_formats(
+                RequestedFormatType::Exact(format),
+                &[FrameFormat::MJPEG],
+            );
+            let mut cam = Camera::new(index, requested).expect("Failed to open camera");
+            cam.open_stream().expect("Failed to open camera stream");
+            println!("Camera opened successfully (MJPEG)");
+            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+            loop {
+                let t0 = Instant::now();
+                if let Ok(frame) = cam.frame() {
+                    let t_capture = t0.elapsed();
+                    let jpeg_bytes = frame.buffer().to_vec();
+                    let t1 = Instant::now();
+                    let mut hasher = DefaultHasher::new();
+                    jpeg_bytes.hash(&mut hasher);
+                    let prefix = hasher.finish();
+                    let resp = rt.block_on(async {
+                        cam_client
+                            .post("http://localhost:3000/image")
+                            .header("x-image-name", "camera")
+                            .header("x-image-scale", "1")
+                            .header("x-image-flip", "false")
+                            .body(jpeg_bytes)
+                            .send()
+                            .await
+                    });
+                    match resp {
+                        Ok(r) => {
+                            if !r.status().is_success() {
+                                println!("image POST failed: {}", r.status());
+                            }
+                        },
+                        Err(e) => println!("image POST error: {}", e),
+                    }
+                    let t_send = t1.elapsed();
+                    println!(
+                        "camera: capture={:?} send={:?} total={:?} hash={:?}",
+                        t_capture,
+                        t_send,
+                        t0.elapsed(),
+                        prefix
+                    );
+                }
+            }
+        });
+    }
 
     loop {
         i += 1;
@@ -93,9 +163,7 @@ async fn main() {
             string_data,
             log_data,
         };
-
-        let url = "http://localhost:3000/batch";
-        let client = Client::new();
+        let client = client.clone();
         tokio::spawn(async move {
             client.post(url).json(&request).send().await.expect("TODO: panic message");
         });
