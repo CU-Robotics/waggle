@@ -7,7 +7,6 @@ use axum::{
     Json,
     Router,
 };
-use base64::{engine::general_purpose, Engine as _};
 use futures::StreamExt;
 use parking_lot::Mutex;
 use shared_memory::ShmemConf;
@@ -47,7 +46,7 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         Ok(val)
     };
 
-    let json_len = read_u32(&mut pos)? as usize;
+    let json_len: usize = read_u32(&mut pos)?.try_into().map_err(|e| format!("json_len: {e}"))?;
     if pos + json_len > buf.len() {
         return Err("json section exceeds buffer".into());
     }
@@ -55,11 +54,11 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         .map_err(|e| format!("json parse error: {e}"))?;
     pos += json_len;
 
-    let num_images = read_u32(&mut pos)? as usize;
+    let num_images: usize = read_u32(&mut pos)?.try_into().map_err(|e| format!("num_images: {e}"))?;
     let mut images = HashMap::with_capacity(num_images);
 
     for _ in 0..num_images {
-        let name_len = read_u32(&mut pos)? as usize;
+        let name_len: usize = read_u32(&mut pos)?.try_into().map_err(|e| format!("name_len: {e}"))?;
         if pos + name_len > buf.len() {
             return Err("image name exceeds buffer".into());
         }
@@ -76,15 +75,14 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         let flip = buf[pos] != 0;
         pos += 1;
 
-        let data_len = read_u32(&mut pos)? as usize;
+        let data_len: usize = read_u32(&mut pos)?.try_into().map_err(|e| format!("data_len: {e}"))?;
         if pos + data_len > buf.len() {
             return Err("image data exceeds buffer".into());
         }
-        // Raw JPEG bytes → base64 for the browser
-        let b64 = general_purpose::STANDARD.encode(&buf[pos..pos + data_len]);
+        let image_bytes = buf[pos..pos + data_len].to_vec();
         pos += data_len;
 
-        images.insert(name, ImageData { image_data: b64, scale, flip });
+        images.insert(name, ImageData { image_data: image_bytes, scale, flip });
     }
 
     Ok(WaggleData {
@@ -175,9 +173,17 @@ async fn ws_connected(
 
 async fn batch_handler(
     State(server): State<ServerState>,
-    Json(data): Json<WaggleData>,
+    Json(data): Json<WaggleNonImageData>,
 ) {
-    server.add_data_to_batch(data);
+    let waggle_data = WaggleData {
+        sent_timestamp: data.sent_timestamp,
+        images: HashMap::new(),
+        svg_data: data.svg_data,
+        graph_data: data.graph_data,
+        string_data: data.string_data,
+        log_data: data.log_data,
+    };
+    server.add_data_to_batch(waggle_data);
 }
 
 async fn image_handler(
@@ -199,8 +205,15 @@ async fn image_handler(
         .unwrap_or(false);
 
     info!("received image '{}' ({} bytes)", name, body.len());
-    let b64 = general_purpose::STANDARD.encode(&body);
-    server.latest_images.lock().insert(name, ImageData { image_data: b64, scale, flip });
+    let image_data = ImageData { image_data: body.to_vec(), scale, flip };
+
+    let mut data = WaggleData::default();
+    data.images.insert(name.clone(), image_data.clone());
+    if let Err(e) = server.replay_manager.lock().write_to_file(&data) {
+        error!("Failed to write image replay: {}", e);
+    }
+
+    server.latest_images.lock().insert(name, image_data);
 }
 
 #[tokio::main]
@@ -300,15 +313,19 @@ async fn main() {
 
                     let has_images = drained.iter().any(|d| !d.images.is_empty());
                     let num = drained.len();
-                    let json = serde_json::to_string(&drained).unwrap_or_else(|_| "{}".into());
-                    (json, has_images, num)
+                    let binary = WaggleData::batch_to_binary(&drained)
+                        .unwrap_or_else(|e| {
+                            error!("Failed to serialize batch: {}", e);
+                            Vec::new()
+                        });
+                    (binary, has_images, num)
                 };
                 let t_serialize = t0.elapsed();
-                let json_len = to_send.len();
+                let msg_len = to_send.len();
 
                 let mut failed_ids = Vec::new();
                 for (id, tx) in server_broadcast.clients.lock().iter() {
-                    if tx.send(Message::Text(to_send.clone())).is_err() {
+                    if tx.send(Message::Binary(to_send.clone())).is_err() {
                         failed_ids.push(*id);
                     }
                 }
@@ -318,10 +335,10 @@ async fn main() {
 
                 if has_images {
                     info!(
-                        "broadcast: serialize={:?} total={:?} json_size={}KB entries={}",
+                        "broadcast: serialize={:?} total={:?} msg_size={}KB entries={}",
                         t_serialize,
                         t_total,
-                        json_len / 1024,
+                        msg_len / 1024,
                         num_entries
                     );
                 }

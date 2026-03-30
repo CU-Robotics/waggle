@@ -218,7 +218,7 @@ function App() {
                     <div className="m-2 flex flex-col items-center" key={key}>
                       <p>{key}</p>
                       <img
-                        src={`data:image/jpeg;base64,${value.image_data}`}
+                        src={value.blob_url}
                         className="rounded-md border"
                         alt="no source"
                       />

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import {useCallback, useEffect, useRef, useState} from "react";
 import {GraphData, WaggleData} from "../types";
+import {parseBatch} from "../parseBinary";
 
 const frame_timestamps: number[] = [];
 const event_timestamps: number[] = [];
@@ -67,6 +68,10 @@ export function useWebSocket() {
                     setImageData((prevData) => {
                         const newData = {...prevData};
                         for (const [key, value] of Object.entries(data.images)) {
+                            // Revoke old blob URL to avoid memory leak
+                            if (newData[key]?.blob_url) {
+                                URL.revokeObjectURL(newData[key].blob_url!);
+                            }
                             newData[key] = value;
                         }
                         return newData;
@@ -145,8 +150,13 @@ export function useWebSocket() {
                 }
             };
 
-            wsRef.current.onmessage = (event) => {
-                const robot_data: WaggleData[] = JSON.parse(event.data);
+            wsRef.current.binaryType = "arraybuffer";
+
+            wsRef.current.onmessage = async (event) => {
+                const buffer: ArrayBuffer = event.data instanceof ArrayBuffer
+                    ? event.data
+                    : await (event.data as Blob).arrayBuffer();
+                const robot_data: WaggleData[] = parseBatch(buffer);
 
                 if (robot_data.length == 0) {
                     if (wsRef.current) {
