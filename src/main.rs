@@ -10,12 +10,13 @@ use axum::{
 use base64::{engine::general_purpose, Engine as _};
 use futures::StreamExt;
 use parking_lot::Mutex;
-use serde::{Deserialize, Serialize};
 use shared_memory::ShmemConf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
+use waggle::replay::ReplayManager;
+use waggle::waggle_data::{ImageData, WaggleData, WaggleNonImageData};
 
 #[repr(C)]
 pub struct SharedMemHeader {
@@ -23,74 +24,6 @@ pub struct SharedMemHeader {
     read_counter: AtomicU64,
     message_len: usize,
     message_buffer: [u8; 50000000],
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImageData {
-    /// JPEG-encoded image bytes as base64.
-    pub image_data: String,
-    /// Scale factor applied when rendering on the dashboard (1.0 = native).
-    pub scale: i32,
-    /// Whether the dashboard should flip horizontally+vertically.
-    pub flip: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SvgData {
-    pub svg_string: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GraphData {
-    pub x: Option<f64>,
-    pub y: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StringData {
-    pub value: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LogData {
-    pub lines: Vec<String>,
-}
-impl Into<StringData> for String {
-    fn into(self) -> StringData {
-        StringData { value: self }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WaggleData {
-    pub sent_timestamp: i64,
-    pub images: HashMap<String, ImageData>,
-    pub svg_data: HashMap<String, SvgData>,
-    pub graph_data: HashMap<String, Vec<GraphData>>,
-    pub string_data: HashMap<String, StringData>,
-    #[serde(default)]
-    pub log_data: HashMap<String, LogData>,
-}
-impl Default for WaggleData {
-    fn default() -> Self {
-        Self {
-            sent_timestamp: 0,
-            images: HashMap::new(),
-            svg_data: HashMap::new(),
-            graph_data: HashMap::new(),
-            string_data: HashMap::new(),
-            log_data: HashMap::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct WaggleNonImageData {
-    pub sent_timestamp: i64,
-    pub svg_data: HashMap<String, SvgData>,
-    pub graph_data: HashMap<String, Vec<GraphData>>,
-    pub string_data: HashMap<String, StringData>,
-    #[serde(default)]
-    pub log_data: HashMap<String, LogData>,
 }
 
 fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
@@ -122,7 +55,6 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         .map_err(|e| format!("json parse error: {e}"))?;
     pos += json_len;
 
-    // Images section
     let num_images = read_u32(&mut pos)? as usize;
     let mut images = HashMap::with_capacity(num_images);
 
@@ -165,43 +97,64 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
     })
 }
 
-type ClientsReady = Arc<Mutex<bool>>;
-type Clients = Arc<Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<Message>>>>;
-type Buffer = Arc<Mutex<Vec<WaggleData>>>;
-type LatestImages = Arc<Mutex<HashMap<String, ImageData>>>;
+struct WaggleServer {
+    clients: Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<Message>>>,
+    buffer: Mutex<Vec<WaggleData>>,
+    clients_ready: Mutex<bool>,
+    replay_manager: Mutex<ReplayManager>,
+    latest_images: Mutex<HashMap<String, ImageData>>,
+}
 
-/// WebSocket handler
+impl WaggleServer {
+    fn new() -> Self {
+        Self {
+            clients: Mutex::new(HashMap::new()),
+            buffer: Mutex::new(Vec::new()),
+            clients_ready: Mutex::new(false),
+            replay_manager: Mutex::new(ReplayManager::default()),
+            latest_images: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn add_data_to_batch(&self, data: WaggleData) {
+        info!("received batch data");
+        if let Err(e) = self.replay_manager.lock().write_to_file(&data) {
+            error!("Failed to write replay: {}", e);
+        }
+        let mut buf = self.buffer.lock();
+        buf.push(data);
+        if buf.len() > 10 {
+            buf.remove(0);
+        }
+    }
+}
+
+type ServerState = Arc<WaggleServer>;
+
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    State((clients, buffer, clients_ready, _latest_images)): State<(
-        Clients,
-        Buffer,
-        ClientsReady,
-        LatestImages,
-    )>,
+    State(server): State<ServerState>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(|socket| ws_connected(socket, clients, buffer, clients_ready))
+    ws.on_upgrade(|socket| ws_connected(socket, server))
 }
 
 async fn ws_connected(
     mut socket: WebSocket,
-    clients: Clients,
-    buffer: Buffer,
-    clients_ready: ClientsReady,
+    server: ServerState,
 ) {
     let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
     let id = uuid::Uuid::new_v4();
-    clients.lock().insert(id, tx.clone());
+    server.clients.lock().insert(id, tx.clone());
     info!("New client connected");
     {
-        let mut ready = clients_ready.lock();
+        let mut ready = server.clients_ready.lock();
         *ready = true;
     }
     loop {
         tokio::select! {
             Some(Ok(msg)) = socket.next() => {
                 if matches!(msg, Message::Text(_) | Message::Binary(_)) {
-                    *clients_ready.lock() = true;
+                    *server.clients_ready.lock() = true;
                 } else if matches!(msg, Message::Close(_)) {
                     break;
                 }
@@ -217,28 +170,18 @@ async fn ws_connected(
     }
 
     error!("Client disconnected");
-    clients.lock().remove(&id);
+    server.clients.lock().remove(&id);
 }
 
 async fn batch_handler(
-    State((_clients, buffer, _client_ready, _latest_images)): State<(
-        Clients,
-        Buffer,
-        ClientsReady,
-        LatestImages,
-    )>,
+    State(server): State<ServerState>,
     Json(data): Json<WaggleData>,
 ) {
-    add_data_to_batch(buffer, data);
+    server.add_data_to_batch(data);
 }
 
 async fn image_handler(
-    State((_clients, _buffer, _client_ready, latest_images)): State<(
-        Clients,
-        Buffer,
-        ClientsReady,
-        LatestImages,
-    )>,
+    State(server): State<ServerState>,
     headers: axum::http::HeaderMap,
     body: axum::body::Bytes,
 ) {
@@ -257,33 +200,15 @@ async fn image_handler(
 
     info!("received image '{}' ({} bytes)", name, body.len());
     let b64 = general_purpose::STANDARD.encode(&body);
-    latest_images.lock().insert(name, ImageData { image_data: b64, scale, flip });
-}
-
-fn add_data_to_batch(buffer: Buffer, data: WaggleData) {
-    info!("received batch data");
-    {
-        let mut buf = buffer.lock();
-        buf.push(data);
-        if buf.len() > 10 {
-            buf.remove(0);
-        }
-    }
+    server.latest_images.lock().insert(name, ImageData { image_data: b64, scale, flip });
 }
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let clients: Clients = Arc::new(Mutex::new(HashMap::new()));
-    let buffer: Buffer = Arc::new(Mutex::new(Vec::new()));
-    let client_ready: ClientsReady = Arc::new(Mutex::new(false));
-    let latest_images: LatestImages = Arc::new(Mutex::new(HashMap::new()));
-
-    let clients_clone: Clients = Arc::clone(&clients);
-    let buffer_clone = Arc::clone(&buffer);
-    let clients_ready_clone = Arc::clone(&client_ready);
-    let latest_images_clone = Arc::clone(&latest_images);
+    let server: ServerState = Arc::new(WaggleServer::new());
+    info!("Initialized server with replay manager");
 
     let (shmem_tx, mut shmem_rx) = mpsc::unbounded_channel::<WaggleData>();
 
@@ -340,27 +265,27 @@ async fn main() {
         }
     });
 
-    let buffer_shmem = Arc::clone(&buffer);
+    let server_shmem = Arc::clone(&server);
     tokio::spawn(async move {
         while let Some(waggle_data) = shmem_rx.recv().await {
-            add_data_to_batch(Arc::clone(&buffer_shmem), waggle_data);
+            server_shmem.add_data_to_batch(waggle_data);
         }
     });
 
-    let buffer_clone = Arc::clone(&buffer);
+    let server_broadcast = Arc::clone(&server);
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_millis(1000 / 100));
 
         loop {
             interval.tick().await;
-            if *clients_ready_clone.lock() {
+            if *server_broadcast.clients_ready.lock() {
                 let t0 = std::time::Instant::now();
                 let (to_send, has_images, num_entries) = {
-                    let mut buf = buffer_clone.lock();
+                    let mut buf = server_broadcast.buffer.lock();
                     let mut drained: Vec<_> = buf.drain(..).collect();
 
                     let current_images = {
-                        let imgs = latest_images_clone.lock();
+                        let imgs = server_broadcast.latest_images.lock();
                         if imgs.is_empty() { None } else { Some(imgs.clone()) }
                     };
                     if let Some(imgs) = current_images {
@@ -382,14 +307,14 @@ async fn main() {
                 let json_len = to_send.len();
 
                 let mut failed_ids = Vec::new();
-                for (id, tx) in clients_clone.lock().iter() {
+                for (id, tx) in server_broadcast.clients.lock().iter() {
                     if tx.send(Message::Text(to_send.clone())).is_err() {
                         failed_ids.push(*id);
                     }
                 }
                 let t_total = t0.elapsed();
 
-                *clients_ready_clone.lock() = false;
+                *server_broadcast.clients_ready.lock() = false;
 
                 if has_images {
                     info!(
@@ -401,7 +326,7 @@ async fn main() {
                     );
                 }
 
-                let mut guard = clients_clone.lock();
+                let mut guard = server_broadcast.clients.lock();
                 for id in failed_ids {
                     guard.remove(&id);
                 }
@@ -409,13 +334,12 @@ async fn main() {
         }
     });
 
-    let buffer_clone = Arc::clone(&buffer);
     let app = Router::new()
         .route("/batch", post(batch_handler))
         .route("/image", post(image_handler))
         .route("/ws", get(ws_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
-        .with_state((clients, buffer_clone, client_ready, latest_images));
+        .with_state(server);
 
     info!("Starting server on :3000");
 
