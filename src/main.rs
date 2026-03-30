@@ -1,3 +1,4 @@
+
 use axum::{
     Json, Router,
     extract::{
@@ -10,13 +11,13 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose};
 use futures::StreamExt;
 use parking_lot::Mutex;
-use serde::{Deserialize, Serialize};
 use shared_memory::ShmemConf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
-use crate::replay::ReplayManager;
+use waggle::replay::ReplayManager;
+use waggle::waggle_data::{WaggleData,WaggleNonImageData,ImageData};
 
 #[repr(C)]
 pub struct SharedMemHeader {
@@ -24,74 +25,6 @@ pub struct SharedMemHeader {
     read_counter: AtomicU64,
     message_len: usize,
     message_buffer: [u8; 10000000],
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImageData {
-    /// JPEG-encoded image bytes as base64.
-    pub image_data: String,
-    /// Scale factor applied when rendering on the dashboard (1.0 = native).
-    pub scale: i32,
-    /// Whether the dashboard should flip horizontally+vertically.
-    pub flip: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SvgData {
-    pub svg_string: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GraphData {
-    pub x: Option<f64>,
-    pub y: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StringData {
-    pub value: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LogData {
-    pub lines: Vec<String>,
-}
-impl Into<StringData> for String {
-    fn into(self) -> StringData {
-        StringData { value: self }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WaggleData {
-    pub sent_timestamp: i64,
-    pub images: HashMap<String, ImageData>,
-    pub svg_data: HashMap<String, SvgData>,
-    pub graph_data: HashMap<String, Vec<GraphData>>,
-    pub string_data: HashMap<String, StringData>,
-    #[serde(default)]
-    pub log_data: HashMap<String, LogData>,
-}
-impl Default for WaggleData {
-    fn default() -> Self {
-        Self {
-            sent_timestamp: 0,
-            images: HashMap::new(),
-            svg_data: HashMap::new(),
-            graph_data: HashMap::new(),
-            string_data: HashMap::new(),
-            log_data: HashMap::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct WaggleNonImageData {
-    pub sent_timestamp: i64,
-    pub svg_data: HashMap<String, SvgData>,
-    pub graph_data: HashMap<String, Vec<GraphData>>,
-    pub string_data: HashMap<String, StringData>,
-    #[serde(default)]
-    pub log_data: HashMap<String, LogData>,
 }
 
 fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
@@ -248,6 +181,7 @@ async fn main() {
     let clients_ready_clone = Arc::clone(&client_ready);
 
     let mut replay_manager = ReplayManager::new();
+    info!("Initialized replay manager");
 
     let (shmem_tx, mut shmem_rx) = mpsc::unbounded_channel::<WaggleData>();
 

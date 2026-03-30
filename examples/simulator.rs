@@ -5,7 +5,7 @@ use rand::distributions::Alphanumeric;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime};
-use waggle::main::{GraphData, LogData, StringData, SvgData, WaggleData};
+use waggle::waggle_data::{GraphData, LogData, StringData, SvgData, WaggleData};
 
 fn create_svg(cx: f64, cy: f64) -> Svg {
     Svg::new()
