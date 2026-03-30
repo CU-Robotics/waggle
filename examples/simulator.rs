@@ -11,7 +11,7 @@ use reqwest::Client;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::{Duration, Instant, SystemTime};
-use waggle::waggle_data::{GraphData, LogData, StringData, SvgData, WaggleData};
+use waggle::waggle_data::{GraphData, LogData, StringData, SvgData, WaggleNonImageData};
 
 #[derive(Parser)]
 struct Args {
@@ -155,9 +155,8 @@ async fn main() {
                 y: f64::cos(i as f64 / 10.),
             }],
         );
-        let request = WaggleData {
+        let request = WaggleNonImageData {
             sent_timestamp: 0,
-            images: HashMap::new(),
             svg_data,
             graph_data,
             string_data,

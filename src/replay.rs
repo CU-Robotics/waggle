@@ -1,16 +1,15 @@
 use crate::waggle_data::WaggleData;
 use chrono::Local;
-use serde_json;
 use std::path::Path;
 use std::{
     fs,
     fs::{File, OpenOptions},
-    io::Write,
+    io::{BufWriter, Write},
 };
 use tracing::error;
 
 pub struct ReplayManager {
-    file: File,
+    writer: BufWriter<File>,
     max_file_size_bytes: usize,
 }
 impl Default for ReplayManager {
@@ -27,7 +26,7 @@ impl Default for ReplayManager {
         } else {
             1
         };
-        if let Err(e) = fs::write(replay_counter_path, (replay_counter + 1).to_string()) {
+        if let Err(_e) = fs::write(replay_counter_path, (replay_counter + 1).to_string()) {
             error!("Failed to write replay counter");
         }
 
@@ -45,33 +44,25 @@ impl Default for ReplayManager {
                 },
             };
 
-        let file_header = "SCHEMA 2\n";
-        file.write_all(file_header.as_bytes()).expect("Failed to write header to file");
+        let file_header = b"SCHEMA 3\n";
+        file.write_all(file_header).expect("Failed to write header to file");
 
-        Self { file, max_file_size_bytes: 5_000_000_000 }
+        Self { writer: BufWriter::new(file), max_file_size_bytes: 5_000_000_000 }
     }
 }
 impl ReplayManager {
     pub fn write_to_file(&mut self, data: &WaggleData) -> Result<(), Box<dyn std::error::Error>> {
-        let file_size = self.file.metadata()?.len() as usize;
+        let file_size = self.writer.get_ref().metadata()?.len();
 
-        if file_size > self.max_file_size_bytes {
+        if file_size > self.max_file_size_bytes.try_into()? {
             *self = ReplayManager::default();
         }
 
-        let mut json: String = match serde_json::to_string(&data) {
-            Ok(s) => s,
-            Err(e) => {
-                panic!("Error: {}", e);
-            },
-        };
-
-        json.push('\n');
-
-        if let Err(e) = self.file.write_all(json.as_bytes()) {
-            //TODO: resolve error
-            return Err(Box::new(e));
-        }
+        let record = data.to_binary().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+        let record_len: u32 = record.len().try_into().map_err(|_| "record too large for u32")?;
+        self.writer.write_all(&record_len.to_le_bytes())?;
+        self.writer.write_all(&record)?;
+        self.writer.flush()?;
 
         Ok(())
     }
