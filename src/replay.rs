@@ -1,53 +1,69 @@
-use std::{fs::{File, OpenOptions, read, write}, io::Write};
-use serde_json;
-use chrono::Local;
 use crate::waggle_data::WaggleData;
-pub struct ReplayManager{
+use chrono::Local;
+use serde_json;
+use std::path::Path;
+use std::{
+    fs,
+    fs::{File, OpenOptions},
+    io::Write,
+};
+use tracing::error;
+
+pub struct ReplayManager {
     file: File,
     max_file_size_bytes: usize,
 }
-impl ReplayManager{
-    pub fn new()->ReplayManager{
-        
-        let file_name = format!("replays/replay_{}.waggle", Local::now().format("%Y_%m_%d_%H:%M:%S"));
+impl Default for ReplayManager {
+    fn default() -> ReplayManager {
+        let replay_folder = Path::new("./replays");
 
-        let mut _file = match OpenOptions::new()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(&file_name)
-        {
-            Ok(f)=>f,
-            Err(e) => {
-                panic!("Error: {}", e);
-            }
+        fs::create_dir_all(replay_folder).unwrap();
+
+        let replay_counter_path = Path::join(replay_folder, "counter");
+        let replay_counter_string = fs::read_to_string(&replay_counter_path);
+        let replay_counter = if let Ok(string) = replay_counter_string {
+            let as_int_result = string.parse::<i32>();
+            as_int_result.unwrap_or(0)
+        } else {
+            1
         };
-
-        let file_header = "HEADER\n";
-        _file.write_all(file_header.as_bytes()).expect("Failed to write header to file");
-
-        Self{
-            file: _file,
-            max_file_size_bytes: 5_000_000_000,
+        if let Err(e) = fs::write(replay_counter_path, (replay_counter + 1).to_string()) {
+            error!("Failed to write replay counter");
         }
 
-       
+        let file_name = format!(
+            "replay_{}_at_{}.waggle",
+            replay_counter,
+            Local::now().format("%Y_%m_%d_%H:%M:%S")
+        );
+        let file_path = Path::join(replay_folder, &file_name);
+        let mut file =
+            match OpenOptions::new().write(true).append(true).create(true).open(&file_path) {
+                Ok(f) => f,
+                Err(e) => {
+                    panic!("Error: {}", e);
+                },
+            };
 
+        let file_header = "SCHEMA 2\n";
+        file.write_all(file_header.as_bytes()).expect("Failed to write header to file");
+
+        Self { file, max_file_size_bytes: 5_000_000_000 }
     }
-
-    pub fn write_to_file(&mut self , data: &WaggleData) -> Result<(), Box<dyn std::error::Error>>{
-        
+}
+impl ReplayManager {
+    pub fn write_to_file(&mut self, data: &WaggleData) -> Result<(), Box<dyn std::error::Error>> {
         let file_size = self.file.metadata()?.len() as usize;
 
-        if  file_size > self.max_file_size_bytes {
-            *self = ReplayManager::new();
+        if file_size > self.max_file_size_bytes {
+            *self = ReplayManager::default();
         }
 
-        let mut json: String = match serde_json::to_string(&data){
+        let mut json: String = match serde_json::to_string(&data) {
             Ok(s) => s,
-            Err(e) =>{
+            Err(e) => {
                 panic!("Error: {}", e);
-            }
+            },
         };
 
         json.push('\n');
@@ -59,5 +75,4 @@ impl ReplayManager{
 
         Ok(())
     }
-
 }

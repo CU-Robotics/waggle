@@ -1,14 +1,13 @@
-
 use axum::{
-    Json, Router,
     extract::{
-        State,
         ws::{Message, WebSocket, WebSocketUpgrade},
-    },
-    response::IntoResponse,
+        State,
+    }, response::IntoResponse,
     routing::{get, post},
+    Json,
+    Router,
 };
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use futures::StreamExt;
 use parking_lot::Mutex;
 use shared_memory::ShmemConf;
@@ -17,7 +16,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 use waggle::replay::ReplayManager;
-use waggle::waggle_data::{WaggleData,WaggleNonImageData,ImageData};
+use waggle::waggle_data::{ImageData, WaggleData, WaggleNonImageData};
 
 #[repr(C)]
 pub struct SharedMemHeader {
@@ -56,7 +55,6 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         .map_err(|e| format!("json parse error: {e}"))?;
     pos += json_len;
 
-    // Images section
     let num_images = read_u32(&mut pos)? as usize;
     let mut images = HashMap::with_capacity(num_images);
 
@@ -103,7 +101,6 @@ type ClientsReady = Arc<Mutex<bool>>;
 type Clients = Arc<Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<Message>>>>;
 type Buffer = Arc<Mutex<Vec<WaggleData>>>;
 
-/// WebSocket handler
 async fn ws_handler(
     ws: WebSocketUpgrade,
     State((clients, buffer, clients_ready)): State<(Clients, Buffer, ClientsReady)>,
@@ -153,11 +150,9 @@ async fn batch_handler(
     Json(data): Json<WaggleData>,
 ) {
     add_data_to_batch(buffer, data);
-
 }
 
 fn add_data_to_batch(buffer: Buffer, data: WaggleData) {
-    // Images are already downscaled JPEG (base64-encoded) from hive-rs.
     info!("received batch data");
     {
         let mut buf = buffer.lock();
@@ -177,10 +172,9 @@ async fn main() {
     let client_ready: ClientsReady = Arc::new(Mutex::new(false));
 
     let clients_clone: Clients = Arc::clone(&clients);
-    let buffer_clone = Arc::clone(&buffer);
     let clients_ready_clone = Arc::clone(&client_ready);
 
-    let mut replay_manager = ReplayManager::new();
+    let mut replay_manager = ReplayManager::default();
     info!("Initialized replay manager");
 
     let (shmem_tx, mut shmem_rx) = mpsc::unbounded_channel::<WaggleData>();
