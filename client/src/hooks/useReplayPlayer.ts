@@ -11,7 +11,6 @@ export interface ReplayState {
 }
 
 function parseReplayFile(buffer: ArrayBuffer): WaggleData[] {
-    // Find end of header line ("SCHEMA 3\n")
     const bytes = new Uint8Array(buffer);
     let headerEnd = 0;
     for (let i = 0; i < Math.min(bytes.length, 64); i++) {
@@ -20,6 +19,11 @@ function parseReplayFile(buffer: ArrayBuffer): WaggleData[] {
             headerEnd = i + 1;
             break;
         }
+    }
+    const header = new TextDecoder().decode(bytes.slice(0, headerEnd));
+    const expectedHeader = 'SCHEMA 3\n';
+    if (header != expectedHeader) {
+        alert("Found Header: " + header + "\nExpected Header: " + expectedHeader)
     }
 
     const frames: WaggleData[] = [];
