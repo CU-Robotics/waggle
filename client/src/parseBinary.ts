@@ -1,6 +1,6 @@
 import type { WaggleData, WaggleNonImageData, ImageData } from "./types";
 
-class BinaryReader {
+export class BinaryReader {
     private view: DataView;
     private pos: number = 0;
 
@@ -38,7 +38,7 @@ class BinaryReader {
     }
 }
 
-function parseEntry(reader: BinaryReader): WaggleData {
+export function parseEntry(reader: BinaryReader): WaggleData {
     const jsonLen = reader.readU32();
     const jsonStr = reader.readString(jsonLen);
     const meta: WaggleNonImageData = JSON.parse(jsonStr);

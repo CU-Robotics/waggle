@@ -1,11 +1,11 @@
 use axum::{
+    Json, Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State,
-    }, response::IntoResponse,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
+    response::IntoResponse,
     routing::{get, post},
-    Json,
-    Router,
 };
 use futures::StreamExt;
 use parking_lot::Mutex;
@@ -54,11 +54,13 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         .map_err(|e| format!("json parse error: {e}"))?;
     pos += json_len;
 
-    let num_images: usize = read_u32(&mut pos)?.try_into().map_err(|e| format!("num_images: {e}"))?;
+    let num_images: usize =
+        read_u32(&mut pos)?.try_into().map_err(|e| format!("num_images: {e}"))?;
     let mut images = HashMap::with_capacity(num_images);
 
     for _ in 0..num_images {
-        let name_len: usize = read_u32(&mut pos)?.try_into().map_err(|e| format!("name_len: {e}"))?;
+        let name_len: usize =
+            read_u32(&mut pos)?.try_into().map_err(|e| format!("name_len: {e}"))?;
         if pos + name_len > buf.len() {
             return Err("image name exceeds buffer".into());
         }
@@ -75,7 +77,8 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         let flip = buf[pos] != 0;
         pos += 1;
 
-        let data_len: usize = read_u32(&mut pos)?.try_into().map_err(|e| format!("data_len: {e}"))?;
+        let data_len: usize =
+            read_u32(&mut pos)?.try_into().map_err(|e| format!("data_len: {e}"))?;
         if pos + data_len > buf.len() {
             return Err("image data exceeds buffer".into());
         }
@@ -115,7 +118,7 @@ impl WaggleServer {
     }
 
     fn add_data_to_batch(&self, data: WaggleData) {
-        info!("received batch data");
+        debug!("received batch data");
         if let Err(e) = self.replay_manager.lock().write_to_file(&data) {
             error!("Failed to write replay: {}", e);
         }
@@ -129,17 +132,11 @@ impl WaggleServer {
 
 type ServerState = Arc<WaggleServer>;
 
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(server): State<ServerState>,
-) -> impl IntoResponse {
+async fn ws_handler(ws: WebSocketUpgrade, State(server): State<ServerState>) -> impl IntoResponse {
     ws.on_upgrade(|socket| ws_connected(socket, server))
 }
 
-async fn ws_connected(
-    mut socket: WebSocket,
-    server: ServerState,
-) {
+async fn ws_connected(mut socket: WebSocket, server: ServerState) {
     let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
     let id = uuid::Uuid::new_v4();
     server.clients.lock().insert(id, tx.clone());
@@ -171,10 +168,7 @@ async fn ws_connected(
     server.clients.lock().remove(&id);
 }
 
-async fn batch_handler(
-    State(server): State<ServerState>,
-    Json(data): Json<WaggleNonImageData>,
-) {
+async fn batch_handler(State(server): State<ServerState>, Json(data): Json<WaggleNonImageData>) {
     let waggle_data = WaggleData {
         sent_timestamp: data.sent_timestamp,
         images: HashMap::new(),
@@ -204,7 +198,7 @@ async fn image_handler(
         .map(|v| v == "true")
         .unwrap_or(false);
 
-    info!("received image '{}' ({} bytes)", name, body.len());
+    debug!("received image '{}' ({} bytes)", name, body.len());
     let image_data = ImageData { image_data: body.to_vec(), scale, flip };
 
     let mut data = WaggleData::default();
@@ -313,11 +307,10 @@ async fn main() {
 
                     let has_images = drained.iter().any(|d| !d.images.is_empty());
                     let num = drained.len();
-                    let binary = WaggleData::batch_to_binary(&drained)
-                        .unwrap_or_else(|e| {
-                            error!("Failed to serialize batch: {}", e);
-                            Vec::new()
-                        });
+                    let binary = WaggleData::batch_to_binary(&drained).unwrap_or_else(|e| {
+                        error!("Failed to serialize batch: {}", e);
+                        Vec::new()
+                    });
                     (binary, has_images, num)
                 };
                 let t_serialize = t0.elapsed();

@@ -1,6 +1,6 @@
+use chrono::Local;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::Local;
 
 #[derive(Debug, Clone)]
 pub struct ImageData {
@@ -47,7 +47,7 @@ pub struct WaggleData {
 impl Default for WaggleData {
     fn default() -> Self {
         Self {
-            sent_timestamp: Local::now().timestamp(),
+            sent_timestamp: Local::now().timestamp_millis(),
             images: HashMap::new(),
             svg_data: HashMap::new(),
             graph_data: HashMap::new(),

@@ -1,16 +1,16 @@
 use clap::Parser;
 use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
+use nokhwa::Camera;
 use nokhwa::utils::{
     CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
 };
-use nokhwa::Camera;
-use rand::distributions::Alphanumeric;
 use rand::Rng;
+use rand::distributions::Alphanumeric;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use waggle::waggle_data::{GraphData, LogData, StringData, SvgData, WaggleNonImageData};
 
 #[derive(Parser)]
@@ -156,7 +156,8 @@ async fn main() {
             }],
         );
         let request = WaggleNonImageData {
-            sent_timestamp: 0,
+            sent_timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis()
+                as i64,
             svg_data,
             graph_data,
             string_data,
