@@ -1,6 +1,7 @@
 use crate::waggle_data::WaggleData;
 use chrono::Local;
 use std::path::Path;
+use std::sync::LazyLock;
 use std::{
     fs,
     fs::{File, OpenOptions},
@@ -9,11 +10,32 @@ use std::{
 use tracing::error;
 
 pub struct ReplayManager {
-    writer: BufWriter<File>,
+    writer: LazyLock<BufWriter<File>>,
     max_file_size_bytes: usize,
 }
 impl Default for ReplayManager {
     fn default() -> ReplayManager {
+        Self { writer: LazyLock::new(|| Self::create_replay_file()), max_file_size_bytes: 5_000_000_000 }
+    }
+}
+impl ReplayManager {  
+    pub fn write_to_file(&mut self, data: &WaggleData) -> Result<(), Box<dyn std::error::Error>> {
+        let file_size = self.writer.get_ref().metadata()?.len();
+
+        if file_size > self.max_file_size_bytes.try_into()? {
+            *self = ReplayManager::default();
+        }
+
+        let record = data.to_binary().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+        let record_len: u32 = record.len().try_into().map_err(|_| "record too large for u32")?;
+        self.writer.write_all(&record_len.to_le_bytes())?;
+        self.writer.write_all(&record)?;
+        self.writer.flush()?;
+
+        Ok(())
+    }
+
+    fn create_replay_file() -> BufWriter<File>{
         let replay_folder = Path::new("./replays");
 
         fs::create_dir_all(replay_folder).unwrap();
@@ -45,25 +67,6 @@ impl Default for ReplayManager {
             };
 
         let file_header = b"SCHEMA 3\n";
-        file.write_all(file_header).expect("Failed to write header to file");
-
-        Self { writer: BufWriter::new(file), max_file_size_bytes: 5_000_000_000 }
-    }
-}
-impl ReplayManager {
-    pub fn write_to_file(&mut self, data: &WaggleData) -> Result<(), Box<dyn std::error::Error>> {
-        let file_size = self.writer.get_ref().metadata()?.len();
-
-        if file_size > self.max_file_size_bytes.try_into()? {
-            *self = ReplayManager::default();
-        }
-
-        let record = data.to_binary().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
-        let record_len: u32 = record.len().try_into().map_err(|_| "record too large for u32")?;
-        self.writer.write_all(&record_len.to_le_bytes())?;
-        self.writer.write_all(&record)?;
-        self.writer.flush()?;
-
-        Ok(())
+        BufWriter::new(file)
     }
 }
