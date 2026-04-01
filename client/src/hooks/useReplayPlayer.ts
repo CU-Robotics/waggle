@@ -146,33 +146,27 @@ export function useReplayPlayer() {
         if (!p.isPlaying || !p.frames) return;
 
         const {frames} = p;
+        const t0 = frames[0].sent_timestamp;
 
-        const totalDurationMs =
-            frames.length > 1
-                ? Math.abs(
-                    frames[frames.length - 1].sent_timestamp -
-                    frames[0].sent_timestamp,
-                )
-                : 0;
-        const interval =
-            frames.length > 1
-                ? Math.max(totalDurationMs / (frames.length - 1), 5)
-                : 33;
+        // Detect timestamp unit: epoch seconds are ~1.7e9, epoch ms are ~1.7e12
+        const msPerUnit = t0 > 1e11 ? 1 : 1000;
 
+        // Elapsed playback time starts at the current frame's offset
+        let elapsed = (frames[p.idx].sent_timestamp - t0) * msPerUnit;
         let lastTime = performance.now();
-        let accum = 0;
 
         const tick = () => {
             if (!p.isPlaying) return;
 
             const now = performance.now();
-            accum += (now - lastTime) * p.speed;
+            elapsed += (now - lastTime) * p.speed;
             lastTime = now;
 
             let advanced = false;
-            while (accum >= interval && p.idx < frames.length - 1) {
+            while (p.idx < frames.length - 1) {
+                const nextMs = (frames[p.idx + 1].sent_timestamp - t0) * msPerUnit;
+                if (nextMs > elapsed) break;
                 p.idx++;
-                accum -= interval;
                 advanced = true;
             }
 

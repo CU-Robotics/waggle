@@ -1,7 +1,9 @@
 use crate::waggle_data::WaggleData;
-use chrono::Local;
+use chrono::{DateTime, Local};
+use log::info;
 use std::path::Path;
 use std::sync::LazyLock;
+use std::time::Instant;
 use std::{
     fs,
     fs::{File, OpenOptions},
@@ -12,17 +14,31 @@ use tracing::error;
 pub struct ReplayManager {
     writer: LazyLock<BufWriter<File>>,
     max_file_size_bytes: usize,
+    last_write_timestamp: Option<Instant>,
 }
 impl Default for ReplayManager {
     fn default() -> ReplayManager {
-        Self { writer: LazyLock::new(|| Self::create_replay_file()), max_file_size_bytes: 5_000_000_000 }
+        Self {
+            writer: LazyLock::new(|| Self::create_replay_file()),
+            max_file_size_bytes: 5_000_000_000,
+            last_write_timestamp: None,
+        }
     }
 }
-impl ReplayManager {  
+impl ReplayManager {
     pub fn write_to_file(&mut self, data: &WaggleData) -> Result<(), Box<dyn std::error::Error>> {
-        let file_size = self.writer.get_ref().metadata()?.len();
+        const REPLAY_TIMEOUT: u128 = 1000;
+        let replay_file_is_timed_out = if let Some(last_write_timestamp) = self.last_write_timestamp
+        {
+            last_write_timestamp.elapsed().as_millis() > REPLAY_TIMEOUT
+        } else {
+            false
+        };
+        self.last_write_timestamp = Some(Instant::now());
 
-        if file_size > self.max_file_size_bytes.try_into()? {
+        let file_size = self.writer.get_ref().metadata()?.len();
+        let replay_file_too_big = file_size > self.max_file_size_bytes.try_into()?;
+        if replay_file_too_big || replay_file_is_timed_out {
             *self = ReplayManager::default();
         }
 
@@ -35,7 +51,7 @@ impl ReplayManager {
         Ok(())
     }
 
-    fn create_replay_file() -> BufWriter<File>{
+    fn create_replay_file() -> BufWriter<File> {
         let replay_folder = Path::new("./replays");
 
         fs::create_dir_all(replay_folder).unwrap();
@@ -67,6 +83,7 @@ impl ReplayManager {
             };
 
         let file_header = b"SCHEMA 3\n";
+        file.write_all(file_header).expect("Failed to write header to file");
         BufWriter::new(file)
     }
 }

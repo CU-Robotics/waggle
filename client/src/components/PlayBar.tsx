@@ -37,7 +37,8 @@ export default function PlayBar({
     if (totalFrames === 0) return "0:00";
     const t0 = frames[0].sent_timestamp;
     const t = frames[index].sent_timestamp;
-    const diffSec = Math.abs(t - t0) / 1000;
+    const msPerUnit = t0 > 1e11 ? 1 : 1000;
+    const diffSec = Math.abs(t - t0) * msPerUnit / 1000;
     const mins = Math.floor(diffSec / 60);
     const secs = Math.floor(diffSec % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
