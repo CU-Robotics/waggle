@@ -10,12 +10,12 @@ use axum::{
 use futures::StreamExt;
 use parking_lot::Mutex;
 use shared_memory::ShmemConf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{sync::atomic::{AtomicU64, Ordering}};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 use waggle::replay::ReplayManager;
-use waggle::waggle_data::{ImageData, WaggleData, WaggleNonImageData};
+use waggle::waggle_data::{ImageData, WaggleData, WaggleNonImageData,ConfigurableVarData};
 
 #[repr(C)]
 pub struct SharedMemHeader {
@@ -92,6 +92,7 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         graph_data: meta.graph_data,
         string_data: meta.string_data,
         log_data: meta.log_data,
+        configurable_var_data: meta.configurable_var_data
     })
 }
 
@@ -101,6 +102,7 @@ struct WaggleServer {
     clients_ready: Mutex<bool>,
     replay_manager: Mutex<ReplayManager>,
     latest_images: Mutex<HashMap<String, ImageData>>,
+    configurable_vars: Mutex<ConfigurableVarData>,
 }
 
 impl WaggleServer {
@@ -111,6 +113,10 @@ impl WaggleServer {
             clients_ready: Mutex::new(false),
             replay_manager: Mutex::new(ReplayManager::default()),
             latest_images: Mutex::new(HashMap::new()),
+            configurable_vars: Mutex::new(ConfigurableVarData{
+                configurable_doubles: HashMap::new(), 
+                configurable_ints: HashMap::new()
+            })
         }
     }
 
@@ -128,7 +134,28 @@ impl WaggleServer {
 }
 
 type ServerState = Arc<WaggleServer>;
-
+//server get request, sends config data to hive
+async fn send_config_handler(State(server): State<ServerState>) -> Json<serde_json::Value> {
+    let config = server.configurable_vars.lock();
+    match serde_json::to_string(&serde_json::json!({
+        "configurable_ints": config.configurable_ints,
+        "configurable_doubles": config.configurable_doubles,
+    })){
+        Ok(_c)=>{
+            Json(serde_json::json!({
+                "configurable_ints": config.configurable_ints,
+                "configurable_doubles": config.configurable_doubles,
+            }))
+        }
+        Err(e)=>{
+            error!("Failed to GET configurable variables {}", e);
+            Json(serde_json::json!({}))
+        }
+    }
+}
+async fn update_config_handler(State(server): State<ServerState>, Json(data):Json<ConfigurableVarData>){
+    *server.configurable_vars.lock() = data;
+}
 async fn ws_handler(
     ws: WebSocketUpgrade,
     State(server): State<ServerState>,
@@ -182,6 +209,7 @@ async fn batch_handler(
         graph_data: data.graph_data,
         string_data: data.string_data,
         log_data: data.log_data,
+        configurable_var_data: data.configurable_var_data,
     };
     server.add_data_to_batch(waggle_data);
 }
@@ -355,6 +383,8 @@ async fn main() {
         .route("/batch", post(batch_handler))
         .route("/image", post(image_handler))
         .route("/ws", get(ws_handler))
+        .route("/configurable-vars", get(send_config_handler))
+        .route("/configurable-vars", post(update_config_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
         .with_state(server);
 
