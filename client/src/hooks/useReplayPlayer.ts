@@ -15,7 +15,6 @@ function parseReplayFile(buffer: ArrayBuffer): WaggleData[] {
     let headerEnd = 0;
     for (let i = 0; i < Math.min(bytes.length, 64); i++) {
         if (bytes[i] === 0x0a) {
-            // newline
             headerEnd = i + 1;
             break;
         }
@@ -53,7 +52,6 @@ export function useReplayPlayer() {
     const [currentFrame, setCurrentFrame] = useState<WaggleData | null>(null);
     const timerRef = useRef<number | null>(null);
 
-    // Use refs for mutable playback state so the rAF loop doesn't fight React
     const playRef = useRef({
         isPlaying: false,
         speed: 1,
@@ -152,10 +150,8 @@ export function useReplayPlayer() {
         const {frames} = p;
         const t0 = frames[0].sent_timestamp;
 
-        // Detect timestamp unit: epoch seconds are ~1.7e9, epoch ms are ~1.7e12
         const msPerUnit = t0 > 1e11 ? 1 : 1000;
 
-        // Elapsed playback time starts at the current frame's offset
         let elapsed = (frames[p.idx].sent_timestamp - t0) * msPerUnit;
         let lastTime = performance.now();
 

@@ -1,6 +1,6 @@
+use chrono::Local;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::Local;
 
 #[derive(Debug, Clone)]
 pub struct ImageData {

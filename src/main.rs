@@ -1,11 +1,11 @@
 use axum::{
+    Json, Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State,
-    }, response::IntoResponse,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
+    response::IntoResponse,
     routing::{get, post},
-    Json,
-    Router,
 };
 use futures::StreamExt;
 use parking_lot::Mutex;
