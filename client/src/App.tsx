@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
+import { useReplayPlayer } from "./hooks/useReplayPlayer";
+import type { WaggleData } from "./types";
 import {
   IconMoonFilled,
   IconBrightnessDownFilled,
@@ -8,24 +10,147 @@ import {
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
+import PlayBar from "./components/PlayBar";
 import { GraphDataToCSV, saveFile } from "./csvHelpter";
 // import gameField from "./assets/game_field.png";
 
 function App() {
+  const ws = useWebSocket();
   const {
-    isConnected,
-    graphData,
-    imageData,
-    svgData,
-    stringData,
-    logData,
-    maxDataPoints,
-    setMaxDataPoints,
-    maxLogLines,
-    setMaxLogLines,
-  } = useWebSocket();
+    replay,
+    currentFrame,
+    loadFile,
+    close: closeReplay,
+    setFrameIndex,
+    togglePlay,
+    setSpeed,
+    stepForward,
+    stepBackward,
+  } = useReplayPlayer();
+
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
+  const [isDragging, setIsDragging] = useState(false);
+
+  const inReplayMode = replay !== null;
+
+  // In replay mode, derive display data from the current frame
+  const replayGraphData = useMemo(() => {
+    if (!replay || !currentFrame) return {};
+    // Accumulate graph data up to current frame index
+    const acc: { [key: string]: { x: number; y: number }[] } = {};
+    for (let i = 0; i <= replay.frameIndex; i++) {
+      const frame = replay.frames[i];
+      if (!frame.graph_data) continue;
+      for (const [key, points] of Object.entries(frame.graph_data)) {
+        if (!acc[key]) acc[key] = [];
+        for (const p of points) {
+          if (p.settings?.clear_data) {
+            acc[key] = [];
+            continue;
+          }
+          acc[key].push(p);
+        }
+      }
+    }
+    return acc;
+  }, [replay, currentFrame, replay?.frameIndex]);
+
+  // In replay mode, carry forward images/svg/strings from the most recent frame that had them
+  const replayImages = useMemo(() => {
+    if (!replay) return {};
+    const acc: WaggleData["images"] = {};
+    for (let i = 0; i <= replay.frameIndex; i++) {
+      const frame = replay.frames[i];
+      if (frame.images) {
+        for (const [k, v] of Object.entries(frame.images)) {
+          acc[k] = v;
+        }
+      }
+    }
+    return acc;
+  }, [replay, replay?.frameIndex]);
+
+  const replaySvg = useMemo(() => {
+    if (!replay) return {};
+    const acc: WaggleData["svg_data"] = {};
+    for (let i = 0; i <= replay.frameIndex; i++) {
+      const frame = replay.frames[i];
+      if (frame.svg_data) {
+        for (const [k, v] of Object.entries(frame.svg_data)) {
+          acc[k] = v;
+        }
+      }
+    }
+    return acc;
+  }, [replay, replay?.frameIndex]);
+
+  const replayStrings = useMemo(() => {
+    if (!replay) return {};
+    const acc: WaggleData["string_data"] = {};
+    for (let i = 0; i <= replay.frameIndex; i++) {
+      const frame = replay.frames[i];
+      if (frame.string_data) {
+        for (const [k, v] of Object.entries(frame.string_data)) {
+          acc[k] = v;
+        }
+      }
+    }
+    return acc;
+  }, [replay, replay?.frameIndex]);
+
+  const replayLogs = useMemo(() => {
+    if (!replay) return {};
+    const acc: { [key: string]: string[] } = {};
+    for (let i = 0; i <= replay.frameIndex; i++) {
+      const frame = replay.frames[i];
+      if (frame.log_data) {
+        for (const [k, v] of Object.entries(frame.log_data)) {
+          if (!acc[k]) acc[k] = [];
+          acc[k] = acc[k].concat(v.lines);
+        }
+      }
+    }
+    return acc;
+  }, [replay, replay?.frameIndex]);
+
+  const graphData = inReplayMode ? replayGraphData : ws.graphData;
+  const imageData = inReplayMode ? replayImages : ws.imageData;
+  const svgData = inReplayMode ? replaySvg : ws.svgData;
+  const stringData = inReplayMode ? replayStrings : ws.stringData;
+  const logData = inReplayMode ? replayLogs : ws.logData;
+  const isConnected = inReplayMode ? false : ws.isConnected;
+  const maxDataPoints = ws.maxDataPoints;
+  const setMaxDataPoints = ws.setMaxDataPoints;
+  const maxLogLines = ws.maxLogLines;
+  const setMaxLogLines = ws.setMaxLogLines;
+
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set false if leaving the window (not entering a child)
+    if (e.currentTarget === e.target) setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith(".waggle")) {
+        loadFile(file);
+      }
+    },
+    [loadFile],
+  );
 
   const handleDownloadData = () => {
     console.log(Date.now());
@@ -79,11 +204,45 @@ function App() {
 
   return (
     <>
-      <div className="min-h-screen w-full dark:bg-neutral-800 dark:text-white">
+      <div
+        className="min-h-screen w-full dark:bg-neutral-800 dark:text-white"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drag overlay */}
+        {isDragging && (
+          <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-blue-500/20 backdrop-blur-sm">
+            <div className="rounded-2xl border-4 border-dashed border-blue-500 bg-white/80 px-12 py-8 text-xl font-bold text-blue-700 dark:bg-neutral-800/80 dark:text-blue-300">
+              Drop .waggle replay file
+            </div>
+          </div>
+        )}
+
+        {/* Replay play bar */}
+        {replay && (
+          <PlayBar
+            replay={replay}
+            onTogglePlay={togglePlay}
+            onSeek={setFrameIndex}
+            onStepForward={stepForward}
+            onStepBackward={stepBackward}
+            onSetSpeed={setSpeed}
+            onClose={closeReplay}
+          />
+        )}
+
         <div className="mb-2 flex justify-between border-b p-2">
           <div className="flex items-center w-full gap-4">
             <div className="flex-grow"></div>
-            <ConnectionStatus connectionStatus={isConnected} />
+            {!inReplayMode && (
+              <ConnectionStatus connectionStatus={isConnected} />
+            )}
+            {inReplayMode && (
+              <span className="rounded bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900 dark:text-orange-200">
+                REPLAY
+              </span>
+            )}
             <button onClick={handleToggle}>
               {isDarkMode ? (
                 <IconMoonFilled size={20} />
