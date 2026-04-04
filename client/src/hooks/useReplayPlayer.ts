@@ -50,7 +50,6 @@ function parseReplayFile(buffer: ArrayBuffer): WaggleData[] {
 export function useReplayPlayer() {
     const [replay, setReplay] = useState<ReplayState | null>(null);
     const [currentFrame, setCurrentFrame] = useState<WaggleData | null>(null);
-    const timerRef = useRef<number | null>(null);
 
     const playRef = useRef({
         isPlaying: false,
@@ -93,7 +92,6 @@ export function useReplayPlayer() {
     }, []);
 
     const close = useCallback(() => {
-        if (timerRef.current) cancelAnimationFrame(timerRef.current);
         playRef.current.isPlaying = false;
         playRef.current.frames = null;
         setReplay(null);
@@ -155,8 +153,11 @@ export function useReplayPlayer() {
         let elapsed = (frames[p.idx].sent_timestamp - t0) * msPerUnit;
         let lastTime = performance.now();
 
-        const tick = () => {
-            if (!p.isPlaying) return;
+        const interval = setInterval(() => {
+            if (!p.isPlaying) {
+                clearInterval(interval);
+                return;
+            }
 
             const now = performance.now();
             elapsed += (now - lastTime) * p.speed;
@@ -177,16 +178,11 @@ export function useReplayPlayer() {
             if (p.idx >= frames.length - 1) {
                 p.isPlaying = false;
                 syncState(p.idx, frames, false);
-                return;
+                clearInterval(interval);
             }
+        }, 16);
 
-            timerRef.current = requestAnimationFrame(tick);
-        };
-
-        timerRef.current = requestAnimationFrame(tick);
-        return () => {
-            if (timerRef.current) cancelAnimationFrame(timerRef.current);
-        };
+        return () => clearInterval(interval);
     }, [replay?.isPlaying, syncState]);
 
     return {
