@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {useWebSocket} from "./hooks/useWebSocket";
 import {useReplayPlayer} from "./hooks/useReplayPlayer";
 import type {WaggleData} from "./types";
@@ -13,7 +13,6 @@ function App() {
     const ws = useWebSocket();
     const {
         replay,
-        currentFrame,
         loadFile,
         close: closeReplay,
         setFrameIndex,
@@ -29,82 +28,92 @@ function App() {
 
     const inReplayMode = replay !== null;
 
-    const replayGraphData = useMemo(() => {
-        if (!replay || !currentFrame) return {};
-        const acc: { [key: string]: { x: number; y: number }[] } = {};
-        for (let i = 0; i <= replay.frameIndex; i++) {
-            const frame = replay.frames[i];
-            if (!frame.graph_data) continue;
-            for (const [key, points] of Object.entries(frame.graph_data)) {
-                if (!acc[key]) acc[key] = [];
-                for (const p of points) {
-                    if (p.settings?.clear_data) {
-                        acc[key] = [];
-                        continue;
+    // Incremental accumulators — only process new frames since last render,
+    // recompute from scratch only when scrubbing backwards.
+    const lastIdx = useRef(-1);
+    const accGraphs = useRef<{ [key: string]: { x: number; y: number }[] }>({});
+    const accImages = useRef<WaggleData["images"]>({});
+    const accSvg = useRef<WaggleData["svg_data"]>({});
+    const accStrings = useRef<WaggleData["string_data"]>({});
+    const accLogs = useRef<{ [key: string]: string[] }>({});
+
+    const replayFrameIndex = replay?.frameIndex ?? -1;
+    const replayFrames = replay?.frames;
+
+    useMemo(() => {
+        if (!replayFrames) {
+            lastIdx.current = -1;
+            accGraphs.current = {};
+            accImages.current = {};
+            accSvg.current = {};
+            accStrings.current = {};
+            accLogs.current = {};
+            return;
+        }
+
+        const target = replayFrameIndex;
+
+        // Scrubbed backwards — reset and recompute from 0
+        if (target < lastIdx.current) {
+            accGraphs.current = {};
+            accImages.current = {};
+            accSvg.current = {};
+            accStrings.current = {};
+            accLogs.current = {};
+            lastIdx.current = -1;
+        }
+
+        const start = lastIdx.current + 1;
+        for (let i = start; i <= target; i++) {
+            const frame = replayFrames[i];
+
+            if (frame.graph_data) {
+                for (const [key, points] of Object.entries(frame.graph_data)) {
+                    if (!accGraphs.current[key]) accGraphs.current[key] = [];
+                    for (const p of points) {
+                        if ((p as any).settings?.clear_data) {
+                            accGraphs.current[key] = [];
+                            continue;
+                        }
+                        accGraphs.current[key].push(p);
                     }
-                    acc[key].push(p);
                 }
             }
-        }
-        return acc;
-    }, [replay, currentFrame, replay?.frameIndex]);
 
-    const replayImages = useMemo(() => {
-        if (!replay) return {};
-        const acc: WaggleData["images"] = {};
-        for (let i = 0; i <= replay.frameIndex; i++) {
-            const frame = replay.frames[i];
             if (frame.images) {
                 for (const [k, v] of Object.entries(frame.images)) {
-                    acc[k] = v;
+                    accImages.current[k] = v;
                 }
             }
-        }
-        return acc;
-    }, [replay, replay?.frameIndex]);
 
-    const replaySvg = useMemo(() => {
-        if (!replay) return {};
-        const acc: WaggleData["svg_data"] = {};
-        for (let i = 0; i <= replay.frameIndex; i++) {
-            const frame = replay.frames[i];
             if (frame.svg_data) {
                 for (const [k, v] of Object.entries(frame.svg_data)) {
-                    acc[k] = v;
+                    accSvg.current[k] = v;
                 }
             }
-        }
-        return acc;
-    }, [replay, replay?.frameIndex]);
 
-    const replayStrings = useMemo(() => {
-        if (!replay) return {};
-        const acc: WaggleData["string_data"] = {};
-        for (let i = 0; i <= replay.frameIndex; i++) {
-            const frame = replay.frames[i];
             if (frame.string_data) {
                 for (const [k, v] of Object.entries(frame.string_data)) {
-                    acc[k] = v;
+                    accStrings.current[k] = v;
                 }
             }
-        }
-        return acc;
-    }, [replay, replay?.frameIndex]);
 
-    const replayLogs = useMemo(() => {
-        if (!replay) return {};
-        const acc: { [key: string]: string[] } = {};
-        for (let i = 0; i <= replay.frameIndex; i++) {
-            const frame = replay.frames[i];
             if (frame.log_data) {
                 for (const [k, v] of Object.entries(frame.log_data)) {
-                    if (!acc[k]) acc[k] = [];
-                    acc[k] = acc[k].concat(v.lines);
+                    if (!accLogs.current[k]) accLogs.current[k] = [];
+                    accLogs.current[k] = accLogs.current[k].concat(v.lines);
                 }
             }
         }
-        return acc;
-    }, [replay, replay?.frameIndex]);
+
+        lastIdx.current = target;
+    }, [replayFrames, replayFrameIndex]);
+
+    const replayGraphData = accGraphs.current;
+    const replayImages = accImages.current;
+    const replaySvg = accSvg.current;
+    const replayStrings = accStrings.current;
+    const replayLogs = accLogs.current;
 
     const graphData = inReplayMode ? replayGraphData : ws.graphData;
     const imageData = inReplayMode ? replayImages : ws.imageData;
