@@ -8,6 +8,7 @@ import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
 import PlayBar from "./components/PlayBar";
 import {GraphDataToCSV, saveFile} from "./csvHelpter";
+import {createBlobUrl} from "./parseBinary";
 
 function App() {
     const ws = useWebSocket();
@@ -20,11 +21,15 @@ function App() {
         setSpeed,
         stepForward,
         stepBackward,
+        getImagesForFrame,
     } = useReplayPlayer();
 
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
     const [isDragging, setIsDragging] = useState(false);
+    const [replayImageData, setReplayImageData] = useState<WaggleData["images"]>({});
+    /** Tracks first-appearance order of image keys during replay */
+    const imageKeyOrder = useRef<string[]>([]);
 
     const inReplayMode = replay !== null;
 
@@ -32,7 +37,6 @@ function App() {
     // recompute from scratch only when scrubbing backwards.
     const lastIdx = useRef(-1);
     const accGraphs = useRef<{ [key: string]: { x: number; y: number }[] }>({});
-    const accImages = useRef<WaggleData["images"]>({});
     const accSvg = useRef<WaggleData["svg_data"]>({});
     const accStrings = useRef<WaggleData["string_data"]>({});
     const accLogs = useRef<{ [key: string]: string[] }>({});
@@ -44,7 +48,6 @@ function App() {
         if (!replayFrames) {
             lastIdx.current = -1;
             accGraphs.current = {};
-            accImages.current = {};
             accSvg.current = {};
             accStrings.current = {};
             accLogs.current = {};
@@ -56,7 +59,6 @@ function App() {
         // Scrubbed backwards — reset and recompute from 0
         if (target < lastIdx.current) {
             accGraphs.current = {};
-            accImages.current = {};
             accSvg.current = {};
             accStrings.current = {};
             accLogs.current = {};
@@ -77,12 +79,6 @@ function App() {
                         }
                         accGraphs.current[key].push(p);
                     }
-                }
-            }
-
-            if (frame.images) {
-                for (const [k, v] of Object.entries(frame.images)) {
-                    accImages.current[k] = v;
                 }
             }
 
@@ -109,14 +105,49 @@ function App() {
         lastIdx.current = target;
     }, [replayFrames, replayFrameIndex]);
 
+    // Lazy-load images from file for the current replay frame
+    useEffect(() => {
+        if (!replay) {
+            setReplayImageData((prev) => {
+                for (const img of Object.values(prev)) {
+                    if (img.blob_url) URL.revokeObjectURL(img.blob_url);
+                }
+                return {};
+            });
+            imageKeyOrder.current = [];
+            return;
+        }
+        let cancelled = false;
+        getImagesForFrame(replay.frameIndex).then((images) => {
+            if (cancelled) return;
+            setReplayImageData((prev) => {
+                // Merge: keep previous images, update with new ones
+                const result: WaggleData["images"] = {...prev};
+                for (const [k, v] of Object.entries(images)) {
+                    // Revoke old blob URL for this key
+                    if (result[k]?.blob_url) {
+                        URL.revokeObjectURL(result[k].blob_url!);
+                    }
+                    v.blob_url = createBlobUrl(v);
+                    result[k] = v;
+                    // Track insertion order
+                    if (!imageKeyOrder.current.includes(k)) {
+                        imageKeyOrder.current.push(k);
+                    }
+                }
+                return result;
+            });
+        });
+        return () => { cancelled = true; };
+    }, [replay?.frameIndex, replay === null, getImagesForFrame]);
+
     const replayGraphData = accGraphs.current;
-    const replayImages = accImages.current;
     const replaySvg = accSvg.current;
     const replayStrings = accStrings.current;
     const replayLogs = accLogs.current;
 
     const graphData = inReplayMode ? replayGraphData : ws.graphData;
-    const imageData = inReplayMode ? replayImages : ws.imageData;
+    const imageData = inReplayMode ? replayImageData : ws.imageData;
     const svgData = inReplayMode ? replaySvg : ws.svgData;
     const stringData = inReplayMode ? replayStrings : ws.stringData;
     const logData = inReplayMode ? replayLogs : ws.logData;
@@ -144,9 +175,16 @@ function App() {
             e.stopPropagation();
             setIsDragging(false);
             const file = e.dataTransfer.files[0];
-            if (file && file.name.endsWith(".waggle")) {
-                loadFile(file);
+            if (!file) {
+                console.warn("[replay] drop event had no files");
+                return;
             }
+            console.log(`[replay] dropped file: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB, type: "${file.type}")`);
+            if (!file.name.endsWith(".waggle")) {
+                console.warn(`[replay] rejected file: expected .waggle extension`);
+                return;
+            }
+            loadFile(file);
         },
         [loadFile],
     );
@@ -374,7 +412,10 @@ function App() {
                     <div className="m-2 flex w-3/4 flex-col rounded-md border">
                         <div className="flex items-center justify-center">
                             <div className="m-2 flex flex-wrap">
-                                {Object.entries(imageData).map(([key, value]) => {
+                                {(inReplayMode
+                                    ? imageKeyOrder.current.filter(k => imageData[k]).map(k => [k, imageData[k]] as const)
+                                    : Object.entries(imageData)
+                                ).map(([key, value]) => {
                                     return (
                                         <div className="m-2 flex flex-col items-center" key={key}>
                                             <p>{key}</p>
