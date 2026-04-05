@@ -15,6 +15,7 @@ function App() {
     const {
         replay,
         loadFile,
+        loadingProgress,
         close: closeReplay,
         setFrameIndex,
         togglePlay,
@@ -254,6 +255,26 @@ function App() {
                         <div
                             className="rounded-2xl border-4 border-dashed border-blue-500 bg-white/80 px-12 py-8 text-xl font-bold text-blue-700 dark:bg-neutral-800/80 dark:text-blue-300">
                             Drop .waggle replay file
+                        </div>
+                    </div>
+                )}
+
+                {/* Loading overlay */}
+                {loadingProgress !== null && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                        <div className="w-80 rounded-2xl bg-white p-6 shadow-lg dark:bg-neutral-800">
+                            <p className="mb-3 text-center text-sm font-semibold dark:text-white">
+                                Loading replay...
+                            </p>
+                            <div className="h-3 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-600">
+                                <div
+                                    className="h-full rounded-full bg-blue-500 transition-all duration-150"
+                                    style={{width: `${Math.round(loadingProgress * 100)}%`}}
+                                />
+                            </div>
+                            <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400">
+                                {Math.round(loadingProgress * 100)}%
+                            </p>
                         </div>
                     </div>
                 )}

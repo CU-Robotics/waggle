@@ -22,7 +22,7 @@ interface ParseResult {
     frameRecords: FrameRecord[];
 }
 
-async function parseReplayFileStreaming(file: File): Promise<ParseResult> {
+async function parseReplayFileStreaming(file: File, onProgress?: (progress: number) => void): Promise<ParseResult> {
     const fileSize = file.size;
     console.log(`[replay] streaming parse (metadata-only): ${(fileSize / 1024 / 1024).toFixed(1)} MB`);
 
@@ -108,8 +108,14 @@ async function parseReplayFileStreaming(file: File): Promise<ParseResult> {
         }
 
         leftover = merged.slice(pos);
+        if (onProgress) {
+            onProgress(totalBytesRead / fileSize);
+            // Yield to the browser so React can repaint the progress bar
+            await new Promise(r => setTimeout(r, 0));
+        }
     }
 
+    onProgress?.(1);
     if (leftover.length > 0) {
         console.warn(`[replay] ${leftover.length} trailing bytes not parsed`);
     }
@@ -129,6 +135,8 @@ async function loadImagesForFrame(file: File, record: FrameRecord): Promise<{ [k
 export function useReplayPlayer() {
     const [replay, setReplay] = useState<ReplayState | null>(null);
     const [currentFrame, setCurrentFrame] = useState<WaggleData | null>(null);
+    /** Loading progress from 0 to 1, or null when not loading */
+    const [loadingProgress, setLoadingProgress] = useState<number | null>(null);
 
     const playRef = useRef({
         isPlaying: false,
@@ -163,8 +171,10 @@ export function useReplayPlayer() {
         const sizeMB = (file.size / 1024 / 1024).toFixed(1);
         console.log(`[replay] loading file: ${file.name} (${sizeMB} MB)`);
         const startTime = performance.now();
+        setLoadingProgress(0);
 
-        parseReplayFileStreaming(file).then(({frames, frameRecords}) => {
+        parseReplayFileStreaming(file, setLoadingProgress).then(({frames, frameRecords}) => {
+            setLoadingProgress(null);
             const elapsed = performance.now() - startTime;
             console.log(`[replay] indexed in ${(elapsed / 1000).toFixed(1)}s`);
 
@@ -190,6 +200,7 @@ export function useReplayPlayer() {
             });
             setCurrentFrame(frames[0]);
         }).catch((err) => {
+            setLoadingProgress(null);
             console.error(`[replay] failed to parse file (${sizeMB} MB):`, err);
             alert(`Failed to load replay file (${sizeMB} MB). Error: ${err.message}`);
         });
@@ -295,6 +306,7 @@ export function useReplayPlayer() {
         replay,
         currentFrame,
         loadFile,
+        loadingProgress,
         close,
         setFrameIndex,
         togglePlay,
