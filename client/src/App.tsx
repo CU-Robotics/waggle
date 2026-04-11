@@ -9,6 +9,7 @@ import LogTerminal from "./components/LogTerminal";
 import PlayBar from "./components/PlayBar";
 import {GraphDataToCSV, saveFile} from "./csvHelpter";
 import {createBlobUrl} from "./parseBinary";
+import {buildAviMjpeg} from "./aviWriter";
 
 function App() {
     const ws = useWebSocket();
@@ -31,6 +32,8 @@ function App() {
     const [replayImageData, setReplayImageData] = useState<WaggleData["images"]>({});
     /** Tracks first-appearance order of image keys during replay */
     const imageKeyOrder = useRef<string[]>([]);
+    const [videoExportState, setVideoExportState] = useState<{ imageKey: string; progress: number } | null>(null);
+    const videoExportAbortRef = useRef<AbortController | null>(null);
 
     const inReplayMode = replay !== null;
 
@@ -141,6 +144,82 @@ function App() {
         });
         return () => { cancelled = true; };
     }, [replay?.frameIndex, replay === null, getImagesForFrame]);
+
+    const handleExportVideo = useCallback(async (imageKey: string) => {
+        if (!replay || videoExportState) return;
+
+        const abort = new AbortController();
+        videoExportAbortRef.current = abort;
+        setVideoExportState({imageKey, progress: 0});
+
+        try {
+            const totalFrames = replay.frames.length;
+            const jpegFrames: Uint8Array[] = [];
+            let width = 0, height = 0;
+            let lastFrameData: Uint8Array | null = null;
+
+            for (let i = 0; i < totalFrames; i++) {
+                if (abort.signal.aborted) {
+                    setVideoExportState(null);
+                    return;
+                }
+
+                const images = await getImagesForFrame(i);
+                const img = images[imageKey];
+                if (img) {
+                    lastFrameData = img.image_data;
+                    if (width === 0) {
+                        const bmp = await createImageBitmap(
+                            new Blob([img.image_data], {type: "image/jpeg"})
+                        );
+                        width = bmp.width;
+                        height = bmp.height;
+                        bmp.close();
+                    }
+                }
+
+                if (lastFrameData) {
+                    jpegFrames.push(lastFrameData);
+                }
+
+                if (i % 50 === 0) {
+                    setVideoExportState({imageKey, progress: (i + 1) / totalFrames});
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
+
+            if (jpegFrames.length === 0 || width === 0) {
+                alert(`No frames found for "${imageKey}"`);
+                setVideoExportState(null);
+                return;
+            }
+
+            // Compute FPS from timestamps
+            const t0 = replay.frames[0].sent_timestamp;
+            const tN = replay.frames[totalFrames - 1].sent_timestamp;
+            const msPerUnit = t0 > 1e11 ? 1 : 1000;
+            const durationSec = ((tN - t0) * msPerUnit) / 1000;
+            const fps = durationSec > 0 ? Math.round(jpegFrames.length / durationSec) : 30;
+
+            setVideoExportState({imageKey, progress: 1});
+            const blob = buildAviMjpeg(width, height, Math.max(1, Math.min(fps, 120)), jpegFrames);
+
+            if (!abort.signal.aborted) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${imageKey}.avi`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) {
+            console.error("[video export] error:", err);
+            alert(`Video export failed: ${(err as Error).message}`);
+        } finally {
+            setVideoExportState(null);
+            videoExportAbortRef.current = null;
+        }
+    }, [replay, videoExportState, getImagesForFrame]);
 
     const replayGraphData = accGraphs.current;
     const replaySvg = accSvg.current;
@@ -275,6 +354,32 @@ function App() {
                             <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400">
                                 {Math.round(loadingProgress * 100)}%
                             </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Video export overlay */}
+                {videoExportState && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                        <div className="w-80 rounded-2xl bg-white p-6 shadow-lg dark:bg-neutral-800">
+                            <p className="mb-3 text-center text-sm font-semibold dark:text-white">
+                                Exporting {videoExportState.imageKey}...
+                            </p>
+                            <div className="h-3 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-600">
+                                <div
+                                    className="h-full rounded-full bg-blue-500 transition-all duration-150"
+                                    style={{width: `${Math.round(videoExportState.progress * 100)}%`}}
+                                />
+                            </div>
+                            <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400">
+                                {Math.round(videoExportState.progress * 100)}%
+                            </p>
+                            <button
+                                onClick={() => videoExportAbortRef.current?.abort()}
+                                className="mt-3 w-full rounded-lg bg-red-500 px-3 py-1.5 text-sm text-white hover:bg-red-600"
+                            >
+                                Cancel
+                            </button>
                         </div>
                     </div>
                 )}
@@ -439,7 +544,18 @@ function App() {
                                 ).map(([key, value]) => {
                                     return (
                                         <div className="m-2 flex flex-col items-center" key={key}>
-                                            <p>{key}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p>{key}</p>
+                                                {inReplayMode && (
+                                                    <button
+                                                        onClick={() => handleExportVideo(key)}
+                                                        className="rounded p-1 hover:bg-neutral-200 dark:hover:bg-neutral-600"
+                                                        title="Download as video"
+                                                    >
+                                                        <IconDownload size={16}/>
+                                                    </button>
+                                                )}
+                                            </div>
                                             <img
                                                 src={value.blob_url}
                                                 className="rounded-md border"
