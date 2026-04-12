@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import {useCallback, useEffect, useRef, useState} from "react";
 import {GraphData, WaggleData} from "../types";
-import {parseBatch} from "../parseBinary";
+import {createBlobUrl, parseBatch} from "../parseBinary";
 
 const frame_timestamps: number[] = [];
 const event_timestamps: number[] = [];
@@ -25,7 +25,6 @@ export function useWebSocket() {
 
     const handleIncomingMessage = useCallback(
         (all_data: WaggleData[]) => {
-            console.log("data received:", Date.now(), all_data.length)
             for (let i = 0; i < all_data.length; i++) {
                 const data = all_data[i];
                 const lastFrame = i === all_data.length - 1;
@@ -72,6 +71,7 @@ export function useWebSocket() {
                             if (newData[key]?.blob_url) {
                                 URL.revokeObjectURL(newData[key].blob_url!);
                             }
+                            value.blob_url = createBlobUrl(value);
                             newData[key] = value;
                         }
                         return newData;
