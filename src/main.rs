@@ -1,11 +1,7 @@
 use axum::{
-    extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
-    }, response::IntoResponse,
-    routing::{get, post},
-    Json,
-    Router,
+    Json, Router, extract::{
+        Query, State, ws::{Message, WebSocket, WebSocketUpgrade}
+    }, response::IntoResponse, routing::{get, post}
 };
 use futures::StreamExt;
 use parking_lot::Mutex;
@@ -15,8 +11,10 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 use waggle::replay::ReplayManager;
-use waggle::waggle_data::{ImageData, WaggleData, WaggleNonImageData,ConfigurableVarData};
-
+use waggle::waggle_data::{ImageData, WaggleData, WaggleNonImageData, ConfigurableVarData};
+use serde_json::json;
+use reqwest::StatusCode;
+use serde::{Deserialize};
 #[repr(C)]
 pub struct SharedMemHeader {
     write_counter: AtomicU64,
@@ -70,7 +68,7 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         let scale = read_i32(&mut pos)?;
 
         if pos >= buf.len() {
-            return Err("unexpected end of buffer reading flip".into());
+            return Err("unexpected end of bu..upffer reading flip".into());
         }
         let flip = buf[pos] != 0;
         pos += 1;
@@ -92,7 +90,7 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         graph_data: meta.graph_data,
         string_data: meta.string_data,
         log_data: meta.log_data,
-        configurable_var_data: meta.configurable_var_data
+        //configurable_var_data: meta.configurable_var_data
     })
 }
 
@@ -135,27 +133,56 @@ impl WaggleServer {
 
 type ServerState = Arc<WaggleServer>;
 //server get request, sends config data to hive
-async fn send_config_handler(State(server): State<ServerState>) -> Json<serde_json::Value> {
-    let config = server.configurable_vars.lock();
-    match serde_json::to_string(&serde_json::json!({
-        "configurable_ints": config.configurable_ints,
-        "configurable_doubles": config.configurable_doubles,
-    })){
-        Ok(_c)=>{
-            Json(serde_json::json!({
-                "configurable_ints": config.configurable_ints,
-                "configurable_doubles": config.configurable_doubles,
-            }))
-        }
-        Err(e)=>{
-            error!("Failed to GET configurable variables {}", e);
-            Json(serde_json::json!({}))
-        }
+#[derive(Deserialize)]
+struct ConfigurableIntReq{
+    name: String,
+    default:i64
+}
+
+#[derive(Deserialize)]
+struct ConfigurableDoubleReq{
+    name: String,
+    default:f64
+}
+
+async fn send_configurable_int_handler(
+    State(server): State<ServerState>,
+    Query(data): Query<ConfigurableIntReq>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let vars = server.configurable_vars.lock();
+
+    match vars.configurable_ints.get(&data.name) {
+        Some(value) => (StatusCode::OK, Json(json!({ "value": value }))),
+        None => (StatusCode::NOT_FOUND, Json(json!({ "error": "Key not found" }))),
     }
 }
-async fn update_config_handler(State(server): State<ServerState>, Json(data):Json<ConfigurableVarData>){
-    *server.configurable_vars.lock() = data;
+async fn update_configurable_int_handler(
+    State(server): State<ServerState>,
+    Json(data): Json<ConfigurableIntReq>,
+) -> StatusCode {
+    server.configurable_vars.lock().configurable_ints.insert(data.name, data.default);
+    StatusCode::OK
 }
+
+async fn send_configurable_double_handler(
+    State(server): State<ServerState>,
+    Query(data): Query<ConfigurableDoubleReq>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let vars = server.configurable_vars.lock();
+
+    match vars.configurable_ints.get(&data.name) {
+        Some(value) => (StatusCode::OK, Json(json!({ "value": value }))),
+        None => (StatusCode::NOT_FOUND, Json(json!({ "error": "Key not found" }))),
+    }
+}
+async fn update_configurable_double_handler(
+    State(server): State<ServerState>,
+    Json(data): Json<ConfigurableDoubleReq>,
+) -> StatusCode {
+    server.configurable_vars.lock().configurable_doubles.insert(data.name, data.default);
+    StatusCode::OK
+}
+
 async fn ws_handler(
     ws: WebSocketUpgrade,
     State(server): State<ServerState>,
@@ -209,7 +236,7 @@ async fn batch_handler(
         graph_data: data.graph_data,
         string_data: data.string_data,
         log_data: data.log_data,
-        configurable_var_data: data.configurable_var_data,
+        //configurable_var_data: data.configurable_var_data,
     };
     server.add_data_to_batch(waggle_data);
 }
@@ -383,8 +410,10 @@ async fn main() {
         .route("/batch", post(batch_handler))
         .route("/image", post(image_handler))
         .route("/ws", get(ws_handler))
-        .route("/configurable-vars", get(send_config_handler))
-        .route("/configurable-vars", post(update_config_handler))
+        .route("/configurable-int", get(send_configurable_int_handler))
+        .route("/configurable-int", post(update_configurable_int_handler))
+        .route("/configurable-double", get(send_configurable_double_handler))
+        .route("/configurable-double", post(update_configurable_double_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
         .with_state(server);
 

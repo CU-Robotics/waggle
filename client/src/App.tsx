@@ -5,11 +5,13 @@ import {
   IconBrightnessDownFilled,
   IconDownload,
 } from "@tabler/icons-react";
+import ConfigurableVarsEditor from "./components/ConfigurableVarsEditor";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
 import { GraphDataToCSV, saveFile } from "./csvHelpter";
 // import gameField from "./assets/game_field.png";
+
 
 function App() {
   const {
@@ -244,6 +246,10 @@ function App() {
               </div>
             </div>
           </div>
+        </div>
+        {/*Configurable Variables Sections */}
+        <div className="flex">
+                <ConfigurableVarsEditor />
         </div>
       </div>
     </>

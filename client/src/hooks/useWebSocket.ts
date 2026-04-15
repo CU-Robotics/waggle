@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import {useCallback, useEffect, useRef, useState} from "react";
-import {GraphData, WaggleData} from "../types";
+import {ConfigurableVarData, ConfigurableVarDataWebSocketMessage, GraphData, WaggleData, WaggleDataWebSocketMessage, WebSocketMessage} from "../types";
 import {parseBatch} from "../parseBinary";
 
 const frame_timestamps: number[] = [];
@@ -18,101 +18,129 @@ export function useWebSocket() {
     const [stringData, setStringData] = useState<WaggleData["string_data"]>({});
     const [logData, setLogData] = useState<{ [key: string]: string[] }>({});
 
+    const [configurableDoubleData, setConfigurableDoubleData] = useState<ConfigurableVarData["configurable_double"]>({});
+    const [configurableIntData, setConfigurableIntData] = useState<ConfigurableVarData["configurable_int"]>({});
+
+
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectAttemptsRef = useRef(0);
     const maxReconnectAttempts = 20;
     const reconnectDelay = 5000;
 
     const handleIncomingMessage = useCallback(
-        (all_data: WaggleData[]) => {
-            console.log("data received:", Date.now(), all_data.length)
-            for (let i = 0; i < all_data.length; i++) {
-                const data = all_data[i];
-                const lastFrame = i === all_data.length - 1;
-                //  Append graph data
-                if (data.graph_data) {
-                    setGraphData((prevData) => {
-                        const newData = {...prevData};
+        (all_data: WebSocketMessage) => {
+            if(all_data.kind === "waggle_data"){
+                console.log("data received:", Date.now(), all_data.data.length)
+                for (let i = 0; i < all_data.data.length; i++) {
+                    const data = all_data.data[i];
+                    const lastFrame = i === all_data.data.length - 1;
+                    //  Append graph data
+                    if (data.graph_data) {
+                        setGraphData((prevData) => {
+                            const newData = {...prevData};
 
-                        for (const [graph_name, _graph_points] of Object.entries(
-                            data.graph_data,
-                        )) {
-                            const graph_points: GraphData[] = _graph_points;
-                            if (!newData[graph_name]) {
-                                newData[graph_name] = [];
-                            }
-                            const updatedArray = [...newData[graph_name]];
-
-                            for (const point of graph_points) {
-                                if (point.settings?.clear_data) {
-                                    console.log(`Clearing ${graph_name}`);
-                                    if (updatedArray.length > 0) {
-                                        updatedArray.splice(0, updatedArray.length);
-                                    }
-                                    continue;
+                            for (const [graph_name, _graph_points] of Object.entries(
+                                data.graph_data,
+                            )) {
+                                const graph_points: GraphData[] = _graph_points;
+                                if (!newData[graph_name]) {
+                                    newData[graph_name] = [];
                                 }
-                                updatedArray.push(point);
-                            }
-                            const trimmedArray =
-                                updatedArray.length > maxDataPoints
-                                    ? updatedArray.slice(updatedArray.length - maxDataPoints)
-                                    : updatedArray;
-                            newData[graph_name] = trimmedArray;
-                        }
-                        return newData;
-                    });
-                }
+                                const updatedArray = [...newData[graph_name]];
 
-                // Update image data
-                if (data.images && lastFrame) {
-                    setImageData((prevData) => {
-                        const newData = {...prevData};
-                        for (const [key, value] of Object.entries(data.images)) {
-                            // Revoke old blob URL to avoid memory leak
-                            if (newData[key]?.blob_url) {
-                                URL.revokeObjectURL(newData[key].blob_url!);
+                                for (const point of graph_points) {
+                                    if (point.settings?.clear_data) {
+                                        console.log(`Clearing ${graph_name}`);
+                                        if (updatedArray.length > 0) {
+                                            updatedArray.splice(0, updatedArray.length);
+                                        }
+                                        continue;
+                                    }
+                                    updatedArray.push(point);
+                                }
+                                const trimmedArray =
+                                    updatedArray.length > maxDataPoints
+                                        ? updatedArray.slice(updatedArray.length - maxDataPoints)
+                                        : updatedArray;
+                                newData[graph_name] = trimmedArray;
                             }
+                            return newData;
+                        });
+                    }
+
+                    // Update image data
+                    if (data.images && lastFrame) {
+                        setImageData((prevData) => {
+                            const newData = {...prevData};
+                            for (const [key, value] of Object.entries(data.images)) {
+                                // Revoke old blob URL to avoid memory leak
+                                if (newData[key]?.blob_url) {
+                                    URL.revokeObjectURL(newData[key].blob_url!);
+                                }
+                                newData[key] = value;
+                            }
+                            return newData;
+                        });
+                    }
+
+                    if (data.svg_data && lastFrame) {
+                        setSvgData((prevData) => {
+                            const newData = {...prevData};
+                            for (const [key, value] of Object.entries(data.svg_data)) {
+                                newData[key] = value;
+                            }
+                            return newData;
+                        });
+                    }
+
+                    if (data.string_data && lastFrame) {
+                        setStringData((prevData) => {
+                            const newData = {...prevData};
+                            for (const [key, value] of Object.entries(data.string_data)) {
+                                newData[key] = value;
+                            }
+                            return newData;
+                        });
+                    }
+
+                    if (data.log_data) {
+                        setLogData((prevData) => {
+                            const newData = {...prevData};
+                            for (const [key, value] of Object.entries(data.log_data)) {
+                                if (!newData[key]) {
+                                    newData[key] = [];
+                                }
+                                const updated = [...newData[key], ...value.lines];
+                                newData[key] = updated.length > maxLogLines
+                                    ? updated.slice(updated.length - maxLogLines)
+                                    : updated;
+                            }
+                            return newData;
+                        });
+                    }
+                }
+                
+            }
+            if(all_data.kind === "configurable_var_data"){
+                let var_data = all_data.data;
+                setConfigurableDoubleData((prevData: {[key: string]: number}) => {
+                    const newData = {...prevData};
+                    for(const [key,value] of Object.entries(var_data.configurable_double)){
+                        if(!newData[key]) {
                             newData[key] = value;
                         }
-                        return newData;
-                    });
-                }
-
-                if (data.svg_data && lastFrame) {
-                    setSvgData((prevData) => {
-                        const newData = {...prevData};
-                        for (const [key, value] of Object.entries(data.svg_data)) {
+                    }
+                    return newData;
+                });
+                setConfigurableIntData((prevData: {[key: string]: number}) => {
+                    const newData = {...prevData};
+                    for(const [key,value] of Object.entries(var_data.configurable_int)){
+                        if(!newData[key]) {
                             newData[key] = value;
                         }
-                        return newData;
-                    });
-                }
-
-                if (data.string_data && lastFrame) {
-                    setStringData((prevData) => {
-                        const newData = {...prevData};
-                        for (const [key, value] of Object.entries(data.string_data)) {
-                            newData[key] = value;
-                        }
-                        return newData;
-                    });
-                }
-
-                if (data.log_data) {
-                    setLogData((prevData) => {
-                        const newData = {...prevData};
-                        for (const [key, value] of Object.entries(data.log_data)) {
-                            if (!newData[key]) {
-                                newData[key] = [];
-                            }
-                            const updated = [...newData[key], ...value.lines];
-                            newData[key] = updated.length > maxLogLines
-                                ? updated.slice(updated.length - maxLogLines)
-                                : updated;
-                        }
-                        return newData;
-                    });
-                }
+                    }
+                    return newData;
+                });
 
             }
         },
@@ -156,9 +184,70 @@ export function useWebSocket() {
                 const buffer: ArrayBuffer = event.data instanceof ArrayBuffer
                     ? event.data
                     : await (event.data as Blob).arrayBuffer();
-                const robot_data: WaggleData[] = parseBatch(buffer);
 
-                if (robot_data.length == 0) {
+                const websocket_message: WebSocketMessage = parseBatch(buffer);
+
+                if(websocket_message.kind === "waggle_data"){
+
+                    let robot_data = websocket_message.data;
+
+                    if (robot_data.length == 0) {
+                        if (wsRef.current) {
+                            const responseData = {};
+                            wsRef.current.send(responseData.toString());
+                        } else {
+                            console.log("wsRef.current is null");
+                        }
+                    }
+                    frame_timestamps.push(Date.now());
+
+                    if (robot_data.length > 0) {
+                        event_timestamps.push(Date.now());
+                    }
+
+                    if (frame_timestamps.length > 100) {
+                        frame_timestamps.shift();
+                        const fps =
+                            1000 /
+                            ((frame_timestamps[frame_timestamps.length - 1] -
+                                    frame_timestamps[0]) /
+                                frame_timestamps.length);
+                        const fps_data: GraphData = {
+                            x: Date.now(),
+                            y: fps,
+                        };
+                        if (robot_data.length > 0) {
+                            const last_robot_data = robot_data[robot_data.length - 1];
+                            if (!last_robot_data.graph_data) {
+                                last_robot_data.graph_data = {};
+                            }
+                            last_robot_data.graph_data.WAGGLE_FPS = [fps_data];
+                        }
+                    }
+
+                    if (event_timestamps.length > 100) {
+                        event_timestamps.shift();
+                        const eps =
+                            1000 /
+                            ((event_timestamps[event_timestamps.length - 1] -
+                                    event_timestamps[0]) /
+                                event_timestamps.length);
+                        const eps_data: GraphData = {
+                            x: Date.now(),
+                            y: eps,
+                        };
+                        if (robot_data.length > 0) {
+                            const last_robot_data = robot_data[robot_data.length - 1];
+                            if (!last_robot_data.graph_data) {
+                                last_robot_data.graph_data = {};
+                            }
+                            last_robot_data.graph_data.EVENTS_PER_SECOND = [eps_data];
+                        }
+                    }
+
+                    // This will now use the updated handleIncomingMessage when maxDataPoints changes
+                    handleIncomingMessage(websocket_message);
+
                     if (wsRef.current) {
                         const responseData = {};
                         wsRef.current.send(responseData.toString());
@@ -166,61 +255,12 @@ export function useWebSocket() {
                         console.log("wsRef.current is null");
                     }
                 }
-                frame_timestamps.push(Date.now());
 
-                if (robot_data.length > 0) {
-                    event_timestamps.push(Date.now());
+                if(websocket_message.kind === "configurable_var_data"){
+
+                    handleIncomingMessage(websocket_message);
                 }
 
-                if (frame_timestamps.length > 100) {
-                    frame_timestamps.shift();
-                    const fps =
-                        1000 /
-                        ((frame_timestamps[frame_timestamps.length - 1] -
-                                frame_timestamps[0]) /
-                            frame_timestamps.length);
-                    const fps_data: GraphData = {
-                        x: Date.now(),
-                        y: fps,
-                    };
-                    if (robot_data.length > 0) {
-                        const last_robot_data = robot_data[robot_data.length - 1];
-                        if (!last_robot_data.graph_data) {
-                            last_robot_data.graph_data = {};
-                        }
-                        last_robot_data.graph_data.WAGGLE_FPS = [fps_data];
-                    }
-                }
-
-                if (event_timestamps.length > 100) {
-                    event_timestamps.shift();
-                    const eps =
-                        1000 /
-                        ((event_timestamps[event_timestamps.length - 1] -
-                                event_timestamps[0]) /
-                            event_timestamps.length);
-                    const eps_data: GraphData = {
-                        x: Date.now(),
-                        y: eps,
-                    };
-                    if (robot_data.length > 0) {
-                        const last_robot_data = robot_data[robot_data.length - 1];
-                        if (!last_robot_data.graph_data) {
-                            last_robot_data.graph_data = {};
-                        }
-                        last_robot_data.graph_data.EVENTS_PER_SECOND = [eps_data];
-                    }
-                }
-
-                // This will now use the updated handleIncomingMessage when maxDataPoints changes
-                handleIncomingMessage(robot_data);
-
-                if (wsRef.current) {
-                    const responseData = {};
-                    wsRef.current.send(responseData.toString());
-                } else {
-                    console.log("wsRef.current is null");
-                }
             };
 
             wsRef.current.onclose = (event) => {
