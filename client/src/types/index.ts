@@ -3,6 +3,7 @@ interface ImageData {
     scale: number;
     flip: boolean;
     blob_url?: string;
+    svg_overlay?: string;
 }
 
 interface SvgData {

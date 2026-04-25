@@ -1,3 +1,4 @@
+use base64::Engine;
 use clap::Parser;
 use easy_svg::elements::{Circle, Rect, Svg, Text};
 use easy_svg::types::Color;
@@ -58,6 +59,7 @@ async fn main() {
             cam.open_stream().expect("Failed to open camera stream");
             println!("Camera opened successfully (MJPEG)");
             let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+            let mut frame_n: u64 = 0;
             loop {
                 let t0 = Instant::now();
                 if let Ok(frame) = cam.frame() {
@@ -67,12 +69,27 @@ async fn main() {
                     let mut hasher = DefaultHasher::new();
                     jpeg_bytes.hash(&mut hasher);
                     let prefix = hasher.finish();
+                    frame_n = frame_n.wrapping_add(1);
+                    let cx = (frame_n % 640) as i32;
+                    let svg_overlay = format!(
+                        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 640 480\" \
+                         preserveAspectRatio=\"none\">\
+                         <rect x=\"{x}\" y=\"160\" width=\"160\" height=\"160\" \
+                         fill=\"none\" stroke=\"lime\" stroke-width=\"4\"/>\
+                         <text x=\"{tx}\" y=\"150\" fill=\"lime\" font-size=\"24\" \
+                         font-family=\"monospace\">camera</text></svg>",
+                        x = cx,
+                        tx = cx + 4,
+                    );
+                    let svg_b64 =
+                        base64::engine::general_purpose::STANDARD.encode(svg_overlay.as_bytes());
                     let resp = rt.block_on(async {
                         cam_client
                             .post("http://localhost:3000/image")
                             .header("x-image-name", "camera")
                             .header("x-image-scale", "1")
                             .header("x-image-flip", "false")
+                            .header("x-image-svg-overlay-base64", svg_b64)
                             .body(jpeg_bytes)
                             .send()
                             .await

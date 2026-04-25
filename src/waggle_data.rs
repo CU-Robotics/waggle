@@ -7,6 +7,7 @@ pub struct ImageData {
     pub image_data: Vec<u8>,
     pub scale: i32,
     pub flip: bool,
+    pub svg_overlay: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,7 +76,9 @@ fn push_u32(out: &mut Vec<u8>, val: usize) -> Result<(), String> {
 
 impl WaggleData {
     /// Serialize to the binary wire format used for WebSocket and replay:
-    /// [u32 json_len][json][u32 num_images][per image: u32 name_len, name, i32 scale, u8 flip, u32 data_len, jpeg]
+    /// [u32 json_len][json][u32 num_images][per image: u32 name_len, name, i32 scale, u8 flip,
+    ///   u32 data_len, jpeg, u32 svg_len, svg_bytes]
+    /// svg_len = 0 means no overlay.
     pub fn to_binary(&self) -> Result<Vec<u8>, String> {
         let non_image = WaggleNonImageData {
             sent_timestamp: self.sent_timestamp,
@@ -98,6 +101,9 @@ impl WaggleData {
             out.push(if img.flip { 1 } else { 0 });
             push_u32(&mut out, img.image_data.len())?;
             out.extend_from_slice(&img.image_data);
+            let svg_bytes = img.svg_overlay.as_deref().unwrap_or("").as_bytes();
+            push_u32(&mut out, svg_bytes.len())?;
+            out.extend_from_slice(svg_bytes);
         }
         Ok(out)
     }

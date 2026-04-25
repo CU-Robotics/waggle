@@ -20,7 +20,7 @@ function parseReplayFile(buffer: ArrayBuffer): WaggleData[] {
         }
     }
     const header = new TextDecoder().decode(bytes.slice(0, headerEnd));
-    const expectedHeader = 'SCHEMA 3\n';
+    const expectedHeader = 'SCHEMA 4\n';
     if (header != expectedHeader) {
         alert("Found Header: " + header + "\nExpected Header: " + expectedHeader)
     }

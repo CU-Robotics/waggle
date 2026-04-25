@@ -25,6 +25,9 @@ function App() {
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
     const [isDragging, setIsDragging] = useState(false);
+    const [imageVariants, setImageVariants] = useState<{
+        [key: string]: "image" | "overlay" | "side-by-side";
+    }>({});
 
     const inReplayMode = replay !== null;
 
@@ -375,14 +378,63 @@ function App() {
                         <div className="flex items-center justify-center">
                             <div className="m-2 flex flex-wrap">
                                 {Object.entries(imageData).map(([key, value]) => {
+                                    const hasOverlay = !!value.svg_overlay;
+                                    const variant =
+                                        imageVariants[key] ??
+                                        (hasOverlay ? "overlay" : "image");
+                                    const showImage =
+                                        variant === "image" || variant === "side-by-side";
+                                    const showOverlay =
+                                        hasOverlay &&
+                                        (variant === "overlay" || variant === "side-by-side");
                                     return (
                                         <div className="m-2 flex flex-col items-center" key={key}>
-                                            <p>{key}</p>
-                                            <img
-                                                src={value.blob_url}
-                                                className="rounded-md border"
-                                                alt="no source"
-                                            />
+                                            <div className="mb-1 flex items-center gap-2">
+                                                <p>{key}</p>
+                                                {hasOverlay && (
+                                                    <select
+                                                        value={variant}
+                                                        onChange={(e) =>
+                                                            setImageVariants((prev) => ({
+                                                                ...prev,
+                                                                [key]: e.target
+                                                                    .value as typeof variant,
+                                                            }))
+                                                        }
+                                                        className="rounded border px-1 py-0.5 text-xs dark:bg-neutral-800"
+                                                    >
+                                                        <option value="image">Image only</option>
+                                                        <option value="overlay">Overlay</option>
+                                                        <option value="side-by-side">
+                                                            Side by side
+                                                        </option>
+                                                    </select>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                {showImage && (
+                                                    <img
+                                                        src={value.blob_url}
+                                                        className="rounded-md border"
+                                                        alt="no source"
+                                                    />
+                                                )}
+                                                {showOverlay && (
+                                                    <div className="relative inline-block">
+                                                        <img
+                                                            src={value.blob_url}
+                                                            className="block rounded-md border"
+                                                            alt="no source"
+                                                        />
+                                                        <div
+                                                            className="pointer-events-none absolute inset-0 [&>svg]:h-full [&>svg]:w-full"
+                                                            dangerouslySetInnerHTML={{
+                                                                __html: value.svg_overlay!,
+                                                            }}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })}

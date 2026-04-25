@@ -82,7 +82,7 @@ impl ReplayManager {
                 },
             };
 
-        let file_header = b"SCHEMA 3\n";
+        let file_header = b"SCHEMA 4\n";
         file.write_all(file_header).expect("Failed to write header to file");
         BufWriter::new(file)
     }

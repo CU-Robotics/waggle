@@ -85,7 +85,23 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         let image_bytes = buf[pos..pos + data_len].to_vec();
         pos += data_len;
 
-        images.insert(name, ImageData { image_data: image_bytes, scale, flip });
+        let svg_len: usize =
+            read_u32(&mut pos)?.try_into().map_err(|e| format!("svg_len: {e}"))?;
+        if pos + svg_len > buf.len() {
+            return Err("svg overlay exceeds buffer".into());
+        }
+        let svg_overlay = if svg_len == 0 {
+            None
+        } else {
+            Some(
+                std::str::from_utf8(&buf[pos..pos + svg_len])
+                    .map_err(|e| format!("invalid svg overlay: {e}"))?
+                    .to_owned(),
+            )
+        };
+        pos += svg_len;
+
+        images.insert(name, ImageData { image_data: image_bytes, scale, flip, svg_overlay });
     }
 
     Ok(WaggleData {
@@ -185,6 +201,7 @@ async fn image_handler(
     headers: axum::http::HeaderMap,
     body: axum::body::Bytes,
 ) {
+    use base64::Engine;
     let name =
         headers.get("x-image-name").and_then(|v| v.to_str().ok()).unwrap_or("camera").to_string();
     let scale = headers
@@ -197,9 +214,14 @@ async fn image_handler(
         .and_then(|v| v.to_str().ok())
         .map(|v| v == "true")
         .unwrap_or(false);
+    let svg_overlay = headers
+        .get("x-image-svg-overlay-base64")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| base64::engine::general_purpose::STANDARD.decode(v).ok())
+        .and_then(|bytes| String::from_utf8(bytes).ok());
 
     debug!("received image '{}' ({} bytes)", name, body.len());
-    let image_data = ImageData { image_data: body.to_vec(), scale, flip };
+    let image_data = ImageData { image_data: body.to_vec(), scale, flip, svg_overlay };
 
     let mut data = WaggleData::default();
     data.images.insert(name.clone(), image_data.clone());
