@@ -8,23 +8,32 @@ import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
 import PlayBar from "./components/PlayBar";
 import {GraphDataToCSV, saveFile} from "./csvHelpter";
+import {createBlobUrl} from "./parseBinary";
+import {buildAviMjpeg} from "./aviWriter";
 
 function App() {
     const ws = useWebSocket();
     const {
         replay,
         loadFile,
+        loadingProgress,
         close: closeReplay,
         setFrameIndex,
         togglePlay,
         setSpeed,
         stepForward,
         stepBackward,
+        getImagesForFrame,
     } = useReplayPlayer();
 
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
     const [isDragging, setIsDragging] = useState(false);
+    const [replayImageData, setReplayImageData] = useState<WaggleData["images"]>({});
+    /** Tracks first-appearance order of image keys during replay */
+    const imageKeyOrder = useRef<string[]>([]);
+    const [videoExportState, setVideoExportState] = useState<{ imageKey: string; progress: number } | null>(null);
+    const videoExportAbortRef = useRef<AbortController | null>(null);
 
     const inReplayMode = replay !== null;
 
@@ -32,7 +41,6 @@ function App() {
     // recompute from scratch only when scrubbing backwards.
     const lastIdx = useRef(-1);
     const accGraphs = useRef<{ [key: string]: { x: number; y: number }[] }>({});
-    const accImages = useRef<WaggleData["images"]>({});
     const accSvg = useRef<WaggleData["svg_data"]>({});
     const accStrings = useRef<WaggleData["string_data"]>({});
     const accLogs = useRef<{ [key: string]: string[] }>({});
@@ -44,7 +52,6 @@ function App() {
         if (!replayFrames) {
             lastIdx.current = -1;
             accGraphs.current = {};
-            accImages.current = {};
             accSvg.current = {};
             accStrings.current = {};
             accLogs.current = {};
@@ -56,7 +63,6 @@ function App() {
         // Scrubbed backwards — reset and recompute from 0
         if (target < lastIdx.current) {
             accGraphs.current = {};
-            accImages.current = {};
             accSvg.current = {};
             accStrings.current = {};
             accLogs.current = {};
@@ -77,12 +83,6 @@ function App() {
                         }
                         accGraphs.current[key].push(p);
                     }
-                }
-            }
-
-            if (frame.images) {
-                for (const [k, v] of Object.entries(frame.images)) {
-                    accImages.current[k] = v;
                 }
             }
 
@@ -109,14 +109,125 @@ function App() {
         lastIdx.current = target;
     }, [replayFrames, replayFrameIndex]);
 
+    // Lazy-load images from file for the current replay frame
+    useEffect(() => {
+        if (!replay) {
+            setReplayImageData((prev) => {
+                for (const img of Object.values(prev)) {
+                    if (img.blob_url) URL.revokeObjectURL(img.blob_url);
+                }
+                return {};
+            });
+            imageKeyOrder.current = [];
+            return;
+        }
+        let cancelled = false;
+        getImagesForFrame(replay.frameIndex).then((images) => {
+            if (cancelled) return;
+            setReplayImageData((prev) => {
+                // Merge: keep previous images, update with new ones
+                const result: WaggleData["images"] = {...prev};
+                for (const [k, v] of Object.entries(images)) {
+                    // Revoke old blob URL for this key
+                    if (result[k]?.blob_url) {
+                        URL.revokeObjectURL(result[k].blob_url!);
+                    }
+                    v.blob_url = createBlobUrl(v);
+                    result[k] = v;
+                    // Track insertion order
+                    if (!imageKeyOrder.current.includes(k)) {
+                        imageKeyOrder.current.push(k);
+                    }
+                }
+                return result;
+            });
+        });
+        return () => { cancelled = true; };
+    }, [replay?.frameIndex, replay === null, getImagesForFrame]);
+
+    const handleExportVideo = useCallback(async (imageKey: string) => {
+        if (!replay || videoExportState) return;
+
+        const abort = new AbortController();
+        videoExportAbortRef.current = abort;
+        setVideoExportState({imageKey, progress: 0});
+
+        try {
+            const totalFrames = replay.frames.length;
+            const jpegFrames: Uint8Array[] = [];
+            let width = 0, height = 0;
+            let lastFrameData: Uint8Array | null = null;
+
+            for (let i = 0; i < totalFrames; i++) {
+                if (abort.signal.aborted) {
+                    setVideoExportState(null);
+                    return;
+                }
+
+                const images = await getImagesForFrame(i);
+                const img = images[imageKey];
+                if (img) {
+                    lastFrameData = img.image_data;
+                    if (width === 0) {
+                        const bmp = await createImageBitmap(
+                            new Blob([img.image_data], {type: "image/jpeg"})
+                        );
+                        width = bmp.width;
+                        height = bmp.height;
+                        bmp.close();
+                    }
+                }
+
+                if (lastFrameData) {
+                    jpegFrames.push(lastFrameData);
+                }
+
+                if (i % 50 === 0) {
+                    setVideoExportState({imageKey, progress: (i + 1) / totalFrames});
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
+
+            if (jpegFrames.length === 0 || width === 0) {
+                alert(`No frames found for "${imageKey}"`);
+                setVideoExportState(null);
+                return;
+            }
+
+            // Compute FPS from timestamps
+            const t0 = replay.frames[0].sent_timestamp;
+            const tN = replay.frames[totalFrames - 1].sent_timestamp;
+            const msPerUnit = t0 > 1e11 ? 1 : 1000;
+            const durationSec = ((tN - t0) * msPerUnit) / 1000;
+            const fps = durationSec > 0 ? Math.round(jpegFrames.length / durationSec) : 30;
+
+            setVideoExportState({imageKey, progress: 1});
+            const blob = buildAviMjpeg(width, height, Math.max(1, Math.min(fps, 120)), jpegFrames);
+
+            if (!abort.signal.aborted) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${imageKey}.avi`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) {
+            console.error("[video export] error:", err);
+            alert(`Video export failed: ${(err as Error).message}`);
+        } finally {
+            setVideoExportState(null);
+            videoExportAbortRef.current = null;
+        }
+    }, [replay, videoExportState, getImagesForFrame]);
+
     const replayGraphData = accGraphs.current;
-    const replayImages = accImages.current;
     const replaySvg = accSvg.current;
     const replayStrings = accStrings.current;
     const replayLogs = accLogs.current;
 
     const graphData = inReplayMode ? replayGraphData : ws.graphData;
-    const imageData = inReplayMode ? replayImages : ws.imageData;
+    const imageData = inReplayMode ? replayImageData : ws.imageData;
     const svgData = inReplayMode ? replaySvg : ws.svgData;
     const stringData = inReplayMode ? replayStrings : ws.stringData;
     const logData = inReplayMode ? replayLogs : ws.logData;
@@ -144,9 +255,16 @@ function App() {
             e.stopPropagation();
             setIsDragging(false);
             const file = e.dataTransfer.files[0];
-            if (file && file.name.endsWith(".waggle")) {
-                loadFile(file);
+            if (!file) {
+                console.warn("[replay] drop event had no files");
+                return;
             }
+            console.log(`[replay] dropped file: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB, type: "${file.type}")`);
+            if (!file.name.endsWith(".waggle")) {
+                console.warn(`[replay] rejected file: expected .waggle extension`);
+                return;
+            }
+            loadFile(file);
         },
         [loadFile],
     );
@@ -216,6 +334,52 @@ function App() {
                         <div
                             className="rounded-2xl border-4 border-dashed border-blue-500 bg-white/80 px-12 py-8 text-xl font-bold text-blue-700 dark:bg-neutral-800/80 dark:text-blue-300">
                             Drop .waggle replay file
+                        </div>
+                    </div>
+                )}
+
+                {/* Loading overlay */}
+                {loadingProgress !== null && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                        <div className="w-80 rounded-2xl bg-white p-6 shadow-lg dark:bg-neutral-800">
+                            <p className="mb-3 text-center text-sm font-semibold dark:text-white">
+                                Loading replay...
+                            </p>
+                            <div className="h-3 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-600">
+                                <div
+                                    className="h-full rounded-full bg-blue-500 transition-all duration-150"
+                                    style={{width: `${Math.round(loadingProgress * 100)}%`}}
+                                />
+                            </div>
+                            <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400">
+                                {Math.round(loadingProgress * 100)}%
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Video export overlay */}
+                {videoExportState && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                        <div className="w-80 rounded-2xl bg-white p-6 shadow-lg dark:bg-neutral-800">
+                            <p className="mb-3 text-center text-sm font-semibold dark:text-white">
+                                Exporting {videoExportState.imageKey}...
+                            </p>
+                            <div className="h-3 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-600">
+                                <div
+                                    className="h-full rounded-full bg-blue-500 transition-all duration-150"
+                                    style={{width: `${Math.round(videoExportState.progress * 100)}%`}}
+                                />
+                            </div>
+                            <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400">
+                                {Math.round(videoExportState.progress * 100)}%
+                            </p>
+                            <button
+                                onClick={() => videoExportAbortRef.current?.abort()}
+                                className="mt-3 w-full rounded-lg bg-red-500 px-3 py-1.5 text-sm text-white hover:bg-red-600"
+                            >
+                                Cancel
+                            </button>
                         </div>
                     </div>
                 )}
@@ -374,10 +538,24 @@ function App() {
                     <div className="m-2 flex w-3/4 flex-col rounded-md border">
                         <div className="flex items-center justify-center">
                             <div className="m-2 flex flex-wrap">
-                                {Object.entries(imageData).map(([key, value]) => {
+                                {(inReplayMode
+                                    ? imageKeyOrder.current.filter(k => imageData[k]).map(k => [k, imageData[k]] as const)
+                                    : Object.entries(imageData)
+                                ).map(([key, value]) => {
                                     return (
                                         <div className="m-2 flex flex-col items-center" key={key}>
-                                            <p>{key}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p>{key}</p>
+                                                {inReplayMode && (
+                                                    <button
+                                                        onClick={() => handleExportVideo(key)}
+                                                        className="rounded p-1 hover:bg-neutral-200 dark:hover:bg-neutral-600"
+                                                        title="Download as video"
+                                                    >
+                                                        <IconDownload size={16}/>
+                                                    </button>
+                                                )}
+                                            </div>
                                             <img
                                                 src={value.blob_url}
                                                 className="rounded-md border"
