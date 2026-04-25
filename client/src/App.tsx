@@ -387,8 +387,12 @@ function App() {
                                     const showOverlay =
                                         hasOverlay &&
                                         (variant === "overlay" || variant === "side-by-side");
+                                    const sideBySide = variant === "side-by-side";
                                     return (
-                                        <div className="m-2 flex flex-col items-center" key={key}>
+                                        <div
+                                            className="m-2 flex w-full flex-col items-center"
+                                            key={key}
+                                        >
                                             <div className="mb-1 flex items-center gap-2">
                                                 <p>{key}</p>
                                                 {hasOverlay && (
@@ -411,19 +415,29 @@ function App() {
                                                     </select>
                                                 )}
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div
+                                                className={`flex gap-2 ${sideBySide ? "w-full" : ""}`}
+                                            >
                                                 {showImage && (
-                                                    <img
-                                                        src={value.blob_url}
-                                                        className="rounded-md border"
-                                                        alt="no source"
-                                                    />
-                                                )}
-                                                {showOverlay && (
-                                                    <div className="relative inline-block">
+                                                    <div
+                                                        className={
+                                                            sideBySide ? "min-w-0 flex-1" : ""
+                                                        }
+                                                    >
                                                         <img
                                                             src={value.blob_url}
-                                                            className="block rounded-md border"
+                                                            className={`block rounded-md border ${sideBySide ? "h-auto w-full" : ""}`}
+                                                            alt="no source"
+                                                        />
+                                                    </div>
+                                                )}
+                                                {showOverlay && (
+                                                    <div
+                                                        className={`relative ${sideBySide ? "min-w-0 flex-1" : "inline-block"}`}
+                                                    >
+                                                        <img
+                                                            src={value.blob_url}
+                                                            className={`block rounded-md border ${sideBySide ? "h-auto w-full" : ""}`}
                                                             alt="no source"
                                                         />
                                                         <div
