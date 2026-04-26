@@ -27,12 +27,21 @@ interface LogData {
     lines: string[];
 }
 
+interface EventTraceData {
+    sequence: number;
+    virtual_timestamp_secs: number;
+    operation: string;
+    channel_name: string;
+    payload_json?: string;
+}
+
 interface WaggleNonImageData {
     sent_timestamp: number;
     svg_data: { [key: string]: SvgData };
     graph_data: { [key: string]: Array<GraphDataPoint> };
     string_data: { [key: string]: StringData };
     log_data: { [key: string]: LogData };
+    event_trace_data: { [key: string]: Array<EventTraceData> };
 }
 
 interface WaggleData {
@@ -42,6 +51,7 @@ interface WaggleData {
     graph_data: { [key: string]: Array<GraphDataPoint> };
     string_data: { [key: string]: StringData };
     log_data: { [key: string]: LogData };
+    event_trace_data: { [key: string]: Array<EventTraceData> };
 }
 
 export type {
@@ -49,6 +59,7 @@ export type {
     GraphDataPoint as GraphData,
     StringData,
     LogData,
+    EventTraceData,
     WaggleData,
     WaggleNonImageData,
 };

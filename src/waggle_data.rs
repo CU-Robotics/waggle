@@ -29,6 +29,16 @@ pub struct StringData {
 pub struct LogData {
     pub lines: Vec<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventTraceData {
+    pub sequence: u64,
+    pub virtual_timestamp_secs: f64,
+    pub operation: String,
+    pub channel_name: String,
+    #[serde(default)]
+    pub payload_json: Option<String>,
+}
 impl Into<StringData> for String {
     fn into(self) -> StringData {
         StringData { value: self }
@@ -43,6 +53,7 @@ pub struct WaggleData {
     pub graph_data: HashMap<String, Vec<GraphData>>,
     pub string_data: HashMap<String, StringData>,
     pub log_data: HashMap<String, LogData>,
+    pub event_trace_data: HashMap<String, Vec<EventTraceData>>,
 }
 impl Default for WaggleData {
     fn default() -> Self {
@@ -53,6 +64,7 @@ impl Default for WaggleData {
             graph_data: HashMap::new(),
             string_data: HashMap::new(),
             log_data: HashMap::new(),
+            event_trace_data: HashMap::new(),
         }
     }
 }
@@ -65,6 +77,8 @@ pub struct WaggleNonImageData {
     pub string_data: HashMap<String, StringData>,
     #[serde(default)]
     pub log_data: HashMap<String, LogData>,
+    #[serde(default)]
+    pub event_trace_data: HashMap<String, Vec<EventTraceData>>,
 }
 
 fn push_u32(out: &mut Vec<u8>, val: usize) -> Result<(), String> {
@@ -83,6 +97,7 @@ impl WaggleData {
             graph_data: self.graph_data.clone(),
             string_data: self.string_data.clone(),
             log_data: self.log_data.clone(),
+            event_trace_data: self.event_trace_data.clone(),
         };
         let json = serde_json::to_vec(&non_image).map_err(|e| format!("json error: {e}"))?;
 
