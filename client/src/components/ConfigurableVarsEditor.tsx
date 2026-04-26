@@ -1,236 +1,208 @@
-import { useState, useEffect } from "react";
-import { ConfigurableVarData } from "../types";
+import { useState, useCallback } from "react";
 
 interface ConfigurableVarsEditorProps {
-  endpoint?: string;
+  configurableDoubleData: { [key: string]: number };
+  configurableIntData: { [key: string]: number };
+  sendMessage: (msg: object) => void;
 }
 
-function ConfigurableVarsEditor({
-  endpoint = "http://localhost:3000/configurable-vars",
+type VarType = "double" | "int";
+
+interface PendingChange {
+  type: VarType;
+  key: string;
+  value: number;
+}
+
+export function ConfigurableVarsEditor({
+  configurableDoubleData,
+  configurableIntData,
+  sendMessage,
 }: ConfigurableVarsEditorProps) {
-  const [currentDoubles, setCurrentDoubles] = useState<ConfigurableVarData["configurable_double"]>({});
-  const [currentInts, setCurrentInts] = useState<ConfigurableVarData["configurable_int"]>({});
+  const [edits, setEdits] = useState<{ [key: string]: number }>({});
+  const [sentKeys, setSentKeys] = useState<Set<string>>(new Set());
 
-  // Edited values stored as strings for input compatibility, parsed on submit
-  const [editedDoubles, setEditedDoubles] = useState<{ [key: string]: string }>({});
-  const [editedInts, setEditedInts] = useState<{ [key: string]: string }>({});
+  const compositeKey = (type: VarType, key: string) => `${type}::${key}`;
 
-  const [status, setStatus] = useState<{ message: string; type: "idle" | "success" | "error" }>({
-    message: "",
-    type: "idle",
-  });
-  const [loading, setLoading] = useState(true);
-
-  const fetchVars = async () => {
-    setLoading(true);
-    setStatus({ message: "", type: "idle" });
-    try {
-      const res = await fetch(endpoint);
-      const data: ConfigurableVarData = await res.json();
-
-      setCurrentDoubles(data.configurable_double ?? {});
-      setCurrentInts(data.configurable_int ?? {});
-
-      setEditedDoubles(
-        Object.fromEntries(Object.entries(data.configurable_double ?? {}).map(([k, v]) => [k, String(v)]))
-      );
-      setEditedInts(
-        Object.fromEntries(Object.entries(data.configurable_int ?? {}).map(([k, v]) => [k, String(v)]))
-      );
-    } catch {
-      setStatus({ message: "Could not reach server — showing mock data.", type: "error" });
-      const mockDoubles: ConfigurableVarData["configurable_double"] = {
-        max_speed: 120.0,
-        timeout_ms: 5000.0,
-      };
-      const mockInts: ConfigurableVarData["configurable_int"] = {
-        retry_count: 3,
-        log_level: 1,
-      };
-      setCurrentDoubles(mockDoubles);
-      setCurrentInts(mockInts);
-      setEditedDoubles(Object.fromEntries(Object.entries(mockDoubles).map(([k, v]) => [k, String(v)])));
-      setEditedInts(Object.fromEntries(Object.entries(mockInts).map(([k, v]) => [k, String(v)])));
-    } finally {
-      setLoading(false);
-    }
+  const getEditedValue = (type: VarType, key: string): number => {
+    const ck = compositeKey(type, key);
+    return ck in edits
+      ? edits[ck]
+      : type === "double"
+        ? configurableDoubleData[key]
+        : configurableIntData[key];
   };
 
-  useEffect(() => {
-    fetchVars();
-  }, []);
-
-  const handleEditDouble = (key: string, value: string) => {
-    setEditedDoubles((prev) => ({ ...prev, [key]: value }));
+  const isDirty = (type: VarType, key: string): boolean => {
+    const ck = compositeKey(type, key);
+    if (!(ck in edits)) return false;
+    const original =
+      type === "double" ? configurableDoubleData[key] : configurableIntData[key];
+    return edits[ck] !== original;
   };
 
-  const handleEditInt = (key: string, value: string) => {
-    setEditedInts((prev) => ({ ...prev, [key]: value }));
-  };
+  const wasSent = (type: VarType, key: string) =>
+    sentKeys.has(compositeKey(type, key));
 
-  const handleSubmit = async () => {
-    const changedDoubles: ConfigurableVarData["configurable_double"] = {};
-    for (const key of Object.keys(editedDoubles)) {
-      const parsed = parseFloat(editedDoubles[key]);
-      if (!isNaN(parsed) && parsed !== currentDoubles[key]) {
-        changedDoubles[key] = parsed;
-      }
-    }
+  const allDirty: PendingChange[] = [
+    ...Object.keys(configurableDoubleData)
+      .filter((k) => isDirty("double", k))
+      .map((k) => ({ type: "double" as VarType, key: k, value: edits[compositeKey("double", k)] })),
+    ...Object.keys(configurableIntData)
+      .filter((k) => isDirty("int", k))
+      .map((k) => ({ type: "int" as VarType, key: k, value: edits[compositeKey("int", k)] })),
+  ];
 
-    const changedInts: ConfigurableVarData["configurable_int"] = {};
-    for (const key of Object.keys(editedInts)) {
-      const parsed = parseInt(editedInts[key]);
-      if (!isNaN(parsed) && parsed !== currentInts[key]) {
-        changedInts[key] = parsed;
-      }
-    }
-
-    const totalChanged = Object.keys(changedDoubles).length + Object.keys(changedInts).length;
-    if (totalChanged === 0) {
-      setStatus({ message: "No changes to submit.", type: "idle" });
-      return;
-    }
-
-    const payload: ConfigurableVarData = {
-      configurable_double: changedDoubles,
-      configurable_int: changedInts,
-    };
-
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+  const handleChange = useCallback(
+    (type: VarType, key: string, raw: string) => {
+      const value = type === "double" ? parseFloat(raw) : parseInt(raw, 10);
+      if (isNaN(value)) return;
+      setEdits((prev) => ({ ...prev, [compositeKey(type, key)]: value }));
+      setSentKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(compositeKey(type, key));
+        return next;
       });
-
-      if (res.ok) {
-        setCurrentDoubles((prev) => ({ ...prev, ...changedDoubles }));
-        setCurrentInts((prev) => ({ ...prev, ...changedInts }));
-        setStatus({ message: `${totalChanged} variable(s) saved.`, type: "success" });
-      } else {
-        setStatus({ message: "Server returned an error.", type: "error" });
-      }
-    } catch {
-      setStatus({ message: "Could not reach server.", type: "error" });
-    }
-  };
-
-  const isDoubleEdited = (key: string) =>
-    parseFloat(editedDoubles[key]) !== currentDoubles[key];
-  const isIntEdited = (key: string) =>
-    parseInt(editedInts[key]) !== currentInts[key];
-
-  const hasChanges =
-    Object.keys(editedDoubles).some(isDoubleEdited) ||
-    Object.keys(editedInts).some(isIntEdited);
-
-  const renderRow = (
-    key: string,
-    value: string,
-    edited: boolean,
-    onChange: (k: string, v: string) => void,
-    inputType: "float" | "int"
-  ) => (
-    <div key={key} className="flex items-center gap-3 py-2">
-      <span className="font-mono text-sm text-neutral-500 dark:text-neutral-400 min-w-[140px] break-all">
-        {key}
-      </span>
-      <input
-        type="number"
-        step={inputType === "float" ? "any" : "1"}
-        value={value}
-        onChange={(e) => onChange(key, e.target.value)}
-        className="flex-1 rounded border px-2 py-1 text-sm bg-transparent focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:bg-neutral-800"
-      />
-      <span
-        className={`text-xs px-2 py-0.5 rounded border whitespace-nowrap ${
-          edited
-            ? "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900 dark:text-amber-200 dark:border-amber-700"
-            : "bg-neutral-100 text-neutral-400 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-500 dark:border-neutral-700"
-        }`}
-      >
-        {edited ? "edited" : "saved"}
-      </span>
-    </div>
+    },
+    []
   );
 
-  const hasDoubles = Object.keys(editedDoubles).length > 0;
-  const hasInts = Object.keys(editedInts).length > 0;
+  const dispatchChange = useCallback(
+    (change: PendingChange) => {
+      sendMessage({
+        kind: "set_configurable_var",
+        type: change.type,
+        key: change.key,
+        value: change.value,
+      });
+      setSentKeys((prev) => new Set(prev).add(compositeKey(change.type, change.key)));
+    },
+    [sendMessage]
+  );
 
-  return (
-    <div className="rounded-lg border p-4 w-full max-w-xl">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="font-semibold">Configurable Variables</h3>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            Edit and submit configuration values
-          </p>
-        </div>
+  const sendOne = (type: VarType, key: string) =>
+    dispatchChange({ type, key, value: getEditedValue(type, key) });
+
+  const sendAll = () => allDirty.forEach(dispatchChange);
+
+  const resetAll = () => {
+    setEdits({});
+    setSentKeys(new Set());
+  };
+
+  const renderRow = (type: VarType, key: string) => {
+    const dirty = isDirty(type, key);
+    const sent = wasSent(type, key);
+    const value = getEditedValue(type, key);
+
+    let statusText = "saved";
+    let statusColor = "var(--color-text-tertiary)";
+    if (dirty) { statusText = "edited"; statusColor = "var(--color-text-warning)"; }
+    if (sent)  { statusText = "sent";   statusColor = "var(--color-text-success)"; }
+
+    return (
+      <div key={key} style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0,1.2fr) minmax(0,2fr) 64px 56px",
+        alignItems: "center",
+        gap: 12,
+        padding: "8px 12px",
+        borderRadius: "var(--border-radius-md)",
+        border: "0.5px solid var(--color-border-tertiary)",
+        background: "var(--color-background-primary)",
+        marginBottom: 6,
+      }}>
+        <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={key}>
+          {key}
+        </span>
+        <input
+          type="number"
+          step={type === "double" ? "any" : "1"}
+          value={value}
+          onChange={(e) => handleChange(type, key, e.target.value)}
+          style={{
+            width: "100%", fontSize: 13, padding: "4px 8px", boxSizing: "border-box",
+            height: 30, background: "var(--color-background-secondary)",
+            border: "0.5px solid var(--color-border-secondary)",
+            borderRadius: "var(--border-radius-md)", color: "var(--color-text-primary)",
+          }}
+        />
+        <span style={{ fontSize: 12, color: statusColor, textAlign: "right" }}>
+          {statusText}
+        </span>
         <button
-          onClick={fetchVars}
-          className="text-sm rounded border px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+          disabled={!dirty}
+          onClick={() => sendOne(type, key)}
+          style={{
+            height: 30, padding: "0 10px", fontSize: 12, cursor: dirty ? "pointer" : "default",
+            borderRadius: "var(--border-radius-md)", border: "0.5px solid var(--color-border-secondary)",
+            background: "transparent", color: "var(--color-text-primary)", opacity: dirty ? 1 : 0.35,
+          }}
         >
-          Refresh
+          Send
         </button>
       </div>
+    );
+  };
 
-      {loading ? (
-        <p className="text-sm text-neutral-400 py-4 text-center">Loading variables...</p>
-      ) : !hasDoubles && !hasInts ? (
-        <p className="text-sm text-neutral-400 py-4 text-center">No variables found.</p>
-      ) : (
-        <div className="flex flex-col">
-          {hasDoubles && (
-            <>
-              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 mt-2 mb-1">
-                Doubles
-              </p>
-              <div className="divide-y divide-neutral-200 dark:divide-neutral-700">
-                {Object.keys(editedDoubles).map((key) =>
-                  renderRow(key, editedDoubles[key], isDoubleEdited(key), handleEditDouble, "float")
-                )}
-              </div>
-            </>
-          )}
-          {hasInts && (
-            <>
-              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 mt-4 mb-1">
-                Integers
-              </p>
-              <div className="divide-y divide-neutral-200 dark:divide-neutral-700">
-                {Object.keys(editedInts).map((key) =>
-                  renderRow(key, editedInts[key], isIntEdited(key), handleEditInt, "int")
-                )}
-              </div>
-            </>
-          )}
+  const sectionLabel = (label: string) => (
+    <p style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase",
+      color: "var(--color-text-tertiary)", margin: "0 0 8px" }}>
+      {label}
+    </p>
+  );
+
+  return (
+    <div style={{ padding: "1rem 0", fontFamily: "var(--font-sans)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+        <p style={{ fontSize: 15, fontWeight: 500, margin: 0 }}>Configurable variables</p>
+        {allDirty.length > 0 && (
+          <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: "var(--border-radius-md)",
+            background: "var(--color-background-secondary)", color: "var(--color-text-secondary)",
+            border: "0.5px solid var(--color-border-tertiary)" }}>
+            {allDirty.length} unsent
+          </span>
+        )}
+      </div>
+
+      {Object.keys(configurableDoubleData).length > 0 && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          {sectionLabel("Float (double)")}
+          {Object.keys(configurableDoubleData).map((k) => renderRow("double", k))}
         </div>
       )}
 
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-neutral-200 dark:border-neutral-700">
-        <span
-          className={`text-sm ${
-            status.type === "success"
-              ? "text-green-600 dark:text-green-400"
-              : status.type === "error"
-              ? "text-red-500"
-              : "text-neutral-400"
-          }`}
-        >
-          {status.message}
-        </span>
-        {!loading && (
-          <button
-            onClick={handleSubmit}
-            disabled={!hasChanges}
-            className="text-sm rounded border px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Submit changes
-          </button>
-        )}
+      {Object.keys(configurableIntData).length > 0 && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          {sectionLabel("Integer")}
+          {Object.keys(configurableIntData).map((k) => renderRow("int", k))}
+        </div>
+      )}
+
+      {Object.keys(configurableDoubleData).length === 0 && Object.keys(configurableIntData).length === 0 && (
+        <p style={{ fontSize: 13, color: "var(--color-text-tertiary)", textAlign: "center",
+          padding: 12, border: "0.5px dashed var(--color-border-tertiary)",
+          borderRadius: "var(--border-radius-md)" }}>
+          No configurable variables received yet
+        </p>
+      )}
+
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: "1rem",
+        paddingTop: "1rem", borderTop: "0.5px solid var(--color-border-tertiary)" }}>
+        <button disabled={allDirty.length === 0} onClick={resetAll}
+          style={{ height: 30, padding: "0 10px", fontSize: 12, cursor: "pointer",
+            borderRadius: "var(--border-radius-md)", border: "0.5px solid var(--color-border-secondary)",
+            background: "transparent", opacity: allDirty.length === 0 ? 0.35 : 1 }}>
+          Reset all
+        </button>
+        <button disabled={allDirty.length === 0} onClick={sendAll}
+          style={{ height: 30, padding: "0 12px", fontSize: 12, cursor: "pointer",
+            borderRadius: "var(--border-radius-md)", border: "0.5px solid var(--color-border-primary)",
+            background: "var(--color-background-primary)", opacity: allDirty.length === 0 ? 0.35 : 1 }}>
+          Send all changes
+        </button>
       </div>
     </div>
   );
 }
-
 export default ConfigurableVarsEditor;

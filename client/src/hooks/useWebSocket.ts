@@ -21,7 +21,6 @@ export function useWebSocket() {
     const [configurableDoubleData, setConfigurableDoubleData] = useState<ConfigurableVarData["configurable_double"]>({});
     const [configurableIntData, setConfigurableIntData] = useState<ConfigurableVarData["configurable_int"]>({});
 
-
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectAttemptsRef = useRef(0);
     const maxReconnectAttempts = 20;
@@ -293,5 +292,7 @@ export function useWebSocket() {
         setMaxDataPoints,
         maxLogLines,
         setMaxLogLines,
+        configurableDoubleData,
+        configurableIntData
     };
 }

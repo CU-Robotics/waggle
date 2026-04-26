@@ -25,6 +25,8 @@ function App() {
     setMaxDataPoints,
     maxLogLines,
     setMaxLogLines,
+    configurableDoubleData,
+    configurableIntData,
   } = useWebSocket();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
@@ -249,7 +251,10 @@ function App() {
         </div>
         {/*Configurable Variables Sections */}
         <div className="flex">
-                <ConfigurableVarsEditor />
+              <ConfigurableVarsEditor
+              configurableDoubleData={configurableDoubleData}
+              configurableIntData={configurableIntData}
+              />
         </div>
       </div>
     </>
