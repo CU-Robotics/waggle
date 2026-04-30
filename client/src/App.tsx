@@ -12,6 +12,7 @@ import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
 import PlayBar from "./components/PlayBar";
 import { GraphDataToCSV, saveFile } from "./csvHelpter";
+import { buildAviDib } from "./aviWriter";
 
 type ImageViewSelection = {
   base?: boolean;
@@ -42,6 +43,97 @@ function getImageOverlayEntries(value: WaggleData["images"][string]) {
   return [["overlay", value.svg_overlay]];
 }
 
+function saveBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const element = document.createElement("a");
+  element.href = url;
+  element.download = filename;
+  element.style.display = "none";
+  document.body.appendChild(element);
+  element.click();
+  document.body.removeChild(element);
+
+  // Chrome can cancel large blob downloads if the object URL is revoked
+  // before the browser has handed the blob off to the download manager.
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+function sanitizeFilenamePart(value: string) {
+  return value.replace(/[^a-z0-9._-]+/gi, "_").replace(/^_+|_+$/g, "");
+}
+
+function loadImage(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(blob);
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to decode image frame."));
+    };
+    image.src = url;
+  });
+}
+
+function normalizeSvgForImage(svg: string) {
+  if (!svg.trimStart().startsWith("<svg") || svg.includes("xmlns=")) {
+    return svg;
+  }
+
+  return svg.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
+}
+
+async function renderImageFrame(
+  imageData: WaggleData["images"][string],
+  overlaySvg?: string,
+) {
+  const baseImage = await loadImage(
+    new Blob([imageData.image_data], { type: "image/jpeg" }),
+  );
+  const width = baseImage.naturalWidth || baseImage.width;
+  const height = baseImage.naturalHeight || baseImage.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Could not create video export canvas.");
+  }
+
+  context.drawImage(baseImage, 0, 0, width, height);
+
+  if (overlaySvg) {
+    const overlayImage = await loadImage(
+      new Blob([normalizeSvgForImage(overlaySvg)], { type: "image/svg+xml" }),
+    );
+    context.drawImage(overlayImage, 0, 0, width, height);
+  }
+
+  return {
+    width,
+    height,
+    data: context.getImageData(0, 0, width, height).data,
+  };
+}
+
+function getReplayVideoFps(frames: WaggleData[]) {
+  if (frames.length < 2) return 1;
+
+  const start = frames[0].sent_timestamp;
+  const end = frames[frames.length - 1].sent_timestamp;
+  const msPerUnit = start > 1e11 ? 1 : 1000;
+  const durationSeconds = (Math.abs(end - start) * msPerUnit) / 1000;
+  if (durationSeconds <= 0) return 30;
+
+  return Math.max(
+    1,
+    Math.min(120, Math.round((frames.length - 1) / durationSeconds)),
+  );
+}
+
 function App() {
   const ws = useWebSocket();
   const {
@@ -62,6 +154,7 @@ function App() {
   const [imageViewSelections, setImageViewSelections] = useState<{
     [key: string]: ImageViewSelection;
   }>({});
+  const [exportingVideo, setExportingVideo] = useState<string | null>(null);
 
   const inReplayMode = replay !== null;
 
@@ -242,6 +335,64 @@ function App() {
         },
       },
     }));
+  };
+
+  const exportReplayImageVideo = async (
+    imageKey: string,
+    overlayKey?: string,
+  ) => {
+    if (!replay || exportingVideo) return;
+
+    const exportKey = overlayKey
+      ? `${imageKey}-${overlayKey}`
+      : `${imageKey}-base`;
+    setExportingVideo(exportKey);
+    try {
+      const renderedFrames: Uint8ClampedArray[] = [];
+      let width = 0;
+      let height = 0;
+      const sourceFrames = replay.frames.filter(
+        (frame) => frame.images?.[imageKey],
+      );
+
+      for (let i = 0; i < sourceFrames.length; i++) {
+        const image = sourceFrames[i].images[imageKey];
+        const overlaySvg = overlayKey
+          ? getImageOverlayEntries(image).find(
+              ([key]) => key === overlayKey,
+            )?.[1]
+          : undefined;
+        const rendered = await renderImageFrame(image, overlaySvg);
+
+        if (i === 0) {
+          width = rendered.width;
+          height = rendered.height;
+        }
+        if (rendered.width === width && rendered.height === height) {
+          renderedFrames.push(rendered.data);
+        }
+
+        if (i % 10 === 0) {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+      }
+
+      if (renderedFrames.length === 0) return;
+
+      const fps = getReplayVideoFps(sourceFrames);
+      const video = buildAviDib(width, height, fps, renderedFrames);
+      const nameParts = [
+        sanitizeFilenamePart(replay.fileName.replace(/\.waggle$/i, "")),
+        sanitizeFilenamePart(imageKey),
+        overlayKey ? `overlay_${sanitizeFilenamePart(overlayKey)}` : "base",
+      ].filter(Boolean);
+      saveBlob(`${nameParts.join("_")}.avi`, video);
+    } catch (error) {
+      console.error("Failed to export replay image video", error);
+      alert("Failed to export image sequence video.");
+    } finally {
+      setExportingVideo(null);
+    }
   };
 
   const handleToggle = () => {
@@ -499,7 +650,7 @@ function App() {
                         {overlayEntries.map(([overlayKey]) => (
                           <label
                             className="flex items-center gap-1 rounded border px-2 py-1 text-xs dark:border-neutral-600"
-                            key={overlayKey}
+                            key={`toggle-${overlayKey}`}
                           >
                             <input
                               type="checkbox"
@@ -521,9 +672,23 @@ function App() {
                       <div className="flex w-full flex-wrap justify-center gap-2">
                         {showBase && (
                           <div className="max-w-full min-w-64 flex-1">
-                            <p className="mb-1 text-center text-xs opacity-70">
-                              Base image
-                            </p>
+                            <div className="mb-1 flex items-center justify-center gap-1 text-xs opacity-70">
+                              <span>Base image</span>
+                              {replay && (
+                                <button
+                                  className="rounded p-0.5 opacity-80 hover:bg-neutral-200 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-neutral-700"
+                                  disabled={exportingVideo !== null}
+                                  onClick={() => exportReplayImageVideo(key)}
+                                  title={
+                                    exportingVideo === `${key}-base`
+                                      ? "Exporting base AVI"
+                                      : "Download base AVI"
+                                  }
+                                >
+                                  <IconDownload size={14} />
+                                </button>
+                              )}
+                            </div>
                             <img
                               src={value.blob_url}
                               className="block h-auto w-full rounded-md border"
@@ -536,9 +701,25 @@ function App() {
                             className="max-w-full min-w-64 flex-1"
                             key={overlayKey}
                           >
-                            <p className="mb-1 text-center text-xs opacity-70">
-                              Base image + {overlayKey}
-                            </p>
+                            <div className="mb-1 flex items-center justify-center gap-1 text-xs opacity-70">
+                              <span>Base image + {overlayKey}</span>
+                              {replay && (
+                                <button
+                                  className="rounded p-0.5 opacity-80 hover:bg-neutral-200 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-neutral-700"
+                                  disabled={exportingVideo !== null}
+                                  onClick={() =>
+                                    exportReplayImageVideo(key, overlayKey)
+                                  }
+                                  title={
+                                    exportingVideo === `${key}-${overlayKey}`
+                                      ? `Exporting ${overlayKey} AVI`
+                                      : `Download ${overlayKey} AVI`
+                                  }
+                                >
+                                  <IconDownload size={14} />
+                                </button>
+                              )}
+                            </div>
                             <div className="relative">
                               <img
                                 src={value.blob_url}
