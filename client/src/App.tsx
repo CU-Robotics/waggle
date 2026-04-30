@@ -1,480 +1,510 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {useWebSocket} from "./hooks/useWebSocket";
-import {useReplayPlayer} from "./hooks/useReplayPlayer";
-import type {WaggleData} from "./types";
-import {IconBrightnessDownFilled, IconDownload, IconMoonFilled,} from "@tabler/icons-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWebSocket } from "./hooks/useWebSocket";
+import { useReplayPlayer } from "./hooks/useReplayPlayer";
+import type { WaggleData } from "./types";
+import {
+  IconBrightnessDownFilled,
+  IconDownload,
+  IconMoonFilled,
+} from "@tabler/icons-react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
 import PlayBar from "./components/PlayBar";
-import {GraphDataToCSV, saveFile} from "./csvHelpter";
+import { GraphDataToCSV, saveFile } from "./csvHelpter";
 
 function App() {
-    const ws = useWebSocket();
-    const {
-        replay,
-        loadFile,
-        close: closeReplay,
-        setFrameIndex,
-        togglePlay,
-        setSpeed,
-        stepForward,
-        stepBackward,
-    } = useReplayPlayer();
+  const ws = useWebSocket();
+  const {
+    replay,
+    loadingReplay,
+    loadFile,
+    close: closeReplay,
+    setFrameIndex,
+    togglePlay,
+    setSpeed,
+    stepForward,
+    stepBackward,
+  } = useReplayPlayer();
 
-    const [isDarkMode, setIsDarkMode] = useState(false);
-    const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
-    const [isDragging, setIsDragging] = useState(false);
-    const [imageVariants, setImageVariants] = useState<{
-        [key: string]: "image" | "overlay" | "side-by-side";
-    }>({});
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
+  const [isDragging, setIsDragging] = useState(false);
+  const [imageVariants, setImageVariants] = useState<{
+    [key: string]: "image" | "overlay" | "side-by-side";
+  }>({});
 
-    const inReplayMode = replay !== null;
+  const inReplayMode = replay !== null;
 
-    // Incremental accumulators — only process new frames since last render,
-    // recompute from scratch only when scrubbing backwards.
-    const lastIdx = useRef(-1);
-    const accGraphs = useRef<{ [key: string]: { x: number; y: number }[] }>({});
-    const accImages = useRef<WaggleData["images"]>({});
-    const accSvg = useRef<WaggleData["svg_data"]>({});
-    const accStrings = useRef<WaggleData["string_data"]>({});
-    const accLogs = useRef<{ [key: string]: string[] }>({});
+  // Incremental accumulators — only process new frames since last render,
+  // recompute from scratch only when scrubbing backwards.
+  const lastIdx = useRef(-1);
+  const accGraphs = useRef<{ [key: string]: { x: number; y: number }[] }>({});
+  const accImages = useRef<WaggleData["images"]>({});
+  const accSvg = useRef<WaggleData["svg_data"]>({});
+  const accStrings = useRef<WaggleData["string_data"]>({});
+  const accLogs = useRef<{ [key: string]: string[] }>({});
 
-    const replayFrameIndex = replay?.frameIndex ?? -1;
-    const replayFrames = replay?.frames;
+  const replayFrameIndex = replay?.frameIndex ?? -1;
+  const replayFrames = replay?.frames;
 
-    useMemo(() => {
-        if (!replayFrames) {
-            lastIdx.current = -1;
-            accGraphs.current = {};
-            accImages.current = {};
-            accSvg.current = {};
-            accStrings.current = {};
-            accLogs.current = {};
-            return;
+  useMemo(() => {
+    if (!replayFrames) {
+      lastIdx.current = -1;
+      accGraphs.current = {};
+      accImages.current = {};
+      accSvg.current = {};
+      accStrings.current = {};
+      accLogs.current = {};
+      return;
+    }
+
+    const target = replayFrameIndex;
+
+    // Scrubbed backwards — reset and recompute from 0
+    if (target < lastIdx.current) {
+      accGraphs.current = {};
+      accImages.current = {};
+      accSvg.current = {};
+      accStrings.current = {};
+      accLogs.current = {};
+      lastIdx.current = -1;
+    }
+
+    const start = lastIdx.current + 1;
+    for (let i = start; i <= target; i++) {
+      const frame = replayFrames[i];
+
+      if (frame.graph_data) {
+        for (const [key, points] of Object.entries(frame.graph_data)) {
+          if (!accGraphs.current[key]) accGraphs.current[key] = [];
+          for (const p of points) {
+            if ((p as any).settings?.clear_data) {
+              accGraphs.current[key] = [];
+              continue;
+            }
+            accGraphs.current[key].push(p);
+          }
         }
+      }
 
-        const target = replayFrameIndex;
-
-        // Scrubbed backwards — reset and recompute from 0
-        if (target < lastIdx.current) {
-            accGraphs.current = {};
-            accImages.current = {};
-            accSvg.current = {};
-            accStrings.current = {};
-            accLogs.current = {};
-            lastIdx.current = -1;
+      if (frame.images) {
+        for (const [k, v] of Object.entries(frame.images)) {
+          accImages.current[k] = v;
         }
+      }
 
-        const start = lastIdx.current + 1;
-        for (let i = start; i <= target; i++) {
-            const frame = replayFrames[i];
-
-            if (frame.graph_data) {
-                for (const [key, points] of Object.entries(frame.graph_data)) {
-                    if (!accGraphs.current[key]) accGraphs.current[key] = [];
-                    for (const p of points) {
-                        if ((p as any).settings?.clear_data) {
-                            accGraphs.current[key] = [];
-                            continue;
-                        }
-                        accGraphs.current[key].push(p);
-                    }
-                }
-            }
-
-            if (frame.images) {
-                for (const [k, v] of Object.entries(frame.images)) {
-                    accImages.current[k] = v;
-                }
-            }
-
-            if (frame.svg_data) {
-                for (const [k, v] of Object.entries(frame.svg_data)) {
-                    accSvg.current[k] = v;
-                }
-            }
-
-            if (frame.string_data) {
-                for (const [k, v] of Object.entries(frame.string_data)) {
-                    accStrings.current[k] = v;
-                }
-            }
-
-            if (frame.log_data) {
-                for (const [k, v] of Object.entries(frame.log_data)) {
-                    if (!accLogs.current[k]) accLogs.current[k] = [];
-                    accLogs.current[k] = accLogs.current[k].concat(v.lines);
-                }
-            }
+      if (frame.svg_data) {
+        for (const [k, v] of Object.entries(frame.svg_data)) {
+          accSvg.current[k] = v;
         }
+      }
 
-        lastIdx.current = target;
-    }, [replayFrames, replayFrameIndex]);
-
-    const replayGraphData = accGraphs.current;
-    const replayImages = accImages.current;
-    const replaySvg = accSvg.current;
-    const replayStrings = accStrings.current;
-    const replayLogs = accLogs.current;
-
-    const graphData = inReplayMode ? replayGraphData : ws.graphData;
-    const imageData = inReplayMode ? replayImages : ws.imageData;
-    const svgData = inReplayMode ? replaySvg : ws.svgData;
-    const stringData = inReplayMode ? replayStrings : ws.stringData;
-    const logData = inReplayMode ? replayLogs : ws.logData;
-    const isConnected = inReplayMode ? false : ws.isConnected;
-    const maxDataPoints = ws.maxDataPoints;
-    const setMaxDataPoints = ws.setMaxDataPoints;
-    const maxLogLines = ws.maxLogLines;
-    const setMaxLogLines = ws.setMaxLogLines;
-
-    const handleDragOver = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-    }, []);
-
-    const handleDragLeave = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.currentTarget === e.target) setIsDragging(false);
-    }, []);
-
-    const handleDrop = useCallback(
-        (e: React.DragEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragging(false);
-            const file = e.dataTransfer.files[0];
-            if (file && file.name.endsWith(".waggle")) {
-                loadFile(file);
-            }
-        },
-        [loadFile],
-    );
-
-    const handleDownloadData = () => {
-        console.log(Date.now());
-        const csvData = GraphDataToCSV(graphData);
-        saveFile("data.csv", csvData);
-    };
-
-    const toggleGraph = (key: string) => {
-        setActiveGraphs((prev) => {
-            const newSet = new Set(prev);
-            if (newSet.has(key)) {
-                newSet.delete(key);
-            } else {
-                newSet.add(key);
-            }
-            return newSet;
-        });
-    };
-
-    const removeGraph = (key: string) => {
-        setActiveGraphs((prev) => {
-            const newSet = new Set(prev);
-            newSet.delete(key);
-            return newSet;
-        });
-    };
-
-    const handleToggle = () => {
-        setIsDarkMode((prevMode) => !prevMode);
-
-        document.documentElement.classList.toggle("dark");
-
-        if (document.documentElement.classList.contains("dark")) {
-            localStorage.theme = "dark";
-        } else {
-            localStorage.theme = "light";
+      if (frame.string_data) {
+        for (const [k, v] of Object.entries(frame.string_data)) {
+          accStrings.current[k] = v;
         }
-    };
+      }
 
-    useEffect(() => {
-        const initialTheme =
-            localStorage.theme === "dark" ||
-            (!("theme" in localStorage) &&
-                window.matchMedia("(prefers-color-scheme: dark)").matches);
-
-        setIsDarkMode(initialTheme);
-        if (initialTheme) {
-            document.documentElement.classList.add("dark");
+      if (frame.log_data) {
+        for (const [k, v] of Object.entries(frame.log_data)) {
+          if (!accLogs.current[k]) accLogs.current[k] = [];
+          accLogs.current[k] = accLogs.current[k].concat(v.lines);
         }
-    }, []);
+      }
+    }
 
-    return (
-        <>
-            <div
-                className="min-h-screen w-full dark:bg-neutral-800 dark:text-white"
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-            >
-                {/* Drag overlay */}
-                {isDragging && (
-                    <div
-                        className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-blue-500/20 backdrop-blur-sm">
-                        <div
-                            className="rounded-2xl border-4 border-dashed border-blue-500 bg-white/80 px-12 py-8 text-xl font-bold text-blue-700 dark:bg-neutral-800/80 dark:text-blue-300">
-                            Drop .waggle replay file
-                        </div>
-                    </div>
-                )}
+    lastIdx.current = target;
+  }, [replayFrames, replayFrameIndex]);
 
-                {/* Replay play bar */}
-                {replay && (
-                    <PlayBar
-                        replay={replay}
-                        onTogglePlay={togglePlay}
-                        onSeek={setFrameIndex}
-                        onStepForward={stepForward}
-                        onStepBackward={stepBackward}
-                        onSetSpeed={setSpeed}
-                        onClose={closeReplay}
-                    />
-                )}
+  const replayGraphData = accGraphs.current;
+  const replayImages = accImages.current;
+  const replaySvg = accSvg.current;
+  const replayStrings = accStrings.current;
+  const replayLogs = accLogs.current;
 
-                <div className="mb-2 flex justify-between border-b p-2">
-                    <div className="flex items-center w-full gap-4">
-                        <div className="flex-grow"></div>
-                        {!inReplayMode && (
-                            <ConnectionStatus connectionStatus={isConnected}/>
-                        )}
-                        {inReplayMode && (
-                            <span
-                                className="rounded bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900 dark:text-orange-200">
+  const graphData = inReplayMode ? replayGraphData : ws.graphData;
+  const imageData = inReplayMode ? replayImages : ws.imageData;
+  const svgData = inReplayMode ? replaySvg : ws.svgData;
+  const stringData = inReplayMode ? replayStrings : ws.stringData;
+  const logData = inReplayMode ? replayLogs : ws.logData;
+  const isConnected = inReplayMode ? false : ws.isConnected;
+  const maxDataPoints = ws.maxDataPoints;
+  const setMaxDataPoints = ws.setMaxDataPoints;
+  const maxLogLines = ws.maxLogLines;
+  const setMaxLogLines = ws.setMaxLogLines;
+  const replayLoadPercent = loadingReplay
+    ? Math.round(loadingReplay.progress * 100)
+    : 0;
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget === e.target) setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith(".waggle")) {
+        loadFile(file);
+      }
+    },
+    [loadFile],
+  );
+
+  const handleDownloadData = () => {
+    console.log(Date.now());
+    const csvData = GraphDataToCSV(graphData);
+    saveFile("data.csv", csvData);
+  };
+
+  const toggleGraph = (key: string) => {
+    setActiveGraphs((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  const removeGraph = (key: string) => {
+    setActiveGraphs((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(key);
+      return newSet;
+    });
+  };
+
+  const handleToggle = () => {
+    setIsDarkMode((prevMode) => !prevMode);
+
+    document.documentElement.classList.toggle("dark");
+
+    if (document.documentElement.classList.contains("dark")) {
+      localStorage.theme = "dark";
+    } else {
+      localStorage.theme = "light";
+    }
+  };
+
+  useEffect(() => {
+    const initialTheme =
+      localStorage.theme === "dark" ||
+      (!("theme" in localStorage) &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+    setIsDarkMode(initialTheme);
+    if (initialTheme) {
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
+
+  return (
+    <>
+      <div
+        className="min-h-screen w-full dark:bg-neutral-800 dark:text-white"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drag overlay */}
+        {isDragging && (
+          <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-blue-500/20 backdrop-blur-sm">
+            <div className="rounded-2xl border-4 border-dashed border-blue-500 bg-white/80 px-12 py-8 text-xl font-bold text-blue-700 dark:bg-neutral-800/80 dark:text-blue-300">
+              Drop .waggle replay file
+            </div>
+          </div>
+        )}
+
+        {loadingReplay && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-lg dark:border-neutral-600 dark:bg-neutral-900">
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    {loadingReplay.stage === "reading"
+                      ? "Reading replay file"
+                      : "Parsing replay frames"}
+                  </p>
+                  <p className="truncate text-xs opacity-70">
+                    {loadingReplay.fileName}
+                  </p>
+                </div>
+                <span className="font-mono text-sm font-semibold">
+                  {replayLoadPercent}%
+                </span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                <div
+                  className="h-full rounded-full bg-blue-500 transition-all duration-150 ease-out"
+                  style={{ width: `${replayLoadPercent}%` }}
+                />
+              </div>
+              {loadingReplay.stage === "parsing" && (
+                <p className="mt-3 text-xs opacity-70">
+                  {loadingReplay.framesLoaded.toLocaleString()} frames loaded
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Replay play bar */}
+        {replay && (
+          <PlayBar
+            replay={replay}
+            onTogglePlay={togglePlay}
+            onSeek={setFrameIndex}
+            onStepForward={stepForward}
+            onStepBackward={stepBackward}
+            onSetSpeed={setSpeed}
+            onClose={closeReplay}
+          />
+        )}
+
+        <div className="mb-2 flex justify-between border-b p-2">
+          <div className="flex w-full items-center gap-4">
+            <div className="flex-grow"></div>
+            {!inReplayMode && (
+              <ConnectionStatus connectionStatus={isConnected} />
+            )}
+            {inReplayMode && (
+              <span className="rounded bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900 dark:text-orange-200">
                 REPLAY
               </span>
-                        )}
-                        <button onClick={handleToggle}>
-                            {isDarkMode ? (
-                                <IconMoonFilled size={20}/>
-                            ) : (
-                                <IconBrightnessDownFilled size={20}/>
-                            )}
-                        </button>
-                    </div>
-                </div>
+            )}
+            <button onClick={handleToggle}>
+              {isDarkMode ? (
+                <IconMoonFilled size={20} />
+              ) : (
+                <IconBrightnessDownFilled size={20} />
+              )}
+            </button>
+          </div>
+        </div>
 
-                <div className="m-2 rounded-lg border bg-white p-4 dark:bg-neutral-700">
-                    <div className="mb-4">
-                        <h2 className="mb-4 text-lg font-semibold">Settings</h2>
-                        <label htmlFor="maxDataPoints" className="mb-2 block">
-                            Max Data Points per Graph:
-                        </label>
-                        <div className="flex items-center">
-                            <input
-                                type="number"
-                                min="1"
-                                value={maxDataPoints}
-                                onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    setMaxDataPoints(value);
-                                }}
-                                className="w-36 rounded border px-2 py-1 dark:bg-neutral-800"
-                            />
-                        </div>
-                        <label htmlFor="maxLogLines" className="mb-2 mt-4 block">
-                            Max Log Lines per Terminal:
-                        </label>
-                        <div className="flex items-center">
-                            <input
-                                type="number"
-                                min="1"
-                                value={maxLogLines}
-                                onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    setMaxLogLines(value);
-                                }}
-                                className="w-36 rounded border px-2 py-1 dark:bg-neutral-800"
-                            />
-                        </div>
-                        <div className="mt-4">
-                            <button
-                                onClick={handleDownloadData}
-                                className="flex items-center gap-2 rounded-md border bg-slate-300 px-3 py-2 text-black hover:bg-slate-600 dark:bg-slate-700 dark:text-white"
-                            >
-                                <IconDownload size={18}/>
-                                Download All Data
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Sensor readings */}
-                <div className="m-2 flex flex-wrap gap-2">
-                    {Object.entries(graphData).map(([key, value]) => (
-                        <div
-                            key={key}
-                            className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${
-                                activeGraphs.has(key)
-                                    ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
-                                    : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                            }`}
-                            onClick={() => toggleGraph(key)}
-                        >
-                            <p>{key}</p>
-                            <p>{Math.round(value[value.length - 1].y * 100) / 100}</p>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Live Graphs Section */}
-                {activeGraphs.size > 0 && (
-                    <div className="m-2 rounded-lg border p-4">
-                        <h2 className="mb-4 text-lg font-semibold">Live Graphs</h2>
-                        <div className="flex flex-wrap gap-4">
-                            {Array.from(activeGraphs).map((key) => (
-                                <LiveGraph
-                                    key={key}
-                                    title={key}
-                                    data={graphData[key] || []}
-                                    onRemove={() => removeGraph(key)}
-                                    isDarkMode={isDarkMode}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Log Data Section */}
-                {Object.keys(logData).length > 0 && (
-                    <div className="m-2 rounded-lg border p-4">
-                        <h2 className="mb-4 text-lg font-semibold">Logs</h2>
-                        <div className="flex flex-wrap gap-4">
-                            {Object.entries(logData).map(([key, lines]) => (
-                                <LogTerminal
-                                    key={key}
-                                    title={key}
-                                    lines={lines}
-                                    isDarkMode={isDarkMode}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* String Data Section */}
-                <div className="flex">
-                    <div className="flex w-1/3 flex-col justify-between">
-                        <div className="m-2 rounded-md border border-b-0">
-                            {Object.entries(stringData).map(([key, value]) => (
-                                <div
-                                    className="flex items-center justify-between border-b p-2"
-                                    key={key}
-                                >
-                                    <p>
-                                        {key}: {value.value}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                        {/* <img src={gameField} alt="" className="m-2 rounded-md border" /> */}
-                    </div>
-                    {/* Main view camera feed */}
-                    <div className="m-2 flex w-3/4 flex-col rounded-md border">
-                        <div className="flex items-center justify-center">
-                            <div className="m-2 flex flex-wrap">
-                                {Object.entries(imageData).map(([key, value]) => {
-                                    const hasOverlay = !!value.svg_overlay;
-                                    const variant =
-                                        imageVariants[key] ??
-                                        (hasOverlay ? "overlay" : "image");
-                                    const showImage =
-                                        variant === "image" || variant === "side-by-side";
-                                    const showOverlay =
-                                        hasOverlay &&
-                                        (variant === "overlay" || variant === "side-by-side");
-                                    const sideBySide = variant === "side-by-side";
-                                    return (
-                                        <div
-                                            className="m-2 flex w-full flex-col items-center"
-                                            key={key}
-                                        >
-                                            <div className="mb-1 flex items-center gap-2">
-                                                <p>{key}</p>
-                                                {hasOverlay && (
-                                                    <select
-                                                        value={variant}
-                                                        onChange={(e) =>
-                                                            setImageVariants((prev) => ({
-                                                                ...prev,
-                                                                [key]: e.target
-                                                                    .value as typeof variant,
-                                                            }))
-                                                        }
-                                                        className="rounded border px-1 py-0.5 text-xs dark:bg-neutral-800"
-                                                    >
-                                                        <option value="image">Image only</option>
-                                                        <option value="overlay">Overlay</option>
-                                                        <option value="side-by-side">
-                                                            Side by side
-                                                        </option>
-                                                    </select>
-                                                )}
-                                            </div>
-                                            <div
-                                                className={`flex gap-2 ${sideBySide ? "w-full" : ""}`}
-                                            >
-                                                {showImage && (
-                                                    <div
-                                                        className={
-                                                            sideBySide ? "min-w-0 flex-1" : ""
-                                                        }
-                                                    >
-                                                        <img
-                                                            src={value.blob_url}
-                                                            className={`block rounded-md border ${sideBySide ? "h-auto w-full" : ""}`}
-                                                            alt="no source"
-                                                        />
-                                                    </div>
-                                                )}
-                                                {showOverlay && (
-                                                    <div
-                                                        className={`relative ${sideBySide ? "min-w-0 flex-1" : "inline-block"}`}
-                                                    >
-                                                        <img
-                                                            src={value.blob_url}
-                                                            className={`block rounded-md border ${sideBySide ? "h-auto w-full" : ""}`}
-                                                            alt="no source"
-                                                        />
-                                                        <div
-                                                            className="pointer-events-none absolute inset-0 [&>svg]:h-full [&>svg]:w-full"
-                                                            dangerouslySetInnerHTML={{
-                                                                __html: value.svg_overlay!,
-                                                            }}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                    <div className="m-2 flex w-3/4 flex-col rounded-md border">
-                        <div className="flex items-center justify-center">
-                            <div className="m-2 flex flex-wrap">
-                                {Object.entries(svgData).map(([key, value]) => {
-                                    return (
-                                        <div className="m-2 flex flex-col items-center" key={key}>
-                                            <p>{key}</p>
-                                            <div
-                                                dangerouslySetInnerHTML={{__html: value.svg_string}}
-                                            />
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div className="m-2 rounded-lg border bg-white p-4 dark:bg-neutral-700">
+          <div className="mb-4">
+            <h2 className="mb-4 text-lg font-semibold">Settings</h2>
+            <label htmlFor="maxDataPoints" className="mb-2 block">
+              Max Data Points per Graph:
+            </label>
+            <div className="flex items-center">
+              <input
+                type="number"
+                min="1"
+                value={maxDataPoints}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  setMaxDataPoints(value);
+                }}
+                className="w-36 rounded border px-2 py-1 dark:bg-neutral-800"
+              />
             </div>
-        </>
-    );
+            <label htmlFor="maxLogLines" className="mt-4 mb-2 block">
+              Max Log Lines per Terminal:
+            </label>
+            <div className="flex items-center">
+              <input
+                type="number"
+                min="1"
+                value={maxLogLines}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  setMaxLogLines(value);
+                }}
+                className="w-36 rounded border px-2 py-1 dark:bg-neutral-800"
+              />
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={handleDownloadData}
+                className="flex items-center gap-2 rounded-md border bg-slate-300 px-3 py-2 text-black hover:bg-slate-600 dark:bg-slate-700 dark:text-white"
+              >
+                <IconDownload size={18} />
+                Download All Data
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Sensor readings */}
+        <div className="m-2 flex flex-wrap gap-2">
+          {Object.entries(graphData).map(([key, value]) => (
+            <div
+              key={key}
+              className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${
+                activeGraphs.has(key)
+                  ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
+                  : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
+              }`}
+              onClick={() => toggleGraph(key)}
+            >
+              <p>{key}</p>
+              <p>{Math.round(value[value.length - 1].y * 100) / 100}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Live Graphs Section */}
+        {activeGraphs.size > 0 && (
+          <div className="m-2 rounded-lg border p-4">
+            <h2 className="mb-4 text-lg font-semibold">Live Graphs</h2>
+            <div className="flex flex-wrap gap-4">
+              {Array.from(activeGraphs).map((key) => (
+                <LiveGraph
+                  key={key}
+                  title={key}
+                  data={graphData[key] || []}
+                  onRemove={() => removeGraph(key)}
+                  isDarkMode={isDarkMode}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Log Data Section */}
+        {Object.keys(logData).length > 0 && (
+          <div className="m-2 rounded-lg border p-4">
+            <h2 className="mb-4 text-lg font-semibold">Logs</h2>
+            <div className="flex flex-wrap gap-4">
+              {Object.entries(logData).map(([key, lines]) => (
+                <LogTerminal
+                  key={key}
+                  title={key}
+                  lines={lines}
+                  isDarkMode={isDarkMode}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* String Data Section */}
+        <div className="flex">
+          <div className="flex w-1/3 flex-col justify-between">
+            <div className="m-2 rounded-md border border-b-0">
+              {Object.entries(stringData).map(([key, value]) => (
+                <div
+                  className="flex items-center justify-between border-b p-2"
+                  key={key}
+                >
+                  <p>
+                    {key}: {value.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {/* <img src={gameField} alt="" className="m-2 rounded-md border" /> */}
+          </div>
+          {/* Main view camera feed */}
+          <div className="m-2 flex w-3/4 flex-col rounded-md border">
+            <div className="flex items-center justify-center">
+              <div className="m-2 flex flex-wrap">
+                {Object.entries(imageData).map(([key, value]) => {
+                  const hasOverlay = !!value.svg_overlay;
+                  const variant =
+                    imageVariants[key] ?? (hasOverlay ? "overlay" : "image");
+                  const showImage =
+                    variant === "image" || variant === "side-by-side";
+                  const showOverlay =
+                    hasOverlay &&
+                    (variant === "overlay" || variant === "side-by-side");
+                  const sideBySide = variant === "side-by-side";
+                  return (
+                    <div
+                      className="m-2 flex w-full flex-col items-center"
+                      key={key}
+                    >
+                      <div className="mb-1 flex items-center gap-2">
+                        <p>{key}</p>
+                        {hasOverlay && (
+                          <select
+                            value={variant}
+                            onChange={(e) =>
+                              setImageVariants((prev) => ({
+                                ...prev,
+                                [key]: e.target.value as typeof variant,
+                              }))
+                            }
+                            className="rounded border px-1 py-0.5 text-xs dark:bg-neutral-800"
+                          >
+                            <option value="image">Image only</option>
+                            <option value="overlay">Overlay</option>
+                            <option value="side-by-side">Side by side</option>
+                          </select>
+                        )}
+                      </div>
+                      <div
+                        className={`flex gap-2 ${sideBySide ? "w-full" : ""}`}
+                      >
+                        {showImage && (
+                          <div className={sideBySide ? "min-w-0 flex-1" : ""}>
+                            <img
+                              src={value.blob_url}
+                              className={`block rounded-md border ${sideBySide ? "h-auto w-full" : ""}`}
+                              alt="no source"
+                            />
+                          </div>
+                        )}
+                        {showOverlay && (
+                          <div
+                            className={`relative ${sideBySide ? "min-w-0 flex-1" : "inline-block"}`}
+                          >
+                            <img
+                              src={value.blob_url}
+                              className={`block rounded-md border ${sideBySide ? "h-auto w-full" : ""}`}
+                              alt="no source"
+                            />
+                            <div
+                              className="pointer-events-none absolute inset-0 [&>svg]:h-full [&>svg]:w-full"
+                              dangerouslySetInnerHTML={{
+                                __html: value.svg_overlay!,
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <div className="m-2 flex w-3/4 flex-col rounded-md border">
+            <div className="flex items-center justify-center">
+              <div className="m-2 flex flex-wrap">
+                {Object.entries(svgData).map(([key, value]) => {
+                  return (
+                    <div className="m-2 flex flex-col items-center" key={key}>
+                      <p>{key}</p>
+                      <div
+                        dangerouslySetInnerHTML={{ __html: value.svg_string }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
 }
 
 export default App;
