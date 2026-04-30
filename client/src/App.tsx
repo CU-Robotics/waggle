@@ -19,6 +19,14 @@ type ImageViewSelection = {
   overlays?: { [key: string]: boolean };
 };
 
+type VideoExportProgress = {
+  label: string;
+  stage: "rendering" | "encoding" | "downloading";
+  currentFrame: number;
+  totalFrames: number;
+  progress: number;
+};
+
 function getImageOverlayEntries(value: WaggleData["images"][string]) {
   if (value.svg_overlays) {
     const entries = Object.entries(value.svg_overlays);
@@ -155,6 +163,8 @@ function App() {
     [key: string]: ImageViewSelection;
   }>({});
   const [exportingVideo, setExportingVideo] = useState<string | null>(null);
+  const [videoExportProgress, setVideoExportProgress] =
+    useState<VideoExportProgress | null>(null);
 
   const inReplayMode = replay !== null;
 
@@ -346,6 +356,9 @@ function App() {
     const exportKey = overlayKey
       ? `${imageKey}-${overlayKey}`
       : `${imageKey}-base`;
+    const exportLabel = overlayKey
+      ? `${imageKey}: base image + ${overlayKey}`
+      : `${imageKey}: base image`;
     setExportingVideo(exportKey);
     try {
       const renderedFrames: Uint8ClampedArray[] = [];
@@ -354,6 +367,13 @@ function App() {
       const sourceFrames = replay.frames.filter(
         (frame) => frame.images?.[imageKey],
       );
+      setVideoExportProgress({
+        label: exportLabel,
+        stage: "rendering",
+        currentFrame: 0,
+        totalFrames: sourceFrames.length,
+        progress: 0,
+      });
 
       for (let i = 0; i < sourceFrames.length; i++) {
         const image = sourceFrames[i].images[imageKey];
@@ -372,12 +392,29 @@ function App() {
           renderedFrames.push(rendered.data);
         }
 
-        if (i % 10 === 0) {
+        if (i % 10 === 0 || i === sourceFrames.length - 1) {
+          setVideoExportProgress({
+            label: exportLabel,
+            stage: "rendering",
+            currentFrame: i + 1,
+            totalFrames: sourceFrames.length,
+            progress:
+              sourceFrames.length === 0 ? 0 : (i + 1) / sourceFrames.length,
+          });
           await new Promise((resolve) => requestAnimationFrame(resolve));
         }
       }
 
       if (renderedFrames.length === 0) return;
+
+      setVideoExportProgress({
+        label: exportLabel,
+        stage: "encoding",
+        currentFrame: renderedFrames.length,
+        totalFrames: renderedFrames.length,
+        progress: 1,
+      });
+      await new Promise((resolve) => requestAnimationFrame(resolve));
 
       const fps = getReplayVideoFps(sourceFrames);
       const video = buildAviDib(width, height, fps, renderedFrames);
@@ -386,12 +423,21 @@ function App() {
         sanitizeFilenamePart(imageKey),
         overlayKey ? `overlay_${sanitizeFilenamePart(overlayKey)}` : "base",
       ].filter(Boolean);
+      setVideoExportProgress({
+        label: exportLabel,
+        stage: "downloading",
+        currentFrame: renderedFrames.length,
+        totalFrames: renderedFrames.length,
+        progress: 1,
+      });
+      await new Promise((resolve) => requestAnimationFrame(resolve));
       saveBlob(`${nameParts.join("_")}.avi`, video);
     } catch (error) {
       console.error("Failed to export replay image video", error);
       alert("Failed to export image sequence video.");
     } finally {
       setExportingVideo(null);
+      setVideoExportProgress(null);
     }
   };
 
@@ -465,6 +511,42 @@ function App() {
                   {loadingReplay.framesLoaded.toLocaleString()} frames loaded
                 </p>
               )}
+            </div>
+          </div>
+        )}
+
+        {videoExportProgress && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-lg dark:border-neutral-600 dark:bg-neutral-900">
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    {videoExportProgress.stage === "rendering"
+                      ? "Rendering video frames"
+                      : videoExportProgress.stage === "encoding"
+                        ? "Encoding AVI"
+                        : "Starting download"}
+                  </p>
+                  <p className="truncate text-xs opacity-70">
+                    {videoExportProgress.label}
+                  </p>
+                </div>
+                <span className="font-mono text-sm font-semibold">
+                  {Math.round(videoExportProgress.progress * 100)}%
+                </span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                <div
+                  className="h-full rounded-full bg-blue-500 transition-all duration-150 ease-out"
+                  style={{
+                    width: `${Math.round(videoExportProgress.progress * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="mt-3 text-xs opacity-70">
+                {videoExportProgress.currentFrame.toLocaleString()} /{" "}
+                {videoExportProgress.totalFrames.toLocaleString()} frames
+              </p>
             </div>
           </div>
         )}
