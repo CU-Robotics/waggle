@@ -13,6 +13,35 @@ import LogTerminal from "./components/LogTerminal";
 import PlayBar from "./components/PlayBar";
 import { GraphDataToCSV, saveFile } from "./csvHelpter";
 
+type ImageViewSelection = {
+  base?: boolean;
+  overlays?: { [key: string]: boolean };
+};
+
+function getImageOverlayEntries(value: WaggleData["images"][string]) {
+  if (value.svg_overlays) {
+    const entries = Object.entries(value.svg_overlays);
+    if (entries.length > 0) return entries;
+  }
+
+  if (!value.svg_overlay) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value.svg_overlay) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return Object.entries(parsed).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+      );
+    }
+  } catch {
+    // Plain SVG overlays are kept as a single default overlay.
+  }
+
+  return [["overlay", value.svg_overlay]];
+}
+
 function App() {
   const ws = useWebSocket();
   const {
@@ -30,8 +59,8 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
-  const [imageVariants, setImageVariants] = useState<{
-    [key: string]: "image" | "overlay" | "side-by-side";
+  const [imageViewSelections, setImageViewSelections] = useState<{
+    [key: string]: ImageViewSelection;
   }>({});
 
   const inReplayMode = replay !== null;
@@ -79,7 +108,7 @@ function App() {
         for (const [key, points] of Object.entries(frame.graph_data)) {
           if (!accGraphs.current[key]) accGraphs.current[key] = [];
           for (const p of points) {
-            if ((p as any).settings?.clear_data) {
+            if (p.settings?.clear_data) {
               accGraphs.current[key] = [];
               continue;
             }
@@ -186,6 +215,33 @@ function App() {
       newSet.delete(key);
       return newSet;
     });
+  };
+
+  const setImageBaseView = (imageKey: string, checked: boolean) => {
+    setImageViewSelections((prev) => ({
+      ...prev,
+      [imageKey]: {
+        ...prev[imageKey],
+        base: checked,
+      },
+    }));
+  };
+
+  const setImageOverlayView = (
+    imageKey: string,
+    overlayKey: string,
+    checked: boolean,
+  ) => {
+    setImageViewSelections((prev) => ({
+      ...prev,
+      [imageKey]: {
+        ...prev[imageKey],
+        overlays: {
+          ...prev[imageKey]?.overlays,
+          [overlayKey]: checked,
+        },
+      },
+    }));
   };
 
   const handleToggle = () => {
@@ -416,68 +472,88 @@ function App() {
             <div className="flex items-center justify-center">
               <div className="m-2 flex flex-wrap">
                 {Object.entries(imageData).map(([key, value]) => {
-                  const hasOverlay = !!value.svg_overlay;
-                  const variant =
-                    imageVariants[key] ?? (hasOverlay ? "overlay" : "image");
-                  const showImage =
-                    variant === "image" || variant === "side-by-side";
-                  const showOverlay =
-                    hasOverlay &&
-                    (variant === "overlay" || variant === "side-by-side");
-                  const sideBySide = variant === "side-by-side";
+                  const overlayEntries = getImageOverlayEntries(value);
+                  const viewSelection = imageViewSelections[key];
+                  const showBase = viewSelection?.base ?? true;
+                  const visibleOverlays = overlayEntries.filter(
+                    ([overlayKey]) =>
+                      viewSelection?.overlays?.[overlayKey] ?? true,
+                  );
                   return (
                     <div
                       className="m-2 flex w-full flex-col items-center"
                       key={key}
                     >
-                      <div className="mb-1 flex items-center gap-2">
+                      <div className="mb-2 flex flex-wrap items-center justify-center gap-3">
                         <p>{key}</p>
-                        {hasOverlay && (
-                          <select
-                            value={variant}
+                        <label className="flex items-center gap-1 rounded border px-2 py-1 text-xs dark:border-neutral-600">
+                          <input
+                            type="checkbox"
+                            checked={showBase}
                             onChange={(e) =>
-                              setImageVariants((prev) => ({
-                                ...prev,
-                                [key]: e.target.value as typeof variant,
-                              }))
+                              setImageBaseView(key, e.target.checked)
                             }
-                            className="rounded border px-1 py-0.5 text-xs dark:bg-neutral-800"
+                          />
+                          Base image
+                        </label>
+                        {overlayEntries.map(([overlayKey]) => (
+                          <label
+                            className="flex items-center gap-1 rounded border px-2 py-1 text-xs dark:border-neutral-600"
+                            key={overlayKey}
                           >
-                            <option value="image">Image only</option>
-                            <option value="overlay">Overlay</option>
-                            <option value="side-by-side">Side by side</option>
-                          </select>
-                        )}
+                            <input
+                              type="checkbox"
+                              checked={
+                                viewSelection?.overlays?.[overlayKey] ?? true
+                              }
+                              onChange={(e) =>
+                                setImageOverlayView(
+                                  key,
+                                  overlayKey,
+                                  e.target.checked,
+                                )
+                              }
+                            />
+                            {overlayKey}
+                          </label>
+                        ))}
                       </div>
-                      <div
-                        className={`flex gap-2 ${sideBySide ? "w-full" : ""}`}
-                      >
-                        {showImage && (
-                          <div className={sideBySide ? "min-w-0 flex-1" : ""}>
+                      <div className="flex w-full flex-wrap justify-center gap-2">
+                        {showBase && (
+                          <div className="max-w-full min-w-64 flex-1">
+                            <p className="mb-1 text-center text-xs opacity-70">
+                              Base image
+                            </p>
                             <img
                               src={value.blob_url}
-                              className={`block rounded-md border ${sideBySide ? "h-auto w-full" : ""}`}
+                              className="block h-auto w-full rounded-md border"
                               alt="no source"
                             />
                           </div>
                         )}
-                        {showOverlay && (
+                        {visibleOverlays.map(([overlayKey, overlaySvg]) => (
                           <div
-                            className={`relative ${sideBySide ? "min-w-0 flex-1" : "inline-block"}`}
+                            className="max-w-full min-w-64 flex-1"
+                            key={overlayKey}
                           >
-                            <img
-                              src={value.blob_url}
-                              className={`block rounded-md border ${sideBySide ? "h-auto w-full" : ""}`}
-                              alt="no source"
-                            />
-                            <div
-                              className="pointer-events-none absolute inset-0 [&>svg]:h-full [&>svg]:w-full"
-                              dangerouslySetInnerHTML={{
-                                __html: value.svg_overlay!,
-                              }}
-                            />
+                            <p className="mb-1 text-center text-xs opacity-70">
+                              Base image + {overlayKey}
+                            </p>
+                            <div className="relative">
+                              <img
+                                src={value.blob_url}
+                                className="block h-auto w-full rounded-md border"
+                                alt="no source"
+                              />
+                              <div
+                                className="pointer-events-none absolute inset-0 [&>svg]:h-full [&>svg]:w-full"
+                                dangerouslySetInnerHTML={{
+                                  __html: overlaySvg,
+                                }}
+                              />
+                            </div>
                           </div>
-                        )}
+                        ))}
                       </div>
                     </div>
                   );

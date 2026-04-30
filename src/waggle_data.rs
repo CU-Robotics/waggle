@@ -8,6 +8,7 @@ pub struct ImageData {
     pub scale: i32,
     pub flip: bool,
     pub svg_overlay: Option<String>,
+    pub svg_overlays: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,7 +102,15 @@ impl WaggleData {
             out.push(if img.flip { 1 } else { 0 });
             push_u32(&mut out, img.image_data.len())?;
             out.extend_from_slice(&img.image_data);
-            let svg_bytes = img.svg_overlay.as_deref().unwrap_or("").as_bytes();
+            let serialized_overlays;
+            let svg_overlay = if img.svg_overlays.is_empty() {
+                img.svg_overlay.as_deref().unwrap_or("")
+            } else {
+                serialized_overlays = serde_json::to_string(&img.svg_overlays)
+                    .map_err(|e| format!("svg overlay json error: {e}"))?;
+                &serialized_overlays
+            };
+            let svg_bytes = svg_overlay.as_bytes();
             push_u32(&mut out, svg_bytes.len())?;
             out.extend_from_slice(svg_bytes);
         }

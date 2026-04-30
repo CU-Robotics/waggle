@@ -85,8 +85,7 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         let image_bytes = buf[pos..pos + data_len].to_vec();
         pos += data_len;
 
-        let svg_len: usize =
-            read_u32(&mut pos)?.try_into().map_err(|e| format!("svg_len: {e}"))?;
+        let svg_len: usize = read_u32(&mut pos)?.try_into().map_err(|e| format!("svg_len: {e}"))?;
         if pos + svg_len > buf.len() {
             return Err("svg overlay exceeds buffer".into());
         }
@@ -100,8 +99,15 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
             )
         };
         pos += svg_len;
+        let svg_overlays = svg_overlay
+            .as_deref()
+            .and_then(|overlay| serde_json::from_str::<HashMap<String, String>>(overlay).ok())
+            .unwrap_or_default();
 
-        images.insert(name, ImageData { image_data: image_bytes, scale, flip, svg_overlay });
+        images.insert(
+            name,
+            ImageData { image_data: image_bytes, scale, flip, svg_overlay, svg_overlays },
+        );
     }
 
     Ok(WaggleData {
@@ -219,9 +225,16 @@ async fn image_handler(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| base64::engine::general_purpose::STANDARD.decode(v).ok())
         .and_then(|bytes| String::from_utf8(bytes).ok());
+    let svg_overlays = headers
+        .get("x-image-svg-overlays-base64")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| base64::engine::general_purpose::STANDARD.decode(v).ok())
+        .and_then(|bytes| serde_json::from_slice::<HashMap<String, String>>(&bytes).ok())
+        .unwrap_or_default();
 
     debug!("received image '{}' ({} bytes)", name, body.len());
-    let image_data = ImageData { image_data: body.to_vec(), scale, flip, svg_overlay };
+    let image_data =
+        ImageData { image_data: body.to_vec(), scale, flip, svg_overlay, svg_overlays };
 
     let mut data = WaggleData::default();
     data.images.insert(name.clone(), image_data.clone());

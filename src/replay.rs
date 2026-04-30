@@ -1,6 +1,5 @@
 use crate::waggle_data::WaggleData;
-use chrono::{DateTime, Local};
-use log::info;
+use chrono::Local;
 use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Instant;
