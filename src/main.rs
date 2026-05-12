@@ -145,6 +145,16 @@ struct ConfigurableDoubleReq{
     default:f64
 }
 
+async fn list_configurable_vars_handler(
+    State(server): State<ServerState>,
+) -> Json<serde_json::Value> {
+    let vars = server.configurable_vars.lock();
+    Json(json!({
+        "configurable_ints": vars.configurable_ints,
+        "configurable_doubles": vars.configurable_doubles,
+    }))
+}
+
 async fn send_configurable_int_handler(
     State(server): State<ServerState>,
     Query(data): Query<ConfigurableIntReq>,
@@ -156,6 +166,7 @@ async fn send_configurable_int_handler(
         None => (StatusCode::NOT_FOUND, Json(json!({ "error": "Key not found" }))),
     }
 }
+
 async fn update_configurable_int_handler(
     State(server): State<ServerState>,
     Json(data): Json<ConfigurableIntReq>,
@@ -170,7 +181,7 @@ async fn send_configurable_double_handler(
 ) -> (StatusCode, Json<serde_json::Value>) {
     let vars = server.configurable_vars.lock();
 
-    match vars.configurable_ints.get(&data.name) {
+    match vars.configurable_doubles.get(&data.name) {
         Some(value) => (StatusCode::OK, Json(json!({ "value": value }))),
         None => (StatusCode::NOT_FOUND, Json(json!({ "error": "Key not found" }))),
     }
@@ -414,6 +425,7 @@ async fn main() {
         .route("/configurable-int", post(update_configurable_int_handler))
         .route("/configurable-double", get(send_configurable_double_handler))
         .route("/configurable-double", post(update_configurable_double_handler))
+        .route("/configurable-vars", get(list_configurable_vars_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
         .with_state(server);
 

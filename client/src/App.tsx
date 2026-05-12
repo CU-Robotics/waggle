@@ -10,6 +10,7 @@ import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
 import { GraphDataToCSV, saveFile } from "./csvHelpter";
+// import Component from "./components/Component"
 // import gameField from "./assets/game_field.png";
 
 
@@ -209,10 +210,11 @@ function App() {
                     {key}: {value.value}
                   </p>
                 </div>
-              ))}
+              ))} 
             </div>
             {/* <img src={gameField} alt="" className="m-2 rounded-md border" /> */}
           </div>
+
           {/* Main view camera feed */}
           <div className="m-2 flex w-3/4 flex-col rounded-md border">
             <div className="flex items-center justify-center">
@@ -232,9 +234,14 @@ function App() {
               </div>
             </div>
           </div>
+
+          {/* Svg Data*/ }
           <div className="m-2 flex w-3/4 flex-col rounded-md border">
+        
             <div className="flex items-center justify-center">
+
               <div className="m-2 flex flex-wrap">
+
                 {Object.entries(svgData).map(([key, value]) => {
                   return (
                     <div className="m-2 flex flex-col items-center" key={key}>
@@ -248,13 +255,14 @@ function App() {
               </div>
             </div>
           </div>
-        </div>
-        {/*Configurable Variables Sections */}
-        <div className="flex">
-              <ConfigurableVarsEditor
-              configurableDoubleData={configurableDoubleData}
-              configurableIntData={configurableIntData}
-              />
+          {/*Configurable Variable Data*/}
+          <div className="m-2 flex w-3/4 flex-col rounded-md border">
+            <div className="flex items-center justify-center">
+              <div className="m-2 flex flex-wrap">
+                <ConfigurableVarsEditor configurableDoubleData={configurableDoubleData} configurableIntData={configurableIntData}/>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </>

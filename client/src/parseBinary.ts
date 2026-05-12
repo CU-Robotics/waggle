@@ -74,14 +74,14 @@ function parseEntry(reader: BinaryReader): WaggleData {
 
 export function parseBatch(buffer: ArrayBuffer): WebSocketMessage {
     //todo
-
-    throw "reee;";
-    // const reader = new BinaryReader(buffer);
-    // const numEntries = reader.readU32();
-    // const entries: WaggleData[] = [];
-    // for (let i = 0; i < numEntries; i++) {
-    //     reader.readU32();
-    //     entries.push(parseEntry(reader));
-    // }
-    // return entries;
+    const reader = new BinaryReader(buffer);
+    const numEntries = reader.readU32();
+    const entries: WaggleData[] = [];
+    for (let i = 0; i < numEntries; i++) {
+        reader.readU32();
+        entries.push(parseEntry(reader));
+    }
+    return {
+        data: entries,
+    };
 }

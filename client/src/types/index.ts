@@ -50,16 +50,16 @@ interface ConfigurableVarData {
 }
 
 interface WaggleDataWebSocketMessage{
-    kind: "waggle_data",
+    //kind: "waggle_data",
     data: WaggleData[],
 }
 
-interface ConfigurableVarDataWebSocketMessage{
-    kind: "configurable_var_data",
-    data: ConfigurableVarData,
-}
+// interface ConfigurableVarDataWebSocketMessage{
+//     kind: "configurable_var_data",
+//     data: ConfigurableVarData,
+// }
 
-type WebSocketMessage = WaggleDataWebSocketMessage | ConfigurableVarDataWebSocketMessage;
+type WebSocketMessage = WaggleDataWebSocketMessage; //| ConfigurableVarDataWebSocketMessage;
 export type {
     ImageData,
     GraphDataPoint as GraphData,
@@ -68,7 +68,7 @@ export type {
     WaggleData,
     WaggleNonImageData,
     ConfigurableVarData,
-    ConfigurableVarDataWebSocketMessage,
+    //ConfigurableVarDataWebSocketMessage,
     WaggleDataWebSocketMessage,
     WebSocketMessage
 };

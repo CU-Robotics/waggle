@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import {useCallback, useEffect, useRef, useState} from "react";
-import {ConfigurableVarData, ConfigurableVarDataWebSocketMessage, GraphData, WaggleData, WaggleDataWebSocketMessage, WebSocketMessage} from "../types";
+import {ConfigurableVarData, GraphData, WaggleData, WebSocketMessage} from "../types";
 import {parseBatch} from "../parseBinary";
 
 const frame_timestamps: number[] = [];
@@ -28,7 +28,7 @@ export function useWebSocket() {
 
     const handleIncomingMessage = useCallback(
         (all_data: WebSocketMessage) => {
-            if(all_data.kind === "waggle_data"){
+            //if(all_data.kind === "waggle_data"){
                 console.log("data received:", Date.now(), all_data.data.length)
                 for (let i = 0; i < all_data.data.length; i++) {
                     const data = all_data.data[i];
@@ -119,29 +119,29 @@ export function useWebSocket() {
                     }
                 }
                 
-            }
-            if(all_data.kind === "configurable_var_data"){
-                let var_data = all_data.data;
-                setConfigurableDoubleData((prevData: {[key: string]: number}) => {
-                    const newData = {...prevData};
-                    for(const [key,value] of Object.entries(var_data.configurable_double)){
-                        if(!newData[key]) {
-                            newData[key] = value;
-                        }
-                    }
-                    return newData;
-                });
-                setConfigurableIntData((prevData: {[key: string]: number}) => {
-                    const newData = {...prevData};
-                    for(const [key,value] of Object.entries(var_data.configurable_int)){
-                        if(!newData[key]) {
-                            newData[key] = value;
-                        }
-                    }
-                    return newData;
-                });
+            //}
+            // if(all_data.kind === "configurable_var_data"){
+            //     let var_data = all_data.data;
+            //     setConfigurableDoubleData((prevData: {[key: string]: number}) => {
+            //         const newData = {...prevData};
+            //         for(const [key,value] of Object.entries(var_data.configurable_double)){
+            //             if(!newData[key]) {
+            //                 newData[key] = value;
+            //             }
+            //         }
+            //         return newData;
+            //     });
+            //     setConfigurableIntData((prevData: {[key: string]: number}) => {
+            //         const newData = {...prevData};
+            //         for(const [key,value] of Object.entries(var_data.configurable_int)){
+            //             if(!newData[key]) {
+            //                 newData[key] = value;
+            //             }
+            //         }
+            //         return newData;
+            //     });
 
-            }
+            // }
         },
         [maxDataPoints, maxLogLines],
     );
@@ -186,7 +186,7 @@ export function useWebSocket() {
 
                 const websocket_message: WebSocketMessage = parseBatch(buffer);
 
-                if(websocket_message.kind === "waggle_data"){
+                //if(websocket_message.kind === "waggle_data"){
 
                     let robot_data = websocket_message.data;
 
@@ -253,12 +253,22 @@ export function useWebSocket() {
                     } else {
                         console.log("wsRef.current is null");
                     }
-                }
+                //}
 
-                if(websocket_message.kind === "configurable_var_data"){
+                // if(websocket_message.kind === "configurable_var_data"){
+                //      const var_data = websocket_message.data;
 
-                    handleIncomingMessage(websocket_message);
-                }
+                //     setConfigurableDoubleData((prevData) => ({
+                //         ...prevData,
+                //         ...var_data.configurable_double,  // overwrite with incoming values
+                //     }));
+
+                //     setConfigurableIntData((prevData) => ({
+                //         ...prevData,
+                //         ...var_data.configurable_int,
+                //     }));
+                //     handleIncomingMessage(websocket_message);
+                // }
 
             };
 
@@ -280,7 +290,17 @@ export function useWebSocket() {
         };
     }, [handleIncomingMessage]); // Add handleIncomingMessage as a dependency
 
-
+    useEffect(() => {
+    const poll = async () => {
+        const res = await fetch("/configurable-vars");
+        const data = await res.json();
+        setConfigurableDoubleData(data.configurable_doubles);
+        setConfigurableIntData(data.configurable_ints);
+    };
+    const id = setInterval(poll, 1000);
+    return () => clearInterval(id);
+    }, []);
+    
     return {
         isConnected,
         graphData,
