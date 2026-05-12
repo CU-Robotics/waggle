@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WaggleData } from "../types";
-import { BinaryReader, parseEntry } from "../parseBinary";
+import { BinaryReader, createBlobUrl, parseEntry } from "../parseBinary";
 
 export interface ReplayState {
   frames: WaggleData[];
@@ -45,6 +45,25 @@ function readFileWithProgress(
   });
 }
 
+function attachImageBlobUrls(frame: WaggleData) {
+  for (const image of Object.values(frame.images)) {
+    image.blob_url = createBlobUrl(image);
+  }
+}
+
+function revokeReplayImageUrls(frames: WaggleData[] | null) {
+  if (!frames) return;
+
+  for (const frame of frames) {
+    for (const image of Object.values(frame.images)) {
+      if (image.blob_url) {
+        URL.revokeObjectURL(image.blob_url);
+        image.blob_url = undefined;
+      }
+    }
+  }
+}
+
 async function parseReplayFile(
   buffer: ArrayBuffer,
   onProgress: (progress: number, framesLoaded: number) => void,
@@ -76,7 +95,9 @@ async function parseReplayFile(
     const recordBuffer = buffer.slice(pos, pos + recordLen);
     const reader = new BinaryReader(recordBuffer);
     try {
-      frames.push(parseEntry(reader));
+      const frame = parseEntry(reader);
+      attachImageBlobUrls(frame);
+      frames.push(frame);
     } catch {
       break;
     }
@@ -123,6 +144,8 @@ export function useReplayPlayer() {
     const loadId = loadIdRef.current + 1;
     loadIdRef.current = loadId;
     playRef.current.isPlaying = false;
+    revokeReplayImageUrls(playRef.current.frames);
+    playRef.current.frames = null;
     setReplay(null);
     setCurrentFrame(null);
     setLoadingReplay({
@@ -164,8 +187,14 @@ export function useReplayPlayer() {
           },
         );
 
-        if (loadIdRef.current !== loadId) return;
-        if (frames.length === 0) return;
+        if (loadIdRef.current !== loadId) {
+          revokeReplayImageUrls(frames);
+          return;
+        }
+        if (frames.length === 0) {
+          revokeReplayImageUrls(frames);
+          return;
+        }
         playRef.current = {
           isPlaying: false,
           speed: 1,
@@ -196,10 +225,18 @@ export function useReplayPlayer() {
   const close = useCallback(() => {
     loadIdRef.current += 1;
     playRef.current.isPlaying = false;
+    revokeReplayImageUrls(playRef.current.frames);
     playRef.current.frames = null;
     setReplay(null);
     setCurrentFrame(null);
     setLoadingReplay(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      revokeReplayImageUrls(playRef.current.frames);
+      playRef.current.frames = null;
+    };
   }, []);
 
   const setFrameIndex = useCallback(

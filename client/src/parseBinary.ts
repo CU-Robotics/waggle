@@ -29,7 +29,7 @@ export class BinaryReader {
   readBytes(len: number): Uint8Array {
     const bytes = new Uint8Array(this.view.buffer, this.pos, len);
     this.pos += len;
-    return bytes;
+    return new Uint8Array(bytes);
   }
 
   readString(len: number): string {
@@ -66,10 +66,7 @@ export function parseEntry(reader: BinaryReader): WaggleData {
       flip,
       svg_overlay,
     };
-    images[name] = {
-      ...image,
-      blob_url: createBlobUrl(image),
-    };
+    images[name] = image;
   }
 
   return {

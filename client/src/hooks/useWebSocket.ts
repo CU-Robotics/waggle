@@ -18,9 +18,18 @@ export function useWebSocket() {
   const [logData, setLogData] = useState<{ [key: string]: string[] }>({});
 
   const wsRef = useRef<WebSocket | null>(null);
+  const imageDataRef = useRef<WaggleData["images"]>({});
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 20;
   const reconnectDelay = 5000;
+
+  const revokeImageUrls = (images: WaggleData["images"]) => {
+    for (const image of Object.values(images)) {
+      if (image.blob_url) {
+        URL.revokeObjectURL(image.blob_url);
+      }
+    }
+  };
 
   const handleIncomingMessage = useCallback(
     (all_data: WaggleData[]) => {
@@ -66,13 +75,16 @@ export function useWebSocket() {
           setImageData((prevData) => {
             const newData = { ...prevData };
             for (const [key, value] of Object.entries(data.images)) {
-              // Revoke old blob URL to avoid memory leak
               if (newData[key]?.blob_url) {
                 URL.revokeObjectURL(newData[key].blob_url!);
               }
-              value.blob_url = createBlobUrl(value);
-              newData[key] = value;
+              newData[key] = {
+                ...value,
+                image_data: new Uint8Array(),
+                blob_url: createBlobUrl(value),
+              };
             }
+            imageDataRef.current = newData;
             return newData;
           });
         }
@@ -119,7 +131,12 @@ export function useWebSocket() {
   );
 
   useEffect(() => {
+    let shouldReconnect = true;
+    let reconnectTimer: number | undefined;
+
     const connectWebSocket = () => {
+      if (!shouldReconnect) return;
+
       if (
         wsRef.current &&
         (wsRef.current.readyState === WebSocket.OPEN ||
@@ -226,8 +243,9 @@ export function useWebSocket() {
       wsRef.current.onclose = (event) => {
         console.log("WebSocket Disconnected", event);
         setIsConnected(false);
+        if (!shouldReconnect) return;
         reconnectAttemptsRef.current += 1;
-        setTimeout(connectWebSocket, reconnectDelay);
+        reconnectTimer = window.setTimeout(connectWebSocket, reconnectDelay);
       };
 
       wsRef.current.onerror = (error) => {
@@ -237,9 +255,20 @@ export function useWebSocket() {
 
     connectWebSocket();
     return () => {
+      shouldReconnect = false;
+      if (reconnectTimer !== undefined) {
+        window.clearTimeout(reconnectTimer);
+      }
       if (wsRef.current) wsRef.current.close();
     };
   }, [handleIncomingMessage]); // Add handleIncomingMessage as a dependency
+
+  useEffect(() => {
+    return () => {
+      revokeImageUrls(imageDataRef.current);
+      imageDataRef.current = {};
+    };
+  }, []);
 
   return {
     isConnected,
