@@ -9,7 +9,7 @@ use nokhwa::utils::{
 use rand::Rng;
 use rand::distributions::Alphanumeric;
 use reqwest::Client;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use waggle::waggle_data::{GraphData, LogData, StringData, SvgData, WaggleNonImageData};
@@ -71,7 +71,7 @@ async fn main() {
                     let prefix = hasher.finish();
                     frame_n = frame_n.wrapping_add(1);
                     let cx = (frame_n % 640) as i32;
-                    let svg_overlay = format!(
+                    let detection_overlay = format!(
                         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 640 480\" \
                          preserveAspectRatio=\"none\">\
                          <rect x=\"{x}\" y=\"160\" width=\"160\" height=\"160\" \
@@ -81,15 +81,33 @@ async fn main() {
                         x = cx,
                         tx = cx + 4,
                     );
-                    let svg_b64 =
-                        base64::engine::general_purpose::STANDARD.encode(svg_overlay.as_bytes());
+                    let aim_overlay = format!(
+                        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 640 480\" \
+                         preserveAspectRatio=\"none\">\
+                         <line x1=\"0\" y1=\"240\" x2=\"640\" y2=\"240\" stroke=\"cyan\" \
+                         stroke-width=\"3\" stroke-dasharray=\"12 8\"/>\
+                         <line x1=\"320\" y1=\"0\" x2=\"320\" y2=\"480\" stroke=\"cyan\" \
+                         stroke-width=\"3\" stroke-dasharray=\"12 8\"/>\
+                         <circle cx=\"320\" cy=\"240\" r=\"{r}\" fill=\"none\" stroke=\"orange\" \
+                         stroke-width=\"4\"/>\
+                         <text x=\"330\" y=\"270\" fill=\"orange\" font-size=\"22\" \
+                         font-family=\"monospace\">aim</text></svg>",
+                        r = 35 + (frame_n % 40),
+                    );
+                    let mut svg_overlays = BTreeMap::new();
+                    svg_overlays.insert("aim".to_string(), aim_overlay);
+                    svg_overlays.insert("detection".to_string(), detection_overlay);
+                    let svg_overlays_json =
+                        serde_json::to_string(&svg_overlays).expect("svg overlay json");
+                    let svg_overlays_b64 = base64::engine::general_purpose::STANDARD
+                        .encode(svg_overlays_json.as_bytes());
                     let resp = rt.block_on(async {
                         cam_client
                             .post("http://localhost:3000/image")
                             .header("x-image-name", "camera")
                             .header("x-image-scale", "1")
                             .header("x-image-flip", "false")
-                            .header("x-image-svg-overlay-base64", svg_b64)
+                            .header("x-image-svg-overlays-base64", svg_overlays_b64)
                             .body(jpeg_bytes)
                             .send()
                             .await
