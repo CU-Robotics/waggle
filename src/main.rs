@@ -160,9 +160,10 @@ async fn send_configurable_int_handler(
     Query(data): Query<ConfigurableIntReq>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     let vars = server.configurable_vars.lock();
+    debug!("Received request for configurable int '{}'", data.name);
 
     match vars.configurable_ints.get(&data.name) {
-        Some(value) => (StatusCode::OK, Json(json!({ "value": value }))),
+        Some(value) => (StatusCode::OK, Json(json!({ "name": data.name, "default": value}))),
         None => (StatusCode::NOT_FOUND, Json(json!({ "error": "Key not found" }))),
     }
 }
@@ -182,7 +183,7 @@ async fn send_configurable_double_handler(
     let vars = server.configurable_vars.lock();
 
     match vars.configurable_doubles.get(&data.name) {
-        Some(value) => (StatusCode::OK, Json(json!({ "value": value }))),
+        Some(value) => (StatusCode::OK, Json(json!({ "name": data.name, "default": value}))),
         None => (StatusCode::NOT_FOUND, Json(json!({ "error": "Key not found" }))),
     }
 }
@@ -209,6 +210,8 @@ async fn ws_connected(
     let id = uuid::Uuid::new_v4();
     server.clients.lock().insert(id, tx.clone());
     info!("New client connected");
+    server.configurable_vars.lock().configurable_ints.clear();
+    server.configurable_vars.lock().configurable_doubles.clear();
     {
         let mut ready = server.clients_ready.lock();
         *ready = true;

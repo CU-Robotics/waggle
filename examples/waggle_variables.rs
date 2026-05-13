@@ -23,6 +23,7 @@ async fn main(){
         name: "int1".to_string(),
         default: 42,
     };
+    
     let double_request = ConfigurableDoubleRequest {
         name: "double1".to_string(),
         default: 3.14,
