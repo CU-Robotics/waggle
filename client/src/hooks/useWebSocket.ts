@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import {useCallback, useEffect, useRef, useState} from "react";
 import {ConfigurableVarData, GraphData, WaggleData, WebSocketMessage} from "../types";
-import {parseBatch} from "../parseBinary";
+import {createBlobUrl, parseBatch} from "../parseBinary";
 
 const frame_timestamps: number[] = [];
 const event_timestamps: number[] = [];
@@ -27,16 +27,14 @@ export function useWebSocket() {
     const reconnectDelay = 5000;
 
     const handleIncomingMessage = useCallback(
-        (all_data: WebSocketMessage) => {
-            //if(all_data.kind === "waggle_data"){
-                console.log("data received:", Date.now(), all_data.data.length)
-                for (let i = 0; i < all_data.data.length; i++) {
-                    const data = all_data.data[i];
-                    const lastFrame = i === all_data.data.length - 1;
-                    //  Append graph data
-                    if (data.graph_data) {
-                        setGraphData((prevData) => {
-                            const newData = {...prevData};
+        (all_data: WaggleData[]) => {
+            for (let i = 0; i < all_data.length; i++) {
+                const data = all_data[i];
+                const lastFrame = i === all_data.length - 1;
+                //  Append graph data
+                if (data.graph_data) {
+                    setGraphData((prevData) => {
+                        const newData = {...prevData};
 
                             for (const [graph_name, _graph_points] of Object.entries(
                                 data.graph_data,
@@ -67,20 +65,21 @@ export function useWebSocket() {
                         });
                     }
 
-                    // Update image data
-                    if (data.images && lastFrame) {
-                        setImageData((prevData) => {
-                            const newData = {...prevData};
-                            for (const [key, value] of Object.entries(data.images)) {
-                                // Revoke old blob URL to avoid memory leak
-                                if (newData[key]?.blob_url) {
-                                    URL.revokeObjectURL(newData[key].blob_url!);
-                                }
-                                newData[key] = value;
+                // Update image data
+                if (data.images && lastFrame) {
+                    setImageData((prevData) => {
+                        const newData = {...prevData};
+                        for (const [key, value] of Object.entries(data.images)) {
+                            // Revoke old blob URL to avoid memory leak
+                            if (newData[key]?.blob_url) {
+                                URL.revokeObjectURL(newData[key].blob_url!);
                             }
-                            return newData;
-                        });
-                    }
+                            value.blob_url = createBlobUrl(value);
+                            newData[key] = value;
+                        }
+                        return newData;
+                    });
+                }
 
                     if (data.svg_data && lastFrame) {
                         setSvgData((prevData) => {
@@ -118,30 +117,6 @@ export function useWebSocket() {
                         });
                     }
                 }
-                
-            //}
-            // if(all_data.kind === "configurable_var_data"){
-            //     let var_data = all_data.data;
-            //     setConfigurableDoubleData((prevData: {[key: string]: number}) => {
-            //         const newData = {...prevData};
-            //         for(const [key,value] of Object.entries(var_data.configurable_double)){
-            //             if(!newData[key]) {
-            //                 newData[key] = value;
-            //             }
-            //         }
-            //         return newData;
-            //     });
-            //     setConfigurableIntData((prevData: {[key: string]: number}) => {
-            //         const newData = {...prevData};
-            //         for(const [key,value] of Object.entries(var_data.configurable_int)){
-            //             if(!newData[key]) {
-            //                 newData[key] = value;
-            //             }
-            //         }
-            //         return newData;
-            //     });
-
-            // }
         },
         [maxDataPoints, maxLogLines],
     );
@@ -184,10 +159,10 @@ export function useWebSocket() {
                     ? event.data
                     : await (event.data as Blob).arrayBuffer();
 
-                const websocket_message: WebSocketMessage = parseBatch(buffer);
+                const websocket_message: WaggleData[] = parseBatch(buffer);
 
 
-                let robot_data = websocket_message.data;
+                let robot_data = websocket_message;
 
                 if (robot_data.length == 0) {
                     if (wsRef.current) {
