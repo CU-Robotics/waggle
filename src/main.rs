@@ -90,7 +90,6 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         graph_data: meta.graph_data,
         string_data: meta.string_data,
         log_data: meta.log_data,
-        //configurable_var_data: meta.configurable_var_data
     })
 }
 
@@ -250,7 +249,6 @@ async fn batch_handler(
         graph_data: data.graph_data,
         string_data: data.string_data,
         log_data: data.log_data,
-        //configurable_var_data: data.configurable_var_data,
     };
     server.add_data_to_batch(waggle_data);
 }

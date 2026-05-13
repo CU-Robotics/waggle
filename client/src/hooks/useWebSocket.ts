@@ -253,23 +253,6 @@ export function useWebSocket() {
                     } else {
                         console.log("wsRef.current is null");
                     }
-                //}
-
-                // if(websocket_message.kind === "configurable_var_data"){
-                //      const var_data = websocket_message.data;
-
-                //     setConfigurableDoubleData((prevData) => ({
-                //         ...prevData,
-                //         ...var_data.configurable_double,  // overwrite with incoming values
-                //     }));
-
-                //     setConfigurableIntData((prevData) => ({
-                //         ...prevData,
-                //         ...var_data.configurable_int,
-                //     }));
-                //     handleIncomingMessage(websocket_message);
-                // }
-
             };
 
             wsRef.current.onclose = (event) => {
