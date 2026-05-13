@@ -186,73 +186,72 @@ export function useWebSocket() {
 
                 const websocket_message: WebSocketMessage = parseBatch(buffer);
 
-                //if(websocket_message.kind === "waggle_data"){
 
-                    let robot_data = websocket_message.data;
+                let robot_data = websocket_message.data;
 
-                    if (robot_data.length == 0) {
-                        if (wsRef.current) {
-                            const responseData = {};
-                            wsRef.current.send(responseData.toString());
-                        } else {
-                            console.log("wsRef.current is null");
-                        }
-                    }
-                    frame_timestamps.push(Date.now());
-
-                    if (robot_data.length > 0) {
-                        event_timestamps.push(Date.now());
-                    }
-
-                    if (frame_timestamps.length > 100) {
-                        frame_timestamps.shift();
-                        const fps =
-                            1000 /
-                            ((frame_timestamps[frame_timestamps.length - 1] -
-                                    frame_timestamps[0]) /
-                                frame_timestamps.length);
-                        const fps_data: GraphData = {
-                            x: Date.now(),
-                            y: fps,
-                        };
-                        if (robot_data.length > 0) {
-                            const last_robot_data = robot_data[robot_data.length - 1];
-                            if (!last_robot_data.graph_data) {
-                                last_robot_data.graph_data = {};
-                            }
-                            last_robot_data.graph_data.WAGGLE_FPS = [fps_data];
-                        }
-                    }
-
-                    if (event_timestamps.length > 100) {
-                        event_timestamps.shift();
-                        const eps =
-                            1000 /
-                            ((event_timestamps[event_timestamps.length - 1] -
-                                    event_timestamps[0]) /
-                                event_timestamps.length);
-                        const eps_data: GraphData = {
-                            x: Date.now(),
-                            y: eps,
-                        };
-                        if (robot_data.length > 0) {
-                            const last_robot_data = robot_data[robot_data.length - 1];
-                            if (!last_robot_data.graph_data) {
-                                last_robot_data.graph_data = {};
-                            }
-                            last_robot_data.graph_data.EVENTS_PER_SECOND = [eps_data];
-                        }
-                    }
-
-                    // This will now use the updated handleIncomingMessage when maxDataPoints changes
-                    handleIncomingMessage(websocket_message);
-
+                if (robot_data.length == 0) {
                     if (wsRef.current) {
                         const responseData = {};
                         wsRef.current.send(responseData.toString());
                     } else {
                         console.log("wsRef.current is null");
                     }
+                }
+                frame_timestamps.push(Date.now());
+
+                if (robot_data.length > 0) {
+                    event_timestamps.push(Date.now());
+                }
+
+                if (frame_timestamps.length > 100) {
+                    frame_timestamps.shift();
+                    const fps =
+                        1000 /
+                        ((frame_timestamps[frame_timestamps.length - 1] -
+                                frame_timestamps[0]) /
+                            frame_timestamps.length);
+                    const fps_data: GraphData = {
+                        x: Date.now(),
+                        y: fps,
+                    };
+                    if (robot_data.length > 0) {
+                        const last_robot_data = robot_data[robot_data.length - 1];
+                        if (!last_robot_data.graph_data) {
+                            last_robot_data.graph_data = {};
+                        }
+                        last_robot_data.graph_data.WAGGLE_FPS = [fps_data];
+                    }
+                }
+
+                if (event_timestamps.length > 100) {
+                    event_timestamps.shift();
+                    const eps =
+                        1000 /
+                        ((event_timestamps[event_timestamps.length - 1] -
+                                event_timestamps[0]) /
+                            event_timestamps.length);
+                    const eps_data: GraphData = {
+                        x: Date.now(),
+                        y: eps,
+                    };
+                    if (robot_data.length > 0) {
+                        const last_robot_data = robot_data[robot_data.length - 1];
+                        if (!last_robot_data.graph_data) {
+                            last_robot_data.graph_data = {};
+                        }
+                        last_robot_data.graph_data.EVENTS_PER_SECOND = [eps_data];
+                    }
+                }
+
+                // This will now use the updated handleIncomingMessage when maxDataPoints changes
+                handleIncomingMessage(websocket_message);
+
+                if (wsRef.current) {
+                    const responseData = {};
+                    wsRef.current.send(responseData.toString());
+                } else {
+                    console.log("wsRef.current is null");
+                }
             };
 
             wsRef.current.onclose = (event) => {
