@@ -1,4 +1,4 @@
-import type { WaggleData, WaggleNonImageData, ImageData, WebSocketMessage } from "./types";
+import type { WaggleData, WaggleNonImageData, ImageData } from "./types";
 
 export class BinaryReader {
     private view: DataView;

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-import {useCallback, useEffect, useRef, useState} from "react";
-import {ConfigurableVarData, GraphData, WaggleData, WebSocketMessage} from "../types";
-import {createBlobUrl, parseBatch} from "../parseBinary";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ConfigurableVarData, GraphData, WaggleData } from "../types";
+import { createBlobUrl, parseBatch } from "../parseBinary";
 
 const frame_timestamps: number[] = [];
 const event_timestamps: number[] = [];
@@ -34,41 +34,41 @@ export function useWebSocket() {
                 //  Append graph data
                 if (data.graph_data) {
                     setGraphData((prevData) => {
-                        const newData = {...prevData};
+                        const newData = { ...prevData };
 
-                            for (const [graph_name, _graph_points] of Object.entries(
-                                data.graph_data,
-                            )) {
-                                const graph_points: GraphData[] = _graph_points;
-                                if (!newData[graph_name]) {
-                                    newData[graph_name] = [];
-                                }
-                                const updatedArray = [...newData[graph_name]];
-
-                                for (const point of graph_points) {
-                                    if (point.settings?.clear_data) {
-                                        console.log(`Clearing ${graph_name}`);
-                                        if (updatedArray.length > 0) {
-                                            updatedArray.splice(0, updatedArray.length);
-                                        }
-                                        continue;
-                                    }
-                                    updatedArray.push(point);
-                                }
-                                const trimmedArray =
-                                    updatedArray.length > maxDataPoints
-                                        ? updatedArray.slice(updatedArray.length - maxDataPoints)
-                                        : updatedArray;
-                                newData[graph_name] = trimmedArray;
+                        for (const [graph_name, _graph_points] of Object.entries(
+                            data.graph_data,
+                        )) {
+                            const graph_points: GraphData[] = _graph_points;
+                            if (!newData[graph_name]) {
+                                newData[graph_name] = [];
                             }
-                            return newData;
-                        });
-                    }
+                            const updatedArray = [...newData[graph_name]];
+
+                            for (const point of graph_points) {
+                                if (point.settings?.clear_data) {
+                                    console.log(`Clearing ${graph_name}`);
+                                    if (updatedArray.length > 0) {
+                                        updatedArray.splice(0, updatedArray.length);
+                                    }
+                                    continue;
+                                }
+                                updatedArray.push(point);
+                            }
+                            const trimmedArray =
+                                updatedArray.length > maxDataPoints
+                                    ? updatedArray.slice(updatedArray.length - maxDataPoints)
+                                    : updatedArray;
+                            newData[graph_name] = trimmedArray;
+                        }
+                        return newData;
+                    });
+                }
 
                 // Update image data
                 if (data.images && lastFrame) {
                     setImageData((prevData) => {
-                        const newData = {...prevData};
+                        const newData = { ...prevData };
                         for (const [key, value] of Object.entries(data.images)) {
                             // Revoke old blob URL to avoid memory leak
                             if (newData[key]?.blob_url) {
@@ -81,42 +81,42 @@ export function useWebSocket() {
                     });
                 }
 
-                    if (data.svg_data && lastFrame) {
-                        setSvgData((prevData) => {
-                            const newData = {...prevData};
-                            for (const [key, value] of Object.entries(data.svg_data)) {
-                                newData[key] = value;
-                            }
-                            return newData;
-                        });
-                    }
-
-                    if (data.string_data && lastFrame) {
-                        setStringData((prevData) => {
-                            const newData = {...prevData};
-                            for (const [key, value] of Object.entries(data.string_data)) {
-                                newData[key] = value;
-                            }
-                            return newData;
-                        });
-                    }
-
-                    if (data.log_data) {
-                        setLogData((prevData) => {
-                            const newData = {...prevData};
-                            for (const [key, value] of Object.entries(data.log_data)) {
-                                if (!newData[key]) {
-                                    newData[key] = [];
-                                }
-                                const updated = [...newData[key], ...value.lines];
-                                newData[key] = updated.length > maxLogLines
-                                    ? updated.slice(updated.length - maxLogLines)
-                                    : updated;
-                            }
-                            return newData;
-                        });
-                    }
+                if (data.svg_data && lastFrame) {
+                    setSvgData((prevData) => {
+                        const newData = { ...prevData };
+                        for (const [key, value] of Object.entries(data.svg_data)) {
+                            newData[key] = value;
+                        }
+                        return newData;
+                    });
                 }
+
+                if (data.string_data && lastFrame) {
+                    setStringData((prevData) => {
+                        const newData = { ...prevData };
+                        for (const [key, value] of Object.entries(data.string_data)) {
+                            newData[key] = value;
+                        }
+                        return newData;
+                    });
+                }
+
+                if (data.log_data) {
+                    setLogData((prevData) => {
+                        const newData = { ...prevData };
+                        for (const [key, value] of Object.entries(data.log_data)) {
+                            if (!newData[key]) {
+                                newData[key] = [];
+                            }
+                            const updated = [...newData[key], ...value.lines];
+                            newData[key] = updated.length > maxLogLines
+                                ? updated.slice(updated.length - maxLogLines)
+                                : updated;
+                        }
+                        return newData;
+                    });
+                }
+            }
         },
         [maxDataPoints, maxLogLines],
     );
@@ -183,7 +183,7 @@ export function useWebSocket() {
                     const fps =
                         1000 /
                         ((frame_timestamps[frame_timestamps.length - 1] -
-                                frame_timestamps[0]) /
+                            frame_timestamps[0]) /
                             frame_timestamps.length);
                     const fps_data: GraphData = {
                         x: Date.now(),
@@ -203,7 +203,7 @@ export function useWebSocket() {
                     const eps =
                         1000 /
                         ((event_timestamps[event_timestamps.length - 1] -
-                                event_timestamps[0]) /
+                            event_timestamps[0]) /
                             event_timestamps.length);
                     const eps_data: GraphData = {
                         x: Date.now(),
@@ -248,16 +248,16 @@ export function useWebSocket() {
     }, [handleIncomingMessage]); // Add handleIncomingMessage as a dependency
 
     useEffect(() => {
-    const poll = async () => {
-        const res = await fetch("/configurable-vars");
-        const data = await res.json();
-        setConfigurableDoubleData(data.configurable_doubles);
-        setConfigurableIntData(data.configurable_ints);
-    };
-    const id = setInterval(poll, 1000);
-    return () => clearInterval(id);
+        const poll = async () => {
+            const res = await fetch("/configurable-vars");
+            const data = await res.json();
+            setConfigurableDoubleData(data.configurable_doubles);
+            setConfigurableIntData(data.configurable_ints);
+        };
+        const id = setInterval(poll, 1000);
+        return () => clearInterval(id);
     }, []);
-    
+
     return {
         isConnected,
         graphData,

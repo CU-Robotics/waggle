@@ -1,16 +1,16 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {useWebSocket} from "./hooks/useWebSocket";
-import {useReplayPlayer} from "./hooks/useReplayPlayer";
-import type {WaggleData} from "./types";
-import {IconBrightnessDownFilled, IconDownload, IconMoonFilled,} from "@tabler/icons-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWebSocket } from "./hooks/useWebSocket";
+import { useReplayPlayer } from "./hooks/useReplayPlayer";
+import type { WaggleData } from "./types";
+import { IconBrightnessDownFilled, IconDownload, IconMoonFilled, } from "@tabler/icons-react";
 import ConfigurableVarsEditor from "./components/ConfigurableVarsEditor";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
 import PlayBar from "./components/PlayBar";
-import {GraphDataToCSV, saveFile} from "./csvHelpter";
-import {createBlobUrl} from "./parseBinary";
-import {buildAviMjpeg} from "./aviWriter";
+import { GraphDataToCSV, saveFile } from "./csvHelpter";
+import { createBlobUrl } from "./parseBinary";
+import { buildAviMjpeg } from "./aviWriter";
 
 function App() {
     const ws = useWebSocket();
@@ -25,9 +25,12 @@ function App() {
         stepForward,
         stepBackward,
         getImagesForFrame,
-      configurableDoubleData,
-    configurableIntData,
-  } = useReplayPlayer();
+    } = useReplayPlayer();
+
+    const {
+        configurableDoubleData,
+        configurableIntData
+    } = ws;
 
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
@@ -129,7 +132,7 @@ function App() {
             if (cancelled) return;
             setReplayImageData((prev) => {
                 // Merge: keep previous images, update with new ones
-                const result: WaggleData["images"] = {...prev};
+                const result: WaggleData["images"] = { ...prev };
                 for (const [k, v] of Object.entries(images)) {
                     // Revoke old blob URL for this key
                     if (result[k]?.blob_url) {
@@ -153,7 +156,7 @@ function App() {
 
         const abort = new AbortController();
         videoExportAbortRef.current = abort;
-        setVideoExportState({imageKey, progress: 0});
+        setVideoExportState({ imageKey, progress: 0 });
 
         try {
             const totalFrames = replay.frames.length;
@@ -173,7 +176,7 @@ function App() {
                     lastFrameData = img.image_data;
                     if (width === 0) {
                         const bmp = await createImageBitmap(
-                            new Blob([img.image_data], {type: "image/jpeg"})
+                            new Blob([img.image_data], { type: "image/jpeg" })
                         );
                         width = bmp.width;
                         height = bmp.height;
@@ -186,7 +189,7 @@ function App() {
                 }
 
                 if (i % 50 === 0) {
-                    setVideoExportState({imageKey, progress: (i + 1) / totalFrames});
+                    setVideoExportState({ imageKey, progress: (i + 1) / totalFrames });
                     await new Promise(r => setTimeout(r, 0));
                 }
             }
@@ -204,7 +207,7 @@ function App() {
             const durationSec = ((tN - t0) * msPerUnit) / 1000;
             const fps = durationSec > 0 ? Math.round(jpegFrames.length / durationSec) : 30;
 
-            setVideoExportState({imageKey, progress: 1});
+            setVideoExportState({ imageKey, progress: 1 });
             const blob = buildAviMjpeg(width, height, Math.max(1, Math.min(fps, 120)), jpegFrames);
 
             if (!abort.signal.aborted) {
@@ -351,7 +354,7 @@ function App() {
                             <div className="h-3 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-600">
                                 <div
                                     className="h-full rounded-full bg-blue-500 transition-all duration-150"
-                                    style={{width: `${Math.round(loadingProgress * 100)}%`}}
+                                    style={{ width: `${Math.round(loadingProgress * 100)}%` }}
                                 />
                             </div>
                             <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400">
@@ -371,7 +374,7 @@ function App() {
                             <div className="h-3 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-600">
                                 <div
                                     className="h-full rounded-full bg-blue-500 transition-all duration-150"
-                                    style={{width: `${Math.round(videoExportState.progress * 100)}%`}}
+                                    style={{ width: `${Math.round(videoExportState.progress * 100)}%` }}
                                 />
                             </div>
                             <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400">
@@ -404,19 +407,19 @@ function App() {
                     <div className="flex items-center w-full gap-4">
                         <div className="flex-grow"></div>
                         {!inReplayMode && (
-                            <ConnectionStatus connectionStatus={isConnected}/>
+                            <ConnectionStatus connectionStatus={isConnected} />
                         )}
                         {inReplayMode && (
                             <span
                                 className="rounded bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900 dark:text-orange-200">
-                REPLAY
-              </span>
+                                REPLAY
+                            </span>
                         )}
                         <button onClick={handleToggle}>
                             {isDarkMode ? (
-                                <IconMoonFilled size={20}/>
+                                <IconMoonFilled size={20} />
                             ) : (
-                                <IconBrightnessDownFilled size={20}/>
+                                <IconBrightnessDownFilled size={20} />
                             )}
                         </button>
                     </div>
@@ -460,7 +463,7 @@ function App() {
                                 onClick={handleDownloadData}
                                 className="flex items-center gap-2 rounded-md border bg-slate-300 px-3 py-2 text-black hover:bg-slate-600 dark:bg-slate-700 dark:text-white"
                             >
-                                <IconDownload size={18}/>
+                                <IconDownload size={18} />
                                 Download All Data
                             </button>
                         </div>
@@ -472,11 +475,10 @@ function App() {
                     {Object.entries(graphData).map(([key, value]) => (
                         <div
                             key={key}
-                            className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${
-                                activeGraphs.has(key)
-                                    ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
-                                    : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                            }`}
+                            className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${activeGraphs.has(key)
+                                ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
+                                : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                                }`}
                             onClick={() => toggleGraph(key)}
                         >
                             <p>{key}</p>
@@ -533,12 +535,12 @@ function App() {
                                         {key}: {value.value}
                                     </p>
                                 </div>
-                            ))} 
+                            ))}
                         </div>
                         {/* <img src={gameField} alt="" className="m-2 rounded-md border" /> */}
                     </div>
-          
-          {/* Main view camera feed */}
+
+                    {/* Main view camera feed */}
                     <div className="m-2 flex w-3/4 flex-col rounded-md border">
                         <div className="flex items-center justify-center">
                             <div className="m-2 flex flex-wrap">
@@ -556,7 +558,7 @@ function App() {
                                                         className="rounded p-1 hover:bg-neutral-200 dark:hover:bg-neutral-600"
                                                         title="Download as video"
                                                     >
-                                                        <IconDownload size={16}/>
+                                                        <IconDownload size={16} />
                                                     </button>
                                                 )}
                                             </div>
@@ -571,30 +573,30 @@ function App() {
                             </div>
                         </div>
                     </div>
-          
-          {/* Svg Data*/ }
-          <div className="m-2 flex w-3/4 flex-col rounded-md border">
-            <div className="flex items-center justify-center">
-              <div className="m-2 flex flex-wrap">
-                {Object.entries(svgData).map(([key, value]) => {
-                    return (
-                        <div className="m-2 flex flex-col items-center" key={key}>
-                        <p>{key}</p>
-                        <div dangerouslySetInnerHTML={{__html: value.svg_string}}/></div>
-                    );
-                })}
+
+                    {/* Svg Data*/}
+                    <div className="m-2 flex w-3/4 flex-col rounded-md border">
+                        <div className="flex items-center justify-center">
+                            <div className="m-2 flex flex-wrap">
+                                {Object.entries(svgData).map(([key, value]) => {
+                                    return (
+                                        <div className="m-2 flex flex-col items-center" key={key}>
+                                            <p>{key}</p>
+                                            <div dangerouslySetInnerHTML={{ __html: value.svg_string }} /></div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                    {/*Configurable Variable Data*/}
+                    <div className="m-2 flex w-3/4 flex-col rounded-md border">
+                        <div className="flex items-center justify-center">
+                            <div className="m-2 flex flex-wrap">
+                                <ConfigurableVarsEditor configurableDoubleData={configurableDoubleData} configurableIntData={configurableIntData} />
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-                  {/*Configurable Variable Data*/}
-          <div className="m-2 flex w-3/4 flex-col rounded-md border">
-            <div className="flex items-center justify-center">
-              <div className="m-2 flex flex-wrap">
-                <ConfigurableVarsEditor configurableDoubleData={configurableDoubleData} configurableIntData={configurableIntData}/>
-              </div>
-            </div>
-          </div>
-        </div>
             </div>
         </>
     );
