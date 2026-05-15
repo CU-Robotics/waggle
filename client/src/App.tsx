@@ -158,7 +158,6 @@ function getReplayVideoFps(frames: WaggleData[]) {
 
 function App() {
     const ws = useWebSocket();
-    const {configurableDoubleData, configurableIntData} = ws;
     const {
         replay,
         loadingReplay,
@@ -276,6 +275,16 @@ function App() {
     const svgData = inReplayMode ? replaySvg : ws.svgData;
     const stringData = inReplayMode ? replayStrings : ws.stringData;
     const logData = inReplayMode ? replayLogs : ws.logData;
+    const replayCurrentVars =
+        inReplayMode && replayFrames && replayFrameIndex >= 0
+            ? replayFrames[replayFrameIndex]?.configurable_vars
+            : undefined;
+    const configurableDoubleData = inReplayMode
+        ? (replayCurrentVars?.configurable_doubles ?? {})
+        : ws.configurableDoubleData;
+    const configurableIntData = inReplayMode
+        ? (replayCurrentVars?.configurable_ints ?? {})
+        : ws.configurableIntData;
     const isConnected = inReplayMode ? false : ws.isConnected;
     const maxDataPoints = ws.maxDataPoints;
     const setMaxDataPoints = ws.setMaxDataPoints;

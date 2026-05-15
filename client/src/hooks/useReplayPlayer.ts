@@ -12,8 +12,10 @@ const MS_TIMESTAMP_THRESHOLD = 1e11;
 
 // Schemas the replay player can read. The binary layout is unchanged across
 // these versions — newer schemas only add optional fields to the JSON metadata,
-// which parseEntry tolerates via `?? defaults`.
-const SUPPORTED_SCHEMAS = [4, 5];
+// which parseEntry tolerates via `?? defaults`. SCHEMA 5 wrote the full
+// configurable_vars snapshot every frame; SCHEMA 6 writes a per-frame delta —
+// both fold forward correctly under "apply each entry as an update".
+const SUPPORTED_SCHEMAS = [4, 5, 6];
 
 export interface ReplayState {
   frames: WaggleData[];
@@ -106,6 +108,17 @@ async function parseReplayFile(
   let pos = headerEnd;
   let recordsSinceYield = 0;
 
+  // Each frame on disk carries only the configurable_vars *updates* (delta) since
+  // the previous frame; fold them forward so frame.configurable_vars holds the
+  // full state at that point in time. Older replays that wrote the full snapshot
+  // every frame also fold correctly — re-applying the same keys is a no-op.
+  let runningInts: { [k: string]: number } = {};
+  let runningDoubles: { [k: string]: number } = {};
+  let runningVars = {
+    configurable_ints: runningInts,
+    configurable_doubles: runningDoubles,
+  };
+
   while (pos + RECORD_LEN_BYTES <= buffer.byteLength) {
     const recordLen = view.getUint32(pos, true);
     pos += RECORD_LEN_BYTES;
@@ -116,6 +129,20 @@ async function parseReplayFile(
     try {
       const frame = parseEntry(reader);
       attachImageBlobUrls(frame);
+
+      const updates = frame.configurable_vars;
+      const intKeys = Object.keys(updates.configurable_ints);
+      const doubleKeys = Object.keys(updates.configurable_doubles);
+      if (intKeys.length > 0 || doubleKeys.length > 0) {
+        runningInts = { ...runningInts, ...updates.configurable_ints };
+        runningDoubles = { ...runningDoubles, ...updates.configurable_doubles };
+        runningVars = {
+          configurable_ints: runningInts,
+          configurable_doubles: runningDoubles,
+        };
+      }
+      frame.configurable_vars = runningVars;
+
       frames.push(frame);
     } catch {
       break;
