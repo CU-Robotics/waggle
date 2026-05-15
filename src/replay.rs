@@ -1,6 +1,5 @@
 use crate::waggle_data::WaggleData;
-use chrono::{DateTime, Local};
-use log::info;
+use chrono::Local;
 use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Instant;
@@ -82,7 +81,7 @@ impl ReplayManager {
                 },
             };
 
-        let file_header = b"SCHEMA 3\n";
+        let file_header = b"SCHEMA 4\n";
         file.write_all(file_header).expect("Failed to write header to file");
         BufWriter::new(file)
     }

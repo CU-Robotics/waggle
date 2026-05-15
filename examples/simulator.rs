@@ -1,6 +1,7 @@
+use base64::Engine;
 use clap::Parser;
-use easy_svg::elements::{Circle, Rect, Svg, Text};
-use easy_svg::types::Color;
+use easy_svg::elements::{Circle, Line, Rect, Svg, Text};
+use easy_svg::types::{Color, PreserveAspectRatio};
 use nokhwa::Camera;
 use nokhwa::utils::{
     CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
@@ -8,7 +9,7 @@ use nokhwa::utils::{
 use rand::Rng;
 use rand::distributions::Alphanumeric;
 use reqwest::Client;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use waggle::waggle_data::{GraphData, LogData, StringData, SvgData, WaggleNonImageData};
@@ -34,6 +35,82 @@ fn create_svg(cx: f64, cy: f64) -> Svg {
         )
         .add_child_shape_element(Circle::new().fill(Color::DarkBlue).r(20.).cx(cx).cy(cy))
 }
+
+fn overlay_svg() -> Svg {
+    Svg::new()
+        .width(640.)
+        .height(480.)
+        .view_box((0., 0., 640., 480.))
+        .preserve_aspect_ratio(PreserveAspectRatio::None)
+}
+
+fn create_detection_overlay(cx: f64) -> String {
+    overlay_svg()
+        .add_child_shape_element(
+            Rect::new()
+                .x(cx)
+                .y(160.)
+                .width(160.)
+                .height(160.)
+                .fill(Color::Custom("none".to_string()))
+                .stroke(Color::Lime)
+                .stroke_width(4.),
+        )
+        .add_child_text(
+            Text::new()
+                .x(cx + 4.)
+                .y(150.)
+                .fill(Color::Lime)
+                .font_size("24".to_string())
+                .font_family("monospace".to_string())
+                .add_child_string("camera".to_string()),
+        )
+        .to_string()
+}
+
+fn create_aim_overlay(radius: f64) -> String {
+    let crosshair_style = "stroke-width: 3; stroke-dasharray: 12 8".to_string();
+
+    overlay_svg()
+        .add_child_shape_element(
+            Line::new()
+                .x1(0.)
+                .y1(240.)
+                .x2(640.)
+                .y2(240.)
+                .stroke(Color::Cyan)
+                .style(crosshair_style.clone()),
+        )
+        .add_child_shape_element(
+            Line::new()
+                .x1(320.)
+                .y1(0.)
+                .x2(320.)
+                .y2(480.)
+                .stroke(Color::Cyan)
+                .style(crosshair_style),
+        )
+        .add_child_shape_element(
+            Circle::new()
+                .cx(320.)
+                .cy(240.)
+                .r(radius)
+                .fill(Color::Custom("none".to_string()))
+                .stroke(Color::Orange)
+                .stroke_width(4.),
+        )
+        .add_child_text(
+            Text::new()
+                .x(330.)
+                .y(270.)
+                .fill(Color::Orange)
+                .font_size("22".to_string())
+                .font_family("monospace".to_string())
+                .add_child_string("aim".to_string()),
+        )
+        .to_string()
+}
+
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
@@ -58,6 +135,7 @@ async fn main() {
             cam.open_stream().expect("Failed to open camera stream");
             println!("Camera opened successfully (MJPEG)");
             let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+            let mut frame_n: u64 = 0;
             loop {
                 let t0 = Instant::now();
                 if let Ok(frame) = cam.frame() {
@@ -67,12 +145,24 @@ async fn main() {
                     let mut hasher = DefaultHasher::new();
                     jpeg_bytes.hash(&mut hasher);
                     let prefix = hasher.finish();
+                    frame_n = frame_n.wrapping_add(1);
+                    let cx = (frame_n % 640) as f64;
+                    let detection_overlay = create_detection_overlay(cx);
+                    let aim_overlay = create_aim_overlay((35 + (frame_n % 40)) as f64);
+                    let mut svg_overlays = BTreeMap::new();
+                    svg_overlays.insert("aim".to_string(), aim_overlay);
+                    svg_overlays.insert("detection".to_string(), detection_overlay);
+                    let svg_overlays_json =
+                        serde_json::to_string(&svg_overlays).expect("svg overlay json");
+                    let svg_overlays_b64 = base64::engine::general_purpose::STANDARD
+                        .encode(svg_overlays_json.as_bytes());
                     let resp = rt.block_on(async {
                         cam_client
                             .post("http://localhost:3000/image")
                             .header("x-image-name", "camera")
                             .header("x-image-scale", "1")
                             .header("x-image-flip", "false")
+                            .header("x-image-svg-overlays-base64", svg_overlays_b64)
                             .body(jpeg_bytes)
                             .send()
                             .await
