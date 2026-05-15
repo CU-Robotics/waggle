@@ -10,6 +10,17 @@ import PlayBar from "./components/PlayBar";
 import {GraphDataToCSV, saveFile} from "./csvHelpter";
 import {buildAviDib} from "./aviWriter";
 
+// Chrome can cancel large blob downloads if the object URL is revoked before
+// the browser hands the blob off to the download manager.
+const BLOB_URL_REVOKE_DELAY_MS = 60_000;
+const MS_PER_SECOND = 1000;
+// Timestamps above this magnitude are treated as milliseconds; below, as seconds.
+const MS_TIMESTAMP_THRESHOLD = 1e11;
+const MIN_VIDEO_FPS = 1;
+const MAX_VIDEO_FPS = 120;
+const DEFAULT_VIDEO_FPS = 30;
+const RENDER_PROGRESS_UPDATE_EVERY = 10;
+
 type ImageViewSelection = {
     base?: boolean;
     overlays?: { [key: string]: boolean };
@@ -61,9 +72,7 @@ function saveBlob(filename: string, blob: Blob) {
     element.click();
     document.body.removeChild(element);
 
-    // Chrome can cancel large blob downloads if the object URL is revoked
-    // before the browser has handed the blob off to the download manager.
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    window.setTimeout(() => URL.revokeObjectURL(url), BLOB_URL_REVOKE_DELAY_MS);
 }
 
 function sanitizeFilenamePart(value: string) {
@@ -128,17 +137,21 @@ async function renderImageFrame(
 }
 
 function getReplayVideoFps(frames: WaggleData[]) {
-    if (frames.length < 2) return 1;
+    if (frames.length < 2) return MIN_VIDEO_FPS;
 
     const start = frames[0].sent_timestamp;
     const end = frames[frames.length - 1].sent_timestamp;
-    const msPerUnit = start > 1e11 ? 1 : 1000;
-    const durationSeconds = (Math.abs(end - start) * msPerUnit) / 1000;
-    if (durationSeconds <= 0) return 30;
+    const msPerUnit = start > MS_TIMESTAMP_THRESHOLD ? 1 : MS_PER_SECOND;
+    const durationSeconds =
+        (Math.abs(end - start) * msPerUnit) / MS_PER_SECOND;
+    if (durationSeconds <= 0) return DEFAULT_VIDEO_FPS;
 
     return Math.max(
-        1,
-        Math.min(120, Math.round((frames.length - 1) / durationSeconds)),
+        MIN_VIDEO_FPS,
+        Math.min(
+            MAX_VIDEO_FPS,
+            Math.round((frames.length - 1) / durationSeconds),
+        ),
     );
 }
 
@@ -393,7 +406,10 @@ function App() {
                     renderedFrames.push(rendered.data);
                 }
 
-                if (i % 10 === 0 || i === sourceFrames.length - 1) {
+                if (
+                    i % RENDER_PROGRESS_UPDATE_EVERY === 0 ||
+                    i === sourceFrames.length - 1
+                ) {
                     setVideoExportProgress({
                         label: exportLabel,
                         stage: "rendering",

@@ -2,6 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { WaggleData } from "../types";
 import { BinaryReader, createBlobUrl, parseEntry } from "../parseBinary";
 
+const HEADER_SCAN_MAX_BYTES = 64;
+const RECORD_LEN_BYTES = 4;
+const PARSE_YIELD_BATCH = 250;
+const PLAYBACK_TICK_MS = 16;
+const MS_PER_SECOND = 1000;
+// Timestamps above this magnitude are treated as milliseconds; below, as seconds.
+const MS_TIMESTAMP_THRESHOLD = 1e11;
+
 export interface ReplayState {
   frames: WaggleData[];
   frameIndex: number;
@@ -70,7 +78,7 @@ async function parseReplayFile(
 ): Promise<WaggleData[]> {
   const bytes = new Uint8Array(buffer);
   let headerEnd = 0;
-  for (let i = 0; i < Math.min(bytes.length, 64); i++) {
+  for (let i = 0; i < Math.min(bytes.length, HEADER_SCAN_MAX_BYTES); i++) {
     if (bytes[i] === 0x0a) {
       headerEnd = i + 1;
       break;
@@ -87,9 +95,9 @@ async function parseReplayFile(
   let pos = headerEnd;
   let recordsSinceYield = 0;
 
-  while (pos + 4 <= buffer.byteLength) {
+  while (pos + RECORD_LEN_BYTES <= buffer.byteLength) {
     const recordLen = view.getUint32(pos, true);
-    pos += 4;
+    pos += RECORD_LEN_BYTES;
     if (pos + recordLen > buffer.byteLength) break;
 
     const recordBuffer = buffer.slice(pos, pos + recordLen);
@@ -104,7 +112,7 @@ async function parseReplayFile(
     pos += recordLen;
 
     recordsSinceYield++;
-    if (recordsSinceYield >= 250) {
+    if (recordsSinceYield >= PARSE_YIELD_BATCH) {
       recordsSinceYield = 0;
       onProgress(pos / buffer.byteLength, frames.length);
       await nextFrame();
@@ -287,7 +295,7 @@ export function useReplayPlayer() {
     const { frames } = p;
     const t0 = frames[0].sent_timestamp;
 
-    const msPerUnit = t0 > 1e11 ? 1 : 1000;
+    const msPerUnit = t0 > MS_TIMESTAMP_THRESHOLD ? 1 : MS_PER_SECOND;
 
     let elapsed = (frames[p.idx].sent_timestamp - t0) * msPerUnit;
     let lastTime = performance.now();
@@ -319,7 +327,7 @@ export function useReplayPlayer() {
         syncState(p.idx, frames, false);
         clearInterval(interval);
       }
-    }, 16);
+    }, PLAYBACK_TICK_MS);
 
     return () => clearInterval(interval);
   }, [replay?.isPlaying, syncState]);
