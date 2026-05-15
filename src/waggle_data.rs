@@ -36,6 +36,30 @@ impl Into<StringData> for String {
         StringData { value: self }
     }
 }
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ConfigurableVarData {
+    pub configurable_ints: HashMap<String, i64>,
+    pub configurable_doubles: HashMap<String, f64>,
+}
+
+impl ConfigurableVarData {
+    /// Entries in `self` whose value differs from `prev` (added or changed). Removals are not represented.
+    pub fn diff_against(&self, prev: &ConfigurableVarData) -> ConfigurableVarData {
+        let mut configurable_ints = HashMap::new();
+        for (k, v) in &self.configurable_ints {
+            if prev.configurable_ints.get(k) != Some(v) {
+                configurable_ints.insert(k.clone(), *v);
+            }
+        }
+        let mut configurable_doubles = HashMap::new();
+        for (k, v) in &self.configurable_doubles {
+            if prev.configurable_doubles.get(k) != Some(v) {
+                configurable_doubles.insert(k.clone(), *v);
+            }
+        }
+        ConfigurableVarData { configurable_ints, configurable_doubles }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct WaggleData {
@@ -45,6 +69,7 @@ pub struct WaggleData {
     pub graph_data: HashMap<String, Vec<GraphData>>,
     pub string_data: HashMap<String, StringData>,
     pub log_data: HashMap<String, LogData>,
+    pub configurable_vars: ConfigurableVarData,
 }
 impl Default for WaggleData {
     fn default() -> Self {
@@ -55,6 +80,7 @@ impl Default for WaggleData {
             graph_data: HashMap::new(),
             string_data: HashMap::new(),
             log_data: HashMap::new(),
+            configurable_vars: ConfigurableVarData::default(),
         }
     }
 }
@@ -67,6 +93,8 @@ pub struct WaggleNonImageData {
     pub string_data: HashMap<String, StringData>,
     #[serde(default)]
     pub log_data: HashMap<String, LogData>,
+    #[serde(default)]
+    pub configurable_vars: ConfigurableVarData,
 }
 
 fn push_u32(out: &mut Vec<u8>, val: usize) -> Result<(), String> {
@@ -81,12 +109,23 @@ impl WaggleData {
     ///   u32 data_len, jpeg, u32 svg_len, svg_bytes]
     /// svg_len = 0 means no overlay.
     pub fn to_binary(&self) -> Result<Vec<u8>, String> {
+        self.to_binary_with_vars(self.configurable_vars.clone())
+    }
+
+    /// Same as `to_binary`, but writes `vars` into the `configurable_vars` field instead of
+    /// the frame's own full snapshot. Used by the replay writer to emit per-frame deltas
+    /// while the in-memory frame still carries the full state.
+    pub fn to_binary_with_vars(
+        &self,
+        vars: ConfigurableVarData,
+    ) -> Result<Vec<u8>, String> {
         let non_image = WaggleNonImageData {
             sent_timestamp: self.sent_timestamp,
             svg_data: self.svg_data.clone(),
             graph_data: self.graph_data.clone(),
             string_data: self.string_data.clone(),
             log_data: self.log_data.clone(),
+            configurable_vars: vars,
         };
         let json = serde_json::to_vec(&non_image).map_err(|e| format!("json error: {e}"))?;
 

@@ -76,6 +76,10 @@ export function parseEntry(reader: BinaryReader): WaggleData {
     graph_data: meta.graph_data ?? {},
     string_data: meta.string_data ?? {},
     log_data: meta.log_data ?? {},
+    configurable_vars: meta.configurable_vars ?? {
+      configurable_ints: {},
+      configurable_doubles: {},
+    },
   };
 }
 

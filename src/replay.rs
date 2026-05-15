@@ -1,4 +1,4 @@
-use crate::waggle_data::WaggleData;
+use crate::waggle_data::{ConfigurableVarData, WaggleData};
 use chrono::Local;
 use std::path::Path;
 use std::sync::LazyLock;
@@ -14,6 +14,7 @@ pub struct ReplayManager {
     writer: LazyLock<BufWriter<File>>,
     max_file_size_bytes: usize,
     last_write_timestamp: Option<Instant>,
+    last_written_vars: ConfigurableVarData,
 }
 impl Default for ReplayManager {
     fn default() -> ReplayManager {
@@ -21,12 +22,13 @@ impl Default for ReplayManager {
             writer: LazyLock::new(|| Self::create_replay_file()),
             max_file_size_bytes: 5_000_000_000,
             last_write_timestamp: None,
+            last_written_vars: ConfigurableVarData::default(),
         }
     }
 }
 impl ReplayManager {
     pub fn write_to_file(&mut self, data: &WaggleData) -> Result<(), Box<dyn std::error::Error>> {
-        const REPLAY_TIMEOUT: u128 = 1000;
+        const REPLAY_TIMEOUT: u128 = 3000;
         let replay_file_is_timed_out = if let Some(last_write_timestamp) = self.last_write_timestamp
         {
             last_write_timestamp.elapsed().as_millis() > REPLAY_TIMEOUT
@@ -41,7 +43,12 @@ impl ReplayManager {
             *self = ReplayManager::default();
         }
 
-        let record = data.to_binary().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+        let var_delta = data.configurable_vars.diff_against(&self.last_written_vars);
+        self.last_written_vars = data.configurable_vars.clone();
+
+        let record = data
+            .to_binary_with_vars(var_delta)
+            .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
         let record_len: u32 = record.len().try_into().map_err(|_| "record too large for u32")?;
         self.writer.write_all(&record_len.to_le_bytes())?;
         self.writer.write_all(&record)?;
@@ -81,7 +88,7 @@ impl ReplayManager {
                 },
             };
 
-        let file_header = b"SCHEMA 4\n";
+        let file_header = b"SCHEMA 6\n";
         file.write_all(file_header).expect("Failed to write header to file");
         BufWriter::new(file)
     }

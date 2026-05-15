@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GraphData, WaggleData } from "../types";
+import { ConfigurableVarData, GraphData, WaggleData } from "../types";
 import { createBlobUrl, parseBatch } from "../parseBinary";
 
 const frame_timestamps: number[] = [];
@@ -16,6 +16,13 @@ export function useWebSocket() {
 
   const [stringData, setStringData] = useState<WaggleData["string_data"]>({});
   const [logData, setLogData] = useState<{ [key: string]: string[] }>({});
+
+  const [configurableDoubleData, setConfigurableDoubleData] = useState<
+    ConfigurableVarData["configurable_doubles"]
+  >({});
+  const [configurableIntData, setConfigurableIntData] = useState<
+    ConfigurableVarData["configurable_ints"]
+  >({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const imageDataRef = useRef<WaggleData["images"]>({});
@@ -270,6 +277,28 @@ export function useWebSocket() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("/configurable-vars");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setConfigurableDoubleData(data.configurable_doubles ?? {});
+        setConfigurableIntData(data.configurable_ints ?? {});
+      } catch {
+        // Ignore transient polling failures; reconnect via WebSocket handles real errors.
+      }
+    };
+    poll();
+    const id = window.setInterval(poll, 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
   return {
     isConnected,
     graphData,
@@ -281,5 +310,7 @@ export function useWebSocket() {
     setMaxDataPoints,
     maxLogLines,
     setMaxLogLines,
+    configurableDoubleData,
+    configurableIntData,
   };
 }

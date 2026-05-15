@@ -7,6 +7,7 @@ import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
 import PlayBar from "./components/PlayBar";
+import ConfigurableVarsEditor from "./components/ConfigurableVarsEditor";
 import {GraphDataToCSV, saveFile} from "./csvHelpter";
 import {buildAviDib} from "./aviWriter";
 
@@ -274,6 +275,16 @@ function App() {
     const svgData = inReplayMode ? replaySvg : ws.svgData;
     const stringData = inReplayMode ? replayStrings : ws.stringData;
     const logData = inReplayMode ? replayLogs : ws.logData;
+    const replayCurrentVars =
+        inReplayMode && replayFrames && replayFrameIndex >= 0
+            ? replayFrames[replayFrameIndex]?.configurable_vars
+            : undefined;
+    const configurableDoubleData = inReplayMode
+        ? (replayCurrentVars?.configurable_doubles ?? {})
+        : ws.configurableDoubleData;
+    const configurableIntData = inReplayMode
+        ? (replayCurrentVars?.configurable_ints ?? {})
+        : ws.configurableIntData;
     const isConnected = inReplayMode ? false : ws.isConnected;
     const maxDataPoints = ws.maxDataPoints;
     const setMaxDataPoints = ws.setMaxDataPoints;
@@ -864,6 +875,17 @@ function App() {
                                         </div>
                                     );
                                 })}
+                            </div>
+                        </div>
+                    </div>
+                    {/* Configurable Variables */}
+                    <div className="m-2 flex w-3/4 flex-col rounded-md border">
+                        <div className="flex items-center justify-center">
+                            <div className="m-2 flex flex-wrap">
+                                <ConfigurableVarsEditor
+                                    configurableDoubleData={configurableDoubleData}
+                                    configurableIntData={configurableIntData}
+                                />
                             </div>
                         </div>
                     </div>

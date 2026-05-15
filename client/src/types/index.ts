@@ -29,12 +29,18 @@ interface LogData {
   lines: string[];
 }
 
+interface ConfigurableVarData {
+  configurable_ints: { [key: string]: number };
+  configurable_doubles: { [key: string]: number };
+}
+
 interface WaggleNonImageData {
   sent_timestamp: number;
   svg_data: { [key: string]: SvgData };
   graph_data: { [key: string]: Array<GraphDataPoint> };
   string_data: { [key: string]: StringData };
   log_data: { [key: string]: LogData };
+  configurable_vars?: ConfigurableVarData;
 }
 
 interface WaggleData {
@@ -44,6 +50,7 @@ interface WaggleData {
   graph_data: { [key: string]: Array<GraphDataPoint> };
   string_data: { [key: string]: StringData };
   log_data: { [key: string]: LogData };
+  configurable_vars: ConfigurableVarData;
 }
 
 export type {
@@ -53,4 +60,5 @@ export type {
   LogData,
   WaggleData,
   WaggleNonImageData,
+  ConfigurableVarData,
 };

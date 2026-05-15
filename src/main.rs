@@ -1,22 +1,24 @@
 use axum::{
-    Json, Router,
     extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade}, Query,
         State,
-        ws::{Message, WebSocket, WebSocketUpgrade},
-    },
-    response::IntoResponse,
+    }, response::IntoResponse,
     routing::{get, post},
+    Json,
+    Router,
 };
 use futures::StreamExt;
 use parking_lot::Mutex;
+use reqwest::StatusCode;
+use serde::Deserialize;
+use serde_json::json;
 use shared_memory::ShmemConf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 use waggle::replay::ReplayManager;
-use waggle::waggle_data::{ImageData, WaggleData, WaggleNonImageData};
-
+use waggle::waggle_data::{ConfigurableVarData, ImageData, WaggleData, WaggleNonImageData};
 #[repr(C)]
 pub struct SharedMemHeader {
     write_counter: AtomicU64,
@@ -72,7 +74,7 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         let scale = read_i32(&mut pos)?;
 
         if pos >= buf.len() {
-            return Err("unexpected end of buffer reading flip".into());
+            return Err("unexpected end of bu..upffer reading flip".into());
         }
         let flip = buf[pos] != 0;
         pos += 1;
@@ -117,6 +119,7 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         graph_data: meta.graph_data,
         string_data: meta.string_data,
         log_data: meta.log_data,
+        configurable_vars: meta.configurable_vars,
     })
 }
 
@@ -126,6 +129,7 @@ struct WaggleServer {
     clients_ready: Mutex<bool>,
     replay_manager: Mutex<ReplayManager>,
     latest_images: Mutex<HashMap<String, ImageData>>,
+    configurable_vars: Mutex<ConfigurableVarData>,
 }
 
 impl WaggleServer {
@@ -136,11 +140,13 @@ impl WaggleServer {
             clients_ready: Mutex::new(false),
             replay_manager: Mutex::new(ReplayManager::default()),
             latest_images: Mutex::new(HashMap::new()),
+            configurable_vars: Mutex::new(ConfigurableVarData::default()),
         }
     }
 
-    fn add_data_to_batch(&self, data: WaggleData) {
+    fn add_data_to_batch(&self, mut data: WaggleData) {
         debug!("received batch data");
+        data.configurable_vars = self.configurable_vars.lock().clone();
         if let Err(e) = self.replay_manager.lock().write_to_file(&data) {
             error!("Failed to write replay: {}", e);
         }
@@ -153,6 +159,74 @@ impl WaggleServer {
 }
 
 type ServerState = Arc<WaggleServer>;
+//server get request, sends config data to hive
+#[derive(Deserialize)]
+struct ConfigurableIntReq {
+    name: String,
+    default: i64,
+}
+
+#[derive(Deserialize)]
+struct ConfigurableDoubleReq {
+    name: String,
+    default: f64,
+}
+
+async fn list_configurable_vars_handler(
+    State(server): State<ServerState>,
+) -> Json<serde_json::Value> {
+    let vars = server.configurable_vars.lock();
+    Json(json!({
+        "configurable_ints": vars.configurable_ints,
+        "configurable_doubles": vars.configurable_doubles,
+    }))
+}
+
+async fn send_configurable_int_handler(
+    State(server): State<ServerState>,
+    Query(data): Query<ConfigurableIntReq>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let mut vars = server.configurable_vars.lock();
+    debug!("Received request for configurable int '{}'", data.name);
+
+    match vars.configurable_ints.get(&data.name) {
+        Some(value) => (StatusCode::OK, Json(json!({ "name": data.name, "default": value}))),
+        None => {
+            vars.configurable_ints.insert(data.name.clone(), data.default);
+            (StatusCode::OK, Json(json!({ "name": data.name, "default": data.default})))
+        },
+    }
+}
+
+async fn update_configurable_int_handler(
+    State(server): State<ServerState>,
+    Json(data): Json<ConfigurableIntReq>,
+) -> StatusCode {
+    server.configurable_vars.lock().configurable_ints.insert(data.name, data.default);
+    StatusCode::OK
+}
+
+async fn send_configurable_double_handler(
+    State(server): State<ServerState>,
+    Query(data): Query<ConfigurableDoubleReq>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let mut vars = server.configurable_vars.lock();
+
+    match vars.configurable_doubles.get(&data.name) {
+        Some(value) => (StatusCode::OK, Json(json!({ "name": data.name, "default": value}))),
+        None => {
+            vars.configurable_doubles.insert(data.name.clone(), data.default);
+            (StatusCode::OK, Json(json!({ "name": data.name, "default": data.default})))
+        },
+    }
+}
+async fn update_configurable_double_handler(
+    State(server): State<ServerState>,
+    Json(data): Json<ConfigurableDoubleReq>,
+) -> StatusCode {
+    server.configurable_vars.lock().configurable_doubles.insert(data.name, data.default);
+    StatusCode::OK
+}
 
 async fn ws_handler(ws: WebSocketUpgrade, State(server): State<ServerState>) -> impl IntoResponse {
     ws.on_upgrade(|socket| ws_connected(socket, server))
@@ -198,6 +272,7 @@ async fn batch_handler(State(server): State<ServerState>, Json(data): Json<Waggl
         graph_data: data.graph_data,
         string_data: data.string_data,
         log_data: data.log_data,
+        configurable_vars: data.configurable_vars,
     };
     server.add_data_to_batch(waggle_data);
 }
@@ -383,6 +458,11 @@ async fn main() {
         .route("/batch", post(batch_handler))
         .route("/image", post(image_handler))
         .route("/ws", get(ws_handler))
+        .route("/configurable-int", get(send_configurable_int_handler))
+        .route("/configurable-int", post(update_configurable_int_handler))
+        .route("/configurable-double", get(send_configurable_double_handler))
+        .route("/configurable-double", post(update_configurable_double_handler))
+        .route("/configurable-vars", get(list_configurable_vars_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
         .with_state(server);
 
