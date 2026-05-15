@@ -1,29 +1,11 @@
 use reqwest::Client;
-#[derive(serde::Serialize)]
-struct ConfigurableIntRequest {
-    name: String,
-    default: i32,
-}
-#[derive(serde::Serialize)]
-struct ConfigurableDoubleRequest {
-    name: String,
-    default: f64,
-}
-
 #[tokio::main]
 async fn main() {
     let url_int = "http://localhost:3000/configurable-int";
     let url_double = "http://localhost:3000/configurable-double";
+    let url_batch = "http://localhost:3000/batch";
 
     let client = Client::new();
-
-    let int_request = ConfigurableIntRequest { name: "int1".to_string(), default: 42 };
-
-    let double_request = ConfigurableDoubleRequest { name: "double1".to_string(), default: 3.14 };
-
-    client.post(url_int).json(&int_request).send().await.expect("TODO: panic message");
-
-    client.post(url_double).json(&double_request).send().await.expect("TODO: panic message");
 
     loop {
         let int_value: i32 = client
@@ -53,6 +35,19 @@ async fn main() {
             .expect("missing double default");
 
         println!("int1 = {}, double1 = {}", int_value, double_value);
+
+        let batch_body = serde_json::json!({
+            "sent_timestamp": chrono::Local::now().timestamp_millis(),
+            "svg_data": {},
+            "graph_data": {},
+            "string_data": {},
+        });
+        client
+            .post(url_batch)
+            .json(&batch_body)
+            .send()
+            .await
+            .expect("failed to POST batch");
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }

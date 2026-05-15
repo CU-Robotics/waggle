@@ -36,7 +36,7 @@ impl Into<StringData> for String {
         StringData { value: self }
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ConfigurableVarData {
     pub configurable_ints: HashMap<String, i64>,
     pub configurable_doubles: HashMap<String, f64>,
@@ -50,6 +50,7 @@ pub struct WaggleData {
     pub graph_data: HashMap<String, Vec<GraphData>>,
     pub string_data: HashMap<String, StringData>,
     pub log_data: HashMap<String, LogData>,
+    pub configurable_vars: ConfigurableVarData,
 }
 impl Default for WaggleData {
     fn default() -> Self {
@@ -60,6 +61,7 @@ impl Default for WaggleData {
             graph_data: HashMap::new(),
             string_data: HashMap::new(),
             log_data: HashMap::new(),
+            configurable_vars: ConfigurableVarData::default(),
         }
     }
 }
@@ -72,6 +74,8 @@ pub struct WaggleNonImageData {
     pub string_data: HashMap<String, StringData>,
     #[serde(default)]
     pub log_data: HashMap<String, LogData>,
+    #[serde(default)]
+    pub configurable_vars: ConfigurableVarData,
 }
 
 fn push_u32(out: &mut Vec<u8>, val: usize) -> Result<(), String> {
@@ -92,6 +96,7 @@ impl WaggleData {
             graph_data: self.graph_data.clone(),
             string_data: self.string_data.clone(),
             log_data: self.log_data.clone(),
+            configurable_vars: self.configurable_vars.clone(),
         };
         let json = serde_json::to_vec(&non_image).map_err(|e| format!("json error: {e}"))?;
 

@@ -252,6 +252,7 @@ async fn main() {
             graph_data,
             string_data,
             log_data,
+            configurable_vars: Default::default(),
         };
         let client = client.clone();
         tokio::spawn(async move {

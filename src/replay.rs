@@ -26,7 +26,7 @@ impl Default for ReplayManager {
 }
 impl ReplayManager {
     pub fn write_to_file(&mut self, data: &WaggleData) -> Result<(), Box<dyn std::error::Error>> {
-        const REPLAY_TIMEOUT: u128 = 1000;
+        const REPLAY_TIMEOUT: u128 = 3000;
         let replay_file_is_timed_out = if let Some(last_write_timestamp) = self.last_write_timestamp
         {
             last_write_timestamp.elapsed().as_millis() > REPLAY_TIMEOUT
@@ -81,7 +81,7 @@ impl ReplayManager {
                 },
             };
 
-        let file_header = b"SCHEMA 4\n";
+        let file_header = b"SCHEMA 5\n";
         file.write_all(file_header).expect("Failed to write header to file");
         BufWriter::new(file)
     }
