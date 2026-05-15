@@ -10,6 +10,11 @@ const MS_PER_SECOND = 1000;
 // Timestamps above this magnitude are treated as milliseconds; below, as seconds.
 const MS_TIMESTAMP_THRESHOLD = 1e11;
 
+// Schemas the replay player can read. The binary layout is unchanged across
+// these versions — newer schemas only add optional fields to the JSON metadata,
+// which parseEntry tolerates via `?? defaults`.
+const SUPPORTED_SCHEMAS = [4, 5];
+
 export interface ReplayState {
   frames: WaggleData[];
   frameIndex: number;
@@ -85,9 +90,15 @@ async function parseReplayFile(
     }
   }
   const header = new TextDecoder().decode(bytes.slice(0, headerEnd));
-  const expectedHeader = "SCHEMA 4\n";
-  if (header != expectedHeader) {
-    alert("Found Header: " + header + "\nExpected Header: " + expectedHeader);
+  const match = header.match(/^SCHEMA (\d+)\n$/);
+  const version = match ? Number(match[1]) : NaN;
+  if (!SUPPORTED_SCHEMAS.includes(version)) {
+    alert(
+      "Unsupported replay header: " +
+        JSON.stringify(header) +
+        "\nSupported schemas: " +
+        SUPPORTED_SCHEMAS.join(", "),
+    );
   }
 
   const frames: WaggleData[] = [];

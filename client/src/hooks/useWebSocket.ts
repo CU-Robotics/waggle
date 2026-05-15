@@ -18,10 +18,10 @@ export function useWebSocket() {
   const [logData, setLogData] = useState<{ [key: string]: string[] }>({});
 
   const [configurableDoubleData, setConfigurableDoubleData] = useState<
-    ConfigurableVarData["configurable_double"]
+    ConfigurableVarData["configurable_doubles"]
   >({});
   const [configurableIntData, setConfigurableIntData] = useState<
-    ConfigurableVarData["configurable_int"]
+    ConfigurableVarData["configurable_ints"]
   >({});
 
   const wsRef = useRef<WebSocket | null>(null);
