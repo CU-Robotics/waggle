@@ -1,45 +1,185 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useWebSocket } from "./hooks/useWebSocket";
-import { useReplayPlayer } from "./hooks/useReplayPlayer";
-import type { WaggleData } from "./types";
-import { IconBrightnessDownFilled, IconDownload, IconMoonFilled, } from "@tabler/icons-react";
-import ConfigurableVarsEditor from "./components/ConfigurableVarsEditor";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {useWebSocket} from "./hooks/useWebSocket";
+import {useReplayPlayer} from "./hooks/useReplayPlayer";
+import type {WaggleData} from "./types";
+import {IconBrightnessDownFilled, IconDownload, IconMoonFilled,} from "@tabler/icons-react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
 import PlayBar from "./components/PlayBar";
-import { GraphDataToCSV, saveFile } from "./csvHelpter";
-import { createBlobUrl } from "./parseBinary";
-import { buildAviMjpeg } from "./aviWriter";
+import ConfigurableVarsEditor from "./components/ConfigurableVarsEditor";
+import {GraphDataToCSV, saveFile} from "./csvHelpter";
+import {buildAviDib} from "./aviWriter";
+
+// Chrome can cancel large blob downloads if the object URL is revoked before
+// the browser hands the blob off to the download manager.
+const BLOB_URL_REVOKE_DELAY_MS = 60_000;
+const MS_PER_SECOND = 1000;
+// Timestamps above this magnitude are treated as milliseconds; below, as seconds.
+const MS_TIMESTAMP_THRESHOLD = 1e11;
+const MIN_VIDEO_FPS = 1;
+const MAX_VIDEO_FPS = 120;
+const DEFAULT_VIDEO_FPS = 30;
+const RENDER_PROGRESS_UPDATE_EVERY = 10;
+
+type ImageViewSelection = {
+    base?: boolean;
+    overlays?: { [key: string]: boolean };
+};
+
+type VideoExportProgress = {
+    label: string;
+    stage: "rendering" | "encoding" | "downloading";
+    currentFrame: number;
+    totalFrames: number;
+    progress: number;
+};
+
+function getImageOverlayEntries(value: WaggleData["images"][string]) {
+    if (value.svg_overlays) {
+        const entries = Object.entries(value.svg_overlays).sort(([a], [b]) =>
+            a.localeCompare(b),
+        );
+        if (entries.length > 0) return entries;
+    }
+
+    if (!value.svg_overlay) {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse(value.svg_overlay) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return Object.entries(parsed)
+                .filter(
+                    (entry): entry is [string, string] => typeof entry[1] === "string",
+                )
+                .sort(([a], [b]) => a.localeCompare(b));
+        }
+    } catch {
+        // Plain SVG overlays are kept as a single default overlay.
+    }
+
+    return [["overlay", value.svg_overlay]];
+}
+
+function saveBlob(filename: string, blob: Blob) {
+    const url = URL.createObjectURL(blob);
+    const element = document.createElement("a");
+    element.href = url;
+    element.download = filename;
+    element.style.display = "none";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+
+    window.setTimeout(() => URL.revokeObjectURL(url), BLOB_URL_REVOKE_DELAY_MS);
+}
+
+function sanitizeFilenamePart(value: string) {
+    return value.replace(/[^a-z0-9._-]+/gi, "_").replace(/^_+|_+$/g, "");
+}
+
+function loadImage(blob: Blob): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        const url = URL.createObjectURL(blob);
+        image.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve(image);
+        };
+        image.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error("Failed to decode image frame."));
+        };
+        image.src = url;
+    });
+}
+
+function normalizeSvgForImage(svg: string) {
+    if (!svg.trimStart().startsWith("<svg") || svg.includes("xmlns=")) {
+        return svg;
+    }
+
+    return svg.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
+}
+
+async function renderImageFrame(
+    imageData: WaggleData["images"][string],
+    overlaySvg?: string,
+) {
+    const baseImage = await loadImage(
+        new Blob([imageData.image_data], {type: "image/jpeg"}),
+    );
+    const width = baseImage.naturalWidth || baseImage.width;
+    const height = baseImage.naturalHeight || baseImage.height;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+        throw new Error("Could not create video export canvas.");
+    }
+
+    context.drawImage(baseImage, 0, 0, width, height);
+
+    if (overlaySvg) {
+        const overlayImage = await loadImage(
+            new Blob([normalizeSvgForImage(overlaySvg)], {type: "image/svg+xml"}),
+        );
+        context.drawImage(overlayImage, 0, 0, width, height);
+    }
+
+    return {
+        width,
+        height,
+        data: context.getImageData(0, 0, width, height).data,
+    };
+}
+
+function getReplayVideoFps(frames: WaggleData[]) {
+    if (frames.length < 2) return MIN_VIDEO_FPS;
+
+    const start = frames[0].sent_timestamp;
+    const end = frames[frames.length - 1].sent_timestamp;
+    const msPerUnit = start > MS_TIMESTAMP_THRESHOLD ? 1 : MS_PER_SECOND;
+    const durationSeconds =
+        (Math.abs(end - start) * msPerUnit) / MS_PER_SECOND;
+    if (durationSeconds <= 0) return DEFAULT_VIDEO_FPS;
+
+    return Math.max(
+        MIN_VIDEO_FPS,
+        Math.min(
+            MAX_VIDEO_FPS,
+            Math.round((frames.length - 1) / durationSeconds),
+        ),
+    );
+}
 
 function App() {
     const ws = useWebSocket();
+    const {configurableDoubleData, configurableIntData} = ws;
     const {
         replay,
+        loadingReplay,
         loadFile,
-        loadingProgress,
         close: closeReplay,
         setFrameIndex,
         togglePlay,
         setSpeed,
         stepForward,
         stepBackward,
-        getImagesForFrame,
     } = useReplayPlayer();
-
-    const {
-        configurableDoubleData,
-        configurableIntData
-    } = ws;
 
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [activeGraphs, setActiveGraphs] = useState<Set<string>>(new Set());
     const [isDragging, setIsDragging] = useState(false);
-    const [replayImageData, setReplayImageData] = useState<WaggleData["images"]>({});
-    /** Tracks first-appearance order of image keys during replay */
-    const imageKeyOrder = useRef<string[]>([]);
-    const [videoExportState, setVideoExportState] = useState<{ imageKey: string; progress: number } | null>(null);
-    const videoExportAbortRef = useRef<AbortController | null>(null);
+    const [imageViewSelections, setImageViewSelections] = useState<{
+        [key: string]: ImageViewSelection;
+    }>({});
+    const [exportingVideo, setExportingVideo] = useState<string | null>(null);
+    const [videoExportProgress, setVideoExportProgress] =
+        useState<VideoExportProgress | null>(null);
 
     const inReplayMode = replay !== null;
 
@@ -47,6 +187,7 @@ function App() {
     // recompute from scratch only when scrubbing backwards.
     const lastIdx = useRef(-1);
     const accGraphs = useRef<{ [key: string]: { x: number; y: number }[] }>({});
+    const accImages = useRef<WaggleData["images"]>({});
     const accSvg = useRef<WaggleData["svg_data"]>({});
     const accStrings = useRef<WaggleData["string_data"]>({});
     const accLogs = useRef<{ [key: string]: string[] }>({});
@@ -58,6 +199,7 @@ function App() {
         if (!replayFrames) {
             lastIdx.current = -1;
             accGraphs.current = {};
+            accImages.current = {};
             accSvg.current = {};
             accStrings.current = {};
             accLogs.current = {};
@@ -69,6 +211,7 @@ function App() {
         // Scrubbed backwards — reset and recompute from 0
         if (target < lastIdx.current) {
             accGraphs.current = {};
+            accImages.current = {};
             accSvg.current = {};
             accStrings.current = {};
             accLogs.current = {};
@@ -83,12 +226,19 @@ function App() {
                 for (const [key, points] of Object.entries(frame.graph_data)) {
                     if (!accGraphs.current[key]) accGraphs.current[key] = [];
                     for (const p of points) {
-                        if ((p as any).settings?.clear_data) {
+                        if (p.settings?.clear_data) {
                             accGraphs.current[key] = [];
                             continue;
                         }
                         accGraphs.current[key].push(p);
                     }
+                }
+            }
+            if (frame.images) {
+                const images = Object.entries(frame.images);
+                images.sort((a, b) => a[0].localeCompare(b[0]));
+                for (const [k, v] of images) {
+                    accImages.current[k] = v;
                 }
             }
 
@@ -115,125 +265,14 @@ function App() {
         lastIdx.current = target;
     }, [replayFrames, replayFrameIndex]);
 
-    // Lazy-load images from file for the current replay frame
-    useEffect(() => {
-        if (!replay) {
-            setReplayImageData((prev) => {
-                for (const img of Object.values(prev)) {
-                    if (img.blob_url) URL.revokeObjectURL(img.blob_url);
-                }
-                return {};
-            });
-            imageKeyOrder.current = [];
-            return;
-        }
-        let cancelled = false;
-        getImagesForFrame(replay.frameIndex).then((images) => {
-            if (cancelled) return;
-            setReplayImageData((prev) => {
-                // Merge: keep previous images, update with new ones
-                const result: WaggleData["images"] = { ...prev };
-                for (const [k, v] of Object.entries(images)) {
-                    // Revoke old blob URL for this key
-                    if (result[k]?.blob_url) {
-                        URL.revokeObjectURL(result[k].blob_url!);
-                    }
-                    v.blob_url = createBlobUrl(v);
-                    result[k] = v;
-                    // Track insertion order
-                    if (!imageKeyOrder.current.includes(k)) {
-                        imageKeyOrder.current.push(k);
-                    }
-                }
-                return result;
-            });
-        });
-        return () => { cancelled = true; };
-    }, [replay?.frameIndex, replay === null, getImagesForFrame]);
-
-    const handleExportVideo = useCallback(async (imageKey: string) => {
-        if (!replay || videoExportState) return;
-
-        const abort = new AbortController();
-        videoExportAbortRef.current = abort;
-        setVideoExportState({ imageKey, progress: 0 });
-
-        try {
-            const totalFrames = replay.frames.length;
-            const jpegFrames: Uint8Array[] = [];
-            let width = 0, height = 0;
-            let lastFrameData: Uint8Array | null = null;
-
-            for (let i = 0; i < totalFrames; i++) {
-                if (abort.signal.aborted) {
-                    setVideoExportState(null);
-                    return;
-                }
-
-                const images = await getImagesForFrame(i);
-                const img = images[imageKey];
-                if (img) {
-                    lastFrameData = img.image_data;
-                    if (width === 0) {
-                        const bmp = await createImageBitmap(
-                            new Blob([img.image_data], { type: "image/jpeg" })
-                        );
-                        width = bmp.width;
-                        height = bmp.height;
-                        bmp.close();
-                    }
-                }
-
-                if (lastFrameData) {
-                    jpegFrames.push(lastFrameData);
-                }
-
-                if (i % 50 === 0) {
-                    setVideoExportState({ imageKey, progress: (i + 1) / totalFrames });
-                    await new Promise(r => setTimeout(r, 0));
-                }
-            }
-
-            if (jpegFrames.length === 0 || width === 0) {
-                alert(`No frames found for "${imageKey}"`);
-                setVideoExportState(null);
-                return;
-            }
-
-            // Compute FPS from timestamps
-            const t0 = replay.frames[0].sent_timestamp;
-            const tN = replay.frames[totalFrames - 1].sent_timestamp;
-            const msPerUnit = t0 > 1e11 ? 1 : 1000;
-            const durationSec = ((tN - t0) * msPerUnit) / 1000;
-            const fps = durationSec > 0 ? Math.round(jpegFrames.length / durationSec) : 30;
-
-            setVideoExportState({ imageKey, progress: 1 });
-            const blob = buildAviMjpeg(width, height, Math.max(1, Math.min(fps, 120)), jpegFrames);
-
-            if (!abort.signal.aborted) {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `${imageKey}.avi`;
-                a.click();
-                URL.revokeObjectURL(url);
-            }
-        } catch (err) {
-            console.error("[video export] error:", err);
-            alert(`Video export failed: ${(err as Error).message}`);
-        } finally {
-            setVideoExportState(null);
-            videoExportAbortRef.current = null;
-        }
-    }, [replay, videoExportState, getImagesForFrame]);
-
     const replayGraphData = accGraphs.current;
+    const replayImages = accImages.current;
     const replaySvg = accSvg.current;
     const replayStrings = accStrings.current;
     const replayLogs = accLogs.current;
 
     const graphData = inReplayMode ? replayGraphData : ws.graphData;
-    const imageData = inReplayMode ? replayImageData : ws.imageData;
+    const imageData = inReplayMode ? replayImages : ws.imageData;
     const svgData = inReplayMode ? replaySvg : ws.svgData;
     const stringData = inReplayMode ? replayStrings : ws.stringData;
     const logData = inReplayMode ? replayLogs : ws.logData;
@@ -242,6 +281,9 @@ function App() {
     const setMaxDataPoints = ws.setMaxDataPoints;
     const maxLogLines = ws.maxLogLines;
     const setMaxLogLines = ws.setMaxLogLines;
+    const replayLoadPercent = loadingReplay
+        ? Math.round(loadingReplay.progress * 100)
+        : 0;
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -261,16 +303,9 @@ function App() {
             e.stopPropagation();
             setIsDragging(false);
             const file = e.dataTransfer.files[0];
-            if (!file) {
-                console.warn("[replay] drop event had no files");
-                return;
+            if (file && file.name.endsWith(".waggle")) {
+                loadFile(file);
             }
-            console.log(`[replay] dropped file: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB, type: "${file.type}")`);
-            if (!file.name.endsWith(".waggle")) {
-                console.warn(`[replay] rejected file: expected .waggle extension`);
-                return;
-            }
-            loadFile(file);
         },
         [loadFile],
     );
@@ -299,6 +334,130 @@ function App() {
             newSet.delete(key);
             return newSet;
         });
+    };
+
+    const setImageBaseView = (imageKey: string, checked: boolean) => {
+        setImageViewSelections((prev) => ({
+            ...prev,
+            [imageKey]: {
+                ...prev[imageKey],
+                base: checked,
+            },
+        }));
+    };
+
+    const setImageOverlayView = (
+        imageKey: string,
+        overlayKey: string,
+        checked: boolean,
+    ) => {
+        setImageViewSelections((prev) => ({
+            ...prev,
+            [imageKey]: {
+                ...prev[imageKey],
+                overlays: {
+                    ...prev[imageKey]?.overlays,
+                    [overlayKey]: checked,
+                },
+            },
+        }));
+    };
+
+    const exportReplayImageVideo = async (
+        imageKey: string,
+        overlayKey?: string,
+    ) => {
+        if (!replay || exportingVideo) return;
+
+        const exportKey = overlayKey
+            ? `${imageKey}-${overlayKey}`
+            : `${imageKey}-base`;
+        const exportLabel = overlayKey
+            ? `${imageKey}: base image + ${overlayKey}`
+            : `${imageKey}: base image`;
+        setExportingVideo(exportKey);
+        try {
+            const renderedFrames: Uint8ClampedArray[] = [];
+            let width = 0;
+            let height = 0;
+            const sourceFrames = replay.frames.filter(
+                (frame) => frame.images?.[imageKey],
+            );
+            setVideoExportProgress({
+                label: exportLabel,
+                stage: "rendering",
+                currentFrame: 0,
+                totalFrames: sourceFrames.length,
+                progress: 0,
+            });
+
+            for (let i = 0; i < sourceFrames.length; i++) {
+                const image = sourceFrames[i].images[imageKey];
+                const overlaySvg = overlayKey
+                    ? getImageOverlayEntries(image).find(
+                        ([key]) => key === overlayKey,
+                    )?.[1]
+                    : undefined;
+                const rendered = await renderImageFrame(image, overlaySvg);
+
+                if (i === 0) {
+                    width = rendered.width;
+                    height = rendered.height;
+                }
+                if (rendered.width === width && rendered.height === height) {
+                    renderedFrames.push(rendered.data);
+                }
+
+                if (
+                    i % RENDER_PROGRESS_UPDATE_EVERY === 0 ||
+                    i === sourceFrames.length - 1
+                ) {
+                    setVideoExportProgress({
+                        label: exportLabel,
+                        stage: "rendering",
+                        currentFrame: i + 1,
+                        totalFrames: sourceFrames.length,
+                        progress:
+                            sourceFrames.length === 0 ? 0 : (i + 1) / sourceFrames.length,
+                    });
+                    await new Promise((resolve) => requestAnimationFrame(resolve));
+                }
+            }
+
+            if (renderedFrames.length === 0) return;
+
+            setVideoExportProgress({
+                label: exportLabel,
+                stage: "encoding",
+                currentFrame: renderedFrames.length,
+                totalFrames: renderedFrames.length,
+                progress: 1,
+            });
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+
+            const fps = getReplayVideoFps(sourceFrames);
+            const video = buildAviDib(width, height, fps, renderedFrames);
+            const nameParts = [
+                sanitizeFilenamePart(replay.fileName.replace(/\.waggle$/i, "")),
+                sanitizeFilenamePart(imageKey),
+                overlayKey ? `overlay_${sanitizeFilenamePart(overlayKey)}` : "base",
+            ].filter(Boolean);
+            setVideoExportProgress({
+                label: exportLabel,
+                stage: "downloading",
+                currentFrame: renderedFrames.length,
+                totalFrames: renderedFrames.length,
+                progress: 1,
+            });
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            saveBlob(`${nameParts.join("_")}.avi`, video);
+        } catch (error) {
+            console.error("Failed to export replay image video", error);
+            alert("Failed to export image sequence video.");
+        } finally {
+            setExportingVideo(null);
+            setVideoExportProgress(null);
+        }
     };
 
     const handleToggle = () => {
@@ -344,48 +503,75 @@ function App() {
                     </div>
                 )}
 
-                {/* Loading overlay */}
-                {loadingProgress !== null && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                        <div className="w-80 rounded-2xl bg-white p-6 shadow-lg dark:bg-neutral-800">
-                            <p className="mb-3 text-center text-sm font-semibold dark:text-white">
-                                Loading replay...
-                            </p>
-                            <div className="h-3 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-600">
+                {loadingReplay && (
+                    <div
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+                        <div
+                            className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-lg dark:border-neutral-600 dark:bg-neutral-900">
+                            <div className="mb-3 flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold">
+                                        {loadingReplay.stage === "reading"
+                                            ? "Reading replay file"
+                                            : "Parsing replay frames"}
+                                    </p>
+                                    <p className="truncate text-xs opacity-70">
+                                        {loadingReplay.fileName}
+                                    </p>
+                                </div>
+                                <span className="font-mono text-sm font-semibold">
+                  {replayLoadPercent}%
+                </span>
+                            </div>
+                            <div className="h-3 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
                                 <div
-                                    className="h-full rounded-full bg-blue-500 transition-all duration-150"
-                                    style={{ width: `${Math.round(loadingProgress * 100)}%` }}
+                                    className="h-full rounded-full bg-blue-500 transition-all duration-150 ease-out"
+                                    style={{width: `${replayLoadPercent}%`}}
                                 />
                             </div>
-                            <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400">
-                                {Math.round(loadingProgress * 100)}%
-                            </p>
+                            {loadingReplay.stage === "parsing" && (
+                                <p className="mt-3 text-xs opacity-70">
+                                    {loadingReplay.framesLoaded.toLocaleString()} frames loaded
+                                </p>
+                            )}
                         </div>
                     </div>
                 )}
 
-                {/* Video export overlay */}
-                {videoExportState && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                        <div className="w-80 rounded-2xl bg-white p-6 shadow-lg dark:bg-neutral-800">
-                            <p className="mb-3 text-center text-sm font-semibold dark:text-white">
-                                Exporting {videoExportState.imageKey}...
-                            </p>
-                            <div className="h-3 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-600">
+                {videoExportProgress && (
+                    <div
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+                        <div
+                            className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-lg dark:border-neutral-600 dark:bg-neutral-900">
+                            <div className="mb-3 flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold">
+                                        {videoExportProgress.stage === "rendering"
+                                            ? "Rendering video frames"
+                                            : videoExportProgress.stage === "encoding"
+                                                ? "Encoding AVI"
+                                                : "Starting download"}
+                                    </p>
+                                    <p className="truncate text-xs opacity-70">
+                                        {videoExportProgress.label}
+                                    </p>
+                                </div>
+                                <span className="font-mono text-sm font-semibold">
+                  {Math.round(videoExportProgress.progress * 100)}%
+                </span>
+                            </div>
+                            <div className="h-3 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
                                 <div
-                                    className="h-full rounded-full bg-blue-500 transition-all duration-150"
-                                    style={{ width: `${Math.round(videoExportState.progress * 100)}%` }}
+                                    className="h-full rounded-full bg-blue-500 transition-all duration-150 ease-out"
+                                    style={{
+                                        width: `${Math.round(videoExportProgress.progress * 100)}%`,
+                                    }}
                                 />
                             </div>
-                            <p className="mt-2 text-center text-xs text-neutral-500 dark:text-neutral-400">
-                                {Math.round(videoExportState.progress * 100)}%
+                            <p className="mt-3 text-xs opacity-70">
+                                {videoExportProgress.currentFrame.toLocaleString()} /{" "}
+                                {videoExportProgress.totalFrames.toLocaleString()} frames
                             </p>
-                            <button
-                                onClick={() => videoExportAbortRef.current?.abort()}
-                                className="mt-3 w-full rounded-lg bg-red-500 px-3 py-1.5 text-sm text-white hover:bg-red-600"
-                            >
-                                Cancel
-                            </button>
                         </div>
                     </div>
                 )}
@@ -404,22 +590,22 @@ function App() {
                 )}
 
                 <div className="mb-2 flex justify-between border-b p-2">
-                    <div className="flex items-center w-full gap-4">
+                    <div className="flex w-full items-center gap-4">
                         <div className="flex-grow"></div>
                         {!inReplayMode && (
-                            <ConnectionStatus connectionStatus={isConnected} />
+                            <ConnectionStatus connectionStatus={isConnected}/>
                         )}
                         {inReplayMode && (
                             <span
                                 className="rounded bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900 dark:text-orange-200">
-                                REPLAY
-                            </span>
+                REPLAY
+              </span>
                         )}
                         <button onClick={handleToggle}>
                             {isDarkMode ? (
-                                <IconMoonFilled size={20} />
+                                <IconMoonFilled size={20}/>
                             ) : (
-                                <IconBrightnessDownFilled size={20} />
+                                <IconBrightnessDownFilled size={20}/>
                             )}
                         </button>
                     </div>
@@ -443,7 +629,7 @@ function App() {
                                 className="w-36 rounded border px-2 py-1 dark:bg-neutral-800"
                             />
                         </div>
-                        <label htmlFor="maxLogLines" className="mb-2 mt-4 block">
+                        <label htmlFor="maxLogLines" className="mt-4 mb-2 block">
                             Max Log Lines per Terminal:
                         </label>
                         <div className="flex items-center">
@@ -463,7 +649,7 @@ function App() {
                                 onClick={handleDownloadData}
                                 className="flex items-center gap-2 rounded-md border bg-slate-300 px-3 py-2 text-black hover:bg-slate-600 dark:bg-slate-700 dark:text-white"
                             >
-                                <IconDownload size={18} />
+                                <IconDownload size={18}/>
                                 Download All Data
                             </button>
                         </div>
@@ -475,10 +661,11 @@ function App() {
                     {Object.entries(graphData).map(([key, value]) => (
                         <div
                             key={key}
-                            className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${activeGraphs.has(key)
-                                ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
-                                : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                                }`}
+                            className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${
+                                activeGraphs.has(key)
+                                    ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
+                                    : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                            }`}
                             onClick={() => toggleGraph(key)}
                         >
                             <p>{key}</p>
@@ -539,42 +726,133 @@ function App() {
                         </div>
                         {/* <img src={gameField} alt="" className="m-2 rounded-md border" /> */}
                     </div>
-
                     {/* Main view camera feed */}
                     <div className="m-2 flex w-3/4 flex-col rounded-md border">
                         <div className="flex items-center justify-center">
                             <div className="m-2 flex flex-wrap">
-                                {(inReplayMode
-                                    ? imageKeyOrder.current.filter(k => imageData[k]).map(k => [k, imageData[k]] as const)
-                                    : Object.entries(imageData)
-                                ).map(([key, value]) => {
+                                {Object.entries(imageData).map(([key, value]) => {
+                                    const overlayEntries = getImageOverlayEntries(value);
+                                    const viewSelection = imageViewSelections[key];
+                                    const showBase = viewSelection?.base ?? true;
+                                    const visibleOverlays = overlayEntries.filter(
+                                        ([overlayKey]) =>
+                                            viewSelection?.overlays?.[overlayKey] ?? true,
+                                    );
                                     return (
-                                        <div className="m-2 flex flex-col items-center" key={key}>
-                                            <div className="flex items-center gap-2">
+                                        <div
+                                            className="m-2 flex w-full flex-col items-center"
+                                            key={key}
+                                        >
+                                            <div className="mb-2 flex flex-wrap items-center justify-center gap-3">
                                                 <p>{key}</p>
-                                                {inReplayMode && (
-                                                    <button
-                                                        onClick={() => handleExportVideo(key)}
-                                                        className="rounded p-1 hover:bg-neutral-200 dark:hover:bg-neutral-600"
-                                                        title="Download as video"
+                                                <label
+                                                    className="flex items-center gap-1 rounded border px-2 py-1 text-xs dark:border-neutral-600">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={showBase}
+                                                        onChange={(e) =>
+                                                            setImageBaseView(key, e.target.checked)
+                                                        }
+                                                    />
+                                                    Base image
+                                                </label>
+                                                {overlayEntries.map(([overlayKey]) => (
+                                                    <label
+                                                        className="flex items-center gap-1 rounded border px-2 py-1 text-xs dark:border-neutral-600"
+                                                        key={`toggle-${overlayKey}`}
                                                     >
-                                                        <IconDownload size={16} />
-                                                    </button>
-                                                )}
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={
+                                                                viewSelection?.overlays?.[overlayKey] ?? true
+                                                            }
+                                                            onChange={(e) =>
+                                                                setImageOverlayView(
+                                                                    key,
+                                                                    overlayKey,
+                                                                    e.target.checked,
+                                                                )
+                                                            }
+                                                        />
+                                                        {overlayKey}
+                                                    </label>
+                                                ))}
                                             </div>
-                                            <img
-                                                src={value.blob_url}
-                                                className="rounded-md border"
-                                                alt="no source"
-                                            />
+                                            <div className="flex w-full flex-wrap justify-center gap-2">
+                                                {showBase && (
+                                                    <div className="max-w-full min-w-64 flex-1">
+                                                        <div
+                                                            className="mb-1 flex items-center justify-center gap-1 text-xs opacity-70">
+                                                            <span>Base image</span>
+                                                            {replay && (
+                                                                <button
+                                                                    className="rounded p-0.5 opacity-80 hover:bg-neutral-200 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-neutral-700"
+                                                                    disabled={exportingVideo !== null}
+                                                                    onClick={() => exportReplayImageVideo(key)}
+                                                                    title={
+                                                                        exportingVideo === `${key}-base`
+                                                                            ? "Exporting base AVI"
+                                                                            : "Download base AVI"
+                                                                    }
+                                                                >
+                                                                    <IconDownload size={14}/>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <img
+                                                            src={value.blob_url}
+                                                            className="block h-auto w-full rounded-md border"
+                                                            alt="no source"
+                                                        />
+                                                    </div>
+                                                )}
+                                                {visibleOverlays.map(([overlayKey, overlaySvg]) => (
+                                                    <div
+                                                        className="max-w-full min-w-64 flex-1"
+                                                        key={overlayKey}
+                                                    >
+                                                        <div
+                                                            className="mb-1 flex items-center justify-center gap-1 text-xs opacity-70">
+                                                            <span>Base image + {overlayKey}</span>
+                                                            {replay && (
+                                                                <button
+                                                                    className="rounded p-0.5 opacity-80 hover:bg-neutral-200 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-neutral-700"
+                                                                    disabled={exportingVideo !== null}
+                                                                    onClick={() =>
+                                                                        exportReplayImageVideo(key, overlayKey)
+                                                                    }
+                                                                    title={
+                                                                        exportingVideo === `${key}-${overlayKey}`
+                                                                            ? `Exporting ${overlayKey} AVI`
+                                                                            : `Download ${overlayKey} AVI`
+                                                                    }
+                                                                >
+                                                                    <IconDownload size={14}/>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <div className="relative">
+                                                            <img
+                                                                src={value.blob_url}
+                                                                className="block h-auto w-full rounded-md border"
+                                                                alt="no source"
+                                                            />
+                                                            <div
+                                                                className="pointer-events-none absolute inset-0 [&>svg]:h-full [&>svg]:w-full"
+                                                                dangerouslySetInnerHTML={{
+                                                                    __html: overlaySvg,
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     );
                                 })}
                             </div>
                         </div>
                     </div>
-
-                    {/* Svg Data*/}
                     <div className="m-2 flex w-3/4 flex-col rounded-md border">
                         <div className="flex items-center justify-center">
                             <div className="m-2 flex flex-wrap">
@@ -582,17 +860,23 @@ function App() {
                                     return (
                                         <div className="m-2 flex flex-col items-center" key={key}>
                                             <p>{key}</p>
-                                            <div dangerouslySetInnerHTML={{ __html: value.svg_string }} /></div>
+                                            <div
+                                                dangerouslySetInnerHTML={{__html: value.svg_string}}
+                                            />
+                                        </div>
                                     );
                                 })}
                             </div>
                         </div>
                     </div>
-                    {/*Configurable Variable Data*/}
+                    {/* Configurable Variables */}
                     <div className="m-2 flex w-3/4 flex-col rounded-md border">
                         <div className="flex items-center justify-center">
                             <div className="m-2 flex flex-wrap">
-                                <ConfigurableVarsEditor configurableDoubleData={configurableDoubleData} configurableIntData={configurableIntData} />
+                                <ConfigurableVarsEditor
+                                    configurableDoubleData={configurableDoubleData}
+                                    configurableIntData={configurableIntData}
+                                />
                             </div>
                         </div>
                     </div>
