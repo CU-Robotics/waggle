@@ -719,8 +719,8 @@ function App() {
                 )}
 
                 {/* String Data Section */}
-                <div className="flex">
-                    <div className="flex w-1/3 flex-col justify-between">
+                <div className="flex flex-col">
+                    <div className="flex flex-col justify-between">
                         <div className="m-2 rounded-md border border-b-0">
                             {Object.entries(stringData).map(([key, value]) => (
                                 <div
@@ -736,7 +736,7 @@ function App() {
                         {/* <img src={gameField} alt="" className="m-2 rounded-md border" /> */}
                     </div>
                     {/* Main view camera feed */}
-                    <div className="m-2 flex w-3/4 flex-col rounded-md border">
+                    <div className="m-2 flex flex-col rounded-md border">
                         <div className="flex items-center justify-center">
                             <div className="m-2 flex flex-wrap">
                                 {Object.entries(imageData).map(([key, value]) => {
@@ -862,7 +862,7 @@ function App() {
                             </div>
                         </div>
                     </div>
-                    <div className="m-2 flex w-3/4 flex-col rounded-md border">
+                    <div className="m-2 flex flex-col rounded-md border">
                         <div className="flex items-center justify-center">
                             <div className="m-2 flex flex-wrap">
                                 {Object.entries(svgData).map(([key, value]) => {
@@ -879,7 +879,7 @@ function App() {
                         </div>
                     </div>
                     {/* Configurable Variables */}
-                    <div className="m-2 flex w-3/4 flex-col rounded-md border">
+                    <div className="m-2 flex flex-col rounded-md border">
                         <div className="flex items-center justify-center">
                             <div className="m-2 flex flex-wrap">
                                 <ConfigurableVarsEditor
