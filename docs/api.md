@@ -113,14 +113,12 @@ Any other HTTP request falls back to serving files from `client/dist`. This allo
   "image_data": "<base64 png>",
   "scale": <number>,
   "flip": <bool>,
-  "svg_overlay": "<svg>...</svg>",
   "svg_overlays": { "threshold": "<svg>...</svg>", "detections": "<svg>...</svg>" }
 }
 ```
 - Publish PNG data; the backend resizes to 500×500 and converts to JPG before sending to clients.
 - `scale` controls the display size multiplier on the dashboard.
 - `flip=true` indicates the UI should mirror the image horizontally and vertically.
-- `svg_overlay` is the legacy single-overlay field.
 - `svg_overlays` is a map of named overlay variants. The dashboard can display the base image and any number of named overlays side by side.
 
 ### `SvgData`

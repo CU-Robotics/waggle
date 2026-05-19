@@ -139,7 +139,7 @@ impl WaggleData {
             out.extend_from_slice(&img.image_data);
             let serialized_overlays;
             let svg_overlay = if img.svg_overlays.is_empty() {
-                img.svg_overlay.as_deref().unwrap_or("")
+                &String::new()
             } else {
                 serialized_overlays = serde_json::to_string(&img.svg_overlays)
                     .map_err(|e| format!("svg overlay json error: {e}"))?;
