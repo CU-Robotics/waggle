@@ -1,11 +1,11 @@
 use axum::{
+    Json, Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade}, Query,
-        State,
-    }, response::IntoResponse,
+        Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
+    response::IntoResponse,
     routing::{get, post},
-    Json,
-    Router,
 };
 use futures::StreamExt;
 use parking_lot::Mutex;
@@ -106,10 +106,7 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
             .and_then(|overlay| serde_json::from_str::<HashMap<String, String>>(overlay).ok())
             .unwrap_or_default();
 
-        images.insert(
-            name,
-            ImageData { image_data: image_bytes, scale, flip, svg_overlay, svg_overlays },
-        );
+        images.insert(name, ImageData { image_data: image_bytes, scale, flip, svg_overlays });
     }
 
     Ok(WaggleData {
@@ -308,8 +305,7 @@ async fn image_handler(
         .unwrap_or_default();
 
     debug!("received image '{}' ({} bytes)", name, body.len());
-    let image_data =
-        ImageData { image_data: body.to_vec(), scale, flip, svg_overlay, svg_overlays };
+    let image_data = ImageData { image_data: body.to_vec(), scale, flip, svg_overlays };
 
     let mut data = WaggleData::default();
     data.images.insert(name.clone(), image_data.clone());

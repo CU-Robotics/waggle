@@ -7,7 +7,6 @@ pub struct ImageData {
     pub image_data: Vec<u8>,
     pub scale: i32,
     pub flip: bool,
-    pub svg_overlay: Option<String>,
     pub svg_overlays: HashMap<String, String>,
 }
 
@@ -115,10 +114,7 @@ impl WaggleData {
     /// Same as `to_binary`, but writes `vars` into the `configurable_vars` field instead of
     /// the frame's own full snapshot. Used by the replay writer to emit per-frame deltas
     /// while the in-memory frame still carries the full state.
-    pub fn to_binary_with_vars(
-        &self,
-        vars: ConfigurableVarData,
-    ) -> Result<Vec<u8>, String> {
+    pub fn to_binary_with_vars(&self, vars: ConfigurableVarData) -> Result<Vec<u8>, String> {
         let non_image = WaggleNonImageData {
             sent_timestamp: self.sent_timestamp,
             svg_data: self.svg_data.clone(),
