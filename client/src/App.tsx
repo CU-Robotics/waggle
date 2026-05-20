@@ -43,20 +43,7 @@ function getImageOverlayEntries(value: WaggleData["images"][string]) {
         if (entries.length > 0) return entries;
     }
 
-    try {
-        const parsed = JSON.parse(value.svg_overlay) as unknown;
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            return Object.entries(parsed)
-                .filter(
-                    (entry): entry is [string, string] => typeof entry[1] === "string",
-                )
-                .sort(([a], [b]) => a.localeCompare(b));
-        }
-    } catch {
-        // Plain SVG overlays are kept as a single default overlay.
-    }
-
-    return [["overlay", value.svg_overlay]];
+    return [];
 }
 
 function saveBlob(filename: string, blob: Blob) {
@@ -667,8 +654,8 @@ function App() {
                         <div
                             key={key}
                             className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${activeGraphs.has(key)
-                                    ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
-                                    : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                                ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
+                                : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
                                 }`}
                             onClick={() => toggleGraph(key)}
                         >
