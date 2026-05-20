@@ -43,7 +43,7 @@ function getImageOverlayEntries(value: WaggleData["images"][string]) {
         if (entries.length > 0) return entries;
     }
 
-    return [];
+    return [["", ""]];
 }
 
 function saveBlob(filename: string, blob: Blob) {
