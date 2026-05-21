@@ -122,9 +122,6 @@ async fn main() {
     let url = "http://localhost:3000/batch";
     let client = Client::new();
 
-    // let img_path_1 = "/workspace/image.png";
-    // let mat_1 = imread(img_path_1, opencv::imgcodecs::IMREAD_COLOR).unwrap();
-
     if args.camera {
         let cam_client = Client::new();
         std::thread::spawn(move || {
