@@ -1,15 +1,15 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {useWebSocket} from "./hooks/useWebSocket";
-import {useReplayPlayer} from "./hooks/useReplayPlayer";
-import type {WaggleData} from "./types";
-import {IconBrightnessDownFilled, IconDownload, IconMoonFilled,} from "@tabler/icons-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWebSocket } from "./hooks/useWebSocket";
+import { useReplayPlayer } from "./hooks/useReplayPlayer";
+import type { WaggleData } from "./types";
+import { IconBrightnessDownFilled, IconDownload, IconMoonFilled, } from "@tabler/icons-react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import LiveGraph from "./components/LiveGraph";
 import LogTerminal from "./components/LogTerminal";
 import PlayBar from "./components/PlayBar";
 import ConfigurableVarsEditor from "./components/ConfigurableVarsEditor";
-import {GraphDataToCSV, saveFile} from "./csvHelpter";
-import {buildAviDib} from "./aviWriter";
+import { GraphDataToCSV, saveFile } from "./csvHelpter";
+import { buildAviDib } from "./aviWriter";
 
 // Chrome can cancel large blob downloads if the object URL is revoked before
 // the browser hands the blob off to the download manager.
@@ -43,24 +43,7 @@ function getImageOverlayEntries(value: WaggleData["images"][string]) {
         if (entries.length > 0) return entries;
     }
 
-    if (!value.svg_overlay) {
-        return [];
-    }
-
-    try {
-        const parsed = JSON.parse(value.svg_overlay) as unknown;
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            return Object.entries(parsed)
-                .filter(
-                    (entry): entry is [string, string] => typeof entry[1] === "string",
-                )
-                .sort(([a], [b]) => a.localeCompare(b));
-        }
-    } catch {
-        // Plain SVG overlays are kept as a single default overlay.
-    }
-
-    return [["overlay", value.svg_overlay]];
+    return [["", ""]];
 }
 
 function saveBlob(filename: string, blob: Blob) {
@@ -109,7 +92,7 @@ async function renderImageFrame(
     overlaySvg?: string,
 ) {
     const baseImage = await loadImage(
-        new Blob([imageData.image_data], {type: "image/jpeg"}),
+        new Blob([imageData.image_data], { type: "image/jpeg" }),
     );
     const width = baseImage.naturalWidth || baseImage.width;
     const height = baseImage.naturalHeight || baseImage.height;
@@ -125,7 +108,7 @@ async function renderImageFrame(
 
     if (overlaySvg) {
         const overlayImage = await loadImage(
-            new Blob([normalizeSvgForImage(overlaySvg)], {type: "image/svg+xml"}),
+            new Blob([normalizeSvgForImage(overlaySvg)], { type: "image/svg+xml" }),
         );
         context.drawImage(overlayImage, 0, 0, width, height);
     }
@@ -529,13 +512,13 @@ function App() {
                                     </p>
                                 </div>
                                 <span className="font-mono text-sm font-semibold">
-                  {replayLoadPercent}%
-                </span>
+                                    {replayLoadPercent}%
+                                </span>
                             </div>
                             <div className="h-3 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
                                 <div
                                     className="h-full rounded-full bg-blue-500 transition-all duration-150 ease-out"
-                                    style={{width: `${replayLoadPercent}%`}}
+                                    style={{ width: `${replayLoadPercent}%` }}
                                 />
                             </div>
                             {loadingReplay.stage === "parsing" && (
@@ -566,8 +549,8 @@ function App() {
                                     </p>
                                 </div>
                                 <span className="font-mono text-sm font-semibold">
-                  {Math.round(videoExportProgress.progress * 100)}%
-                </span>
+                                    {Math.round(videoExportProgress.progress * 100)}%
+                                </span>
                             </div>
                             <div className="h-3 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
                                 <div
@@ -602,19 +585,19 @@ function App() {
                     <div className="flex w-full items-center gap-4">
                         <div className="flex-grow"></div>
                         {!inReplayMode && (
-                            <ConnectionStatus connectionStatus={isConnected}/>
+                            <ConnectionStatus connectionStatus={isConnected} />
                         )}
                         {inReplayMode && (
                             <span
                                 className="rounded bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900 dark:text-orange-200">
-                REPLAY
-              </span>
+                                REPLAY
+                            </span>
                         )}
                         <button onClick={handleToggle}>
                             {isDarkMode ? (
-                                <IconMoonFilled size={20}/>
+                                <IconMoonFilled size={20} />
                             ) : (
-                                <IconBrightnessDownFilled size={20}/>
+                                <IconBrightnessDownFilled size={20} />
                             )}
                         </button>
                     </div>
@@ -658,7 +641,7 @@ function App() {
                                 onClick={handleDownloadData}
                                 className="flex items-center gap-2 rounded-md border bg-slate-300 px-3 py-2 text-black hover:bg-slate-600 dark:bg-slate-700 dark:text-white"
                             >
-                                <IconDownload size={18}/>
+                                <IconDownload size={18} />
                                 Download All Data
                             </button>
                         </div>
@@ -670,11 +653,10 @@ function App() {
                     {Object.entries(graphData).map(([key, value]) => (
                         <div
                             key={key}
-                            className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${
-                                activeGraphs.has(key)
-                                    ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
-                                    : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                            }`}
+                            className={`flex cursor-pointer flex-col items-center rounded-md border p-2 transition-colors ${activeGraphs.has(key)
+                                ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-800"
+                                : "hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                                }`}
                             onClick={() => toggleGraph(key)}
                         >
                             <p>{key}</p>
@@ -804,7 +786,7 @@ function App() {
                                                                             : "Download base AVI"
                                                                     }
                                                                 >
-                                                                    <IconDownload size={14}/>
+                                                                    <IconDownload size={14} />
                                                                 </button>
                                                             )}
                                                         </div>
@@ -836,7 +818,7 @@ function App() {
                                                                             : `Download ${overlayKey} AVI`
                                                                     }
                                                                 >
-                                                                    <IconDownload size={14}/>
+                                                                    <IconDownload size={14} />
                                                                 </button>
                                                             )}
                                                         </div>
@@ -870,7 +852,7 @@ function App() {
                                         <div className="m-2 flex flex-col items-center" key={key}>
                                             <p>{key}</p>
                                             <div
-                                                dangerouslySetInnerHTML={{__html: value.svg_string}}
+                                                dangerouslySetInnerHTML={{ __html: value.svg_string }}
                                             />
                                         </div>
                                     );

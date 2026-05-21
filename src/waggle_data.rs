@@ -7,7 +7,6 @@ pub struct ImageData {
     pub image_data: Vec<u8>,
     pub scale: i32,
     pub flip: bool,
-    pub svg_overlay: Option<String>,
     pub svg_overlays: HashMap<String, String>,
 }
 
@@ -115,10 +114,7 @@ impl WaggleData {
     /// Same as `to_binary`, but writes `vars` into the `configurable_vars` field instead of
     /// the frame's own full snapshot. Used by the replay writer to emit per-frame deltas
     /// while the in-memory frame still carries the full state.
-    pub fn to_binary_with_vars(
-        &self,
-        vars: ConfigurableVarData,
-    ) -> Result<Vec<u8>, String> {
+    pub fn to_binary_with_vars(&self, vars: ConfigurableVarData) -> Result<Vec<u8>, String> {
         let non_image = WaggleNonImageData {
             sent_timestamp: self.sent_timestamp,
             svg_data: self.svg_data.clone(),
@@ -143,7 +139,7 @@ impl WaggleData {
             out.extend_from_slice(&img.image_data);
             let serialized_overlays;
             let svg_overlay = if img.svg_overlays.is_empty() {
-                img.svg_overlay.as_deref().unwrap_or("")
+                &String::new()
             } else {
                 serialized_overlays = serde_json::to_string(&img.svg_overlays)
                     .map_err(|e| format!("svg overlay json error: {e}"))?;
