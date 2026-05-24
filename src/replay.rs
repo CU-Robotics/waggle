@@ -1,4 +1,5 @@
-use crate::waggle_data::{ConfigurableVarData, WaggleData};
+use crate::types::ConfigurableVarData;
+use crate::waggle_data::WaggleData;
 use chrono::Local;
 use std::path::Path;
 use std::sync::LazyLock;

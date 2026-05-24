@@ -18,7 +18,8 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 use waggle::replay::ReplayManager;
-use waggle::waggle_data::{ConfigurableVarData, ImageData, WaggleData, WaggleNonImageData};
+use waggle::types::{ConfigurableVarData, ImageData};
+use waggle::waggle_data::{WaggleData, WaggleNonImageData};
 #[repr(C)]
 pub struct SharedMemHeader {
     write_counter: AtomicU64,
