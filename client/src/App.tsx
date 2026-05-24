@@ -724,7 +724,7 @@ function App() {
                                 {Object.entries(imageData).map(([key, value]) => {
                                     const overlayEntries = getImageOverlayEntries(value);
                                     const viewSelection = imageViewSelections[key];
-                                    const showBase = viewSelection?.base ?? true;
+                                    const showBase = viewSelection?.base ?? false;
                                     const visibleOverlays = overlayEntries.filter(
                                         ([overlayKey]) =>
                                             viewSelection?.overlays?.[overlayKey] ?? true,
