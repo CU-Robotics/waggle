@@ -56,6 +56,7 @@ export function parseEntry(reader: BinaryReader): WaggleData {
     const name = reader.readString(nameLen);
     const scale = reader.readI32();
     const flip = reader.readU8() !== 0;
+    const show_base = reader.readU8() !== 0;
     const dataLen = reader.readU32();
     const image_data = reader.readBytes(dataLen);
     const svgLen = reader.readU32();
@@ -67,6 +68,7 @@ export function parseEntry(reader: BinaryReader): WaggleData {
       image_data,
       scale,
       flip,
+      show_base,
       svg_overlays,
     };
     images[name] = image;

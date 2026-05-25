@@ -78,6 +78,7 @@ impl WaggleData {
             out.extend_from_slice(name_bytes);
             out.extend_from_slice(&img.scale.to_le_bytes());
             out.push(if img.flip { 1 } else { 0 });
+            out.push(if img.show_base { 1 } else { 0 });
             push_u32(&mut out, img.image_data.len())?;
             out.extend_from_slice(&img.image_data);
             let serialized_overlays;

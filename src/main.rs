@@ -80,6 +80,9 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
         let flip = buf[pos] != 0;
         pos += 1;
 
+        let show_base = buf[pos] != 0;
+        pos += 1;
+
         let data_len: usize =
             read_u32(&mut pos)?.try_into().map_err(|e| format!("data_len: {e}"))?;
         if pos + data_len > buf.len() {
@@ -100,7 +103,10 @@ fn parse_shmem_message(buf: &[u8]) -> Result<WaggleData, String> {
             serde_json::from_str(s).unwrap_or_default()
         };
         pos += svg_len;
-        images.insert(name, ImageData { image_data: image_bytes, scale, flip, svg_overlays });
+        images.insert(
+            name,
+            ImageData { image_data: image_bytes, scale, flip, show_base, svg_overlays },
+        );
     }
 
     Ok(WaggleData {
@@ -286,6 +292,12 @@ async fn image_handler(
         .and_then(|v| v.to_str().ok())
         .map(|v| v == "true")
         .unwrap_or(false);
+    let show_base = headers
+        .get("x-image-show-base")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v == "true")
+        .unwrap_or(false);
+
     // let svg_overlay = headers
     //     .get("x-image-svg-overlay-base64")
     //     .and_then(|v| v.to_str().ok())
@@ -299,7 +311,7 @@ async fn image_handler(
         .unwrap_or_default();
 
     debug!("received image '{}' ({} bytes)", name, body.len());
-    let image_data = ImageData { image_data: body.to_vec(), scale, flip, svg_overlays };
+    let image_data = ImageData { image_data: body.to_vec(), scale, flip, show_base, svg_overlays };
 
     let mut data = WaggleData::default();
     data.images.insert(name.clone(), image_data.clone());
