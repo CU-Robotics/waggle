@@ -12,7 +12,8 @@ use reqwest::Client;
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use waggle::waggle_data::{GraphData, LogData, StringData, SvgData, WaggleNonImageData};
+use waggle::types::{GraphData, LogData, StringData, SvgData};
+use waggle::waggle_data::WaggleNonImageData;
 
 #[derive(Parser)]
 struct Args {

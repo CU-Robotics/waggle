@@ -5,6 +5,7 @@ pub struct ImageData {
     pub image_data: Vec<u8>,
     pub scale: i32,
     pub flip: bool,
+    pub show_base: bool,
     pub svg_overlays: HashMap<String, String>,
 }
 
