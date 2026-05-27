@@ -2,6 +2,7 @@ interface ImageData {
   image_data: Uint8Array;
   scale: number;
   flip: boolean;
+  show_base: boolean;
   blob_url?: string;
   svg_overlays?: { [key: string]: string };
 }
