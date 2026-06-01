@@ -87,6 +87,29 @@ function normalizeSvgForImage(svg: string) {
     return svg.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
 }
 
+function SvgOverlayImage({svg}: { svg: string }) {
+    const url = useMemo(
+        () =>
+            URL.createObjectURL(
+                new Blob([normalizeSvgForImage(svg)], {type: "image/svg+xml"}),
+            ),
+        [svg],
+    );
+
+    useEffect(() => {
+        return () => URL.revokeObjectURL(url);
+    }, [url]);
+
+    return (
+        <img
+            src={url}
+            className="pointer-events-none absolute inset-0 block h-full w-full"
+            alt=""
+            aria-hidden="true"
+        />
+    );
+}
+
 async function renderImageFrame(
     imageData: WaggleData["images"][string],
     overlaySvg?: string,
@@ -822,18 +845,14 @@ function App() {
                                                                 </button>
                                                             )}
                                                         </div>
-                                                        <div className="relative">
+                                                        <div
+                                                            className="relative overflow-hidden rounded-md border">
                                                             <img
                                                                 src={value.blob_url}
-                                                                className="block h-auto w-full rounded-md border"
+                                                                className="block h-auto w-full"
                                                                 alt="no source"
                                                             />
-                                                            <div
-                                                                className="pointer-events-none absolute inset-0 [&>svg]:h-full [&>svg]:w-full"
-                                                                dangerouslySetInnerHTML={{
-                                                                    __html: overlaySvg,
-                                                                }}
-                                                            />
+                                                            <SvgOverlayImage svg={overlaySvg}/>
                                                         </div>
                                                     </div>
                                                 ))}
