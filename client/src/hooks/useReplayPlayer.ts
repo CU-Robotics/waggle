@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WaggleData } from "../types";
 import { BinaryReader, createBlobUrl, parseEntry } from "../parseBinary";
+import { useKeybinds } from "./useKeybinds";
 
 const HEADER_SCAN_MAX_BYTES = 64;
 const RECORD_LEN_BYTES = 4;
@@ -97,9 +98,9 @@ async function parseReplayFile(
   if (!SUPPORTED_SCHEMAS.includes(version)) {
     alert(
       "Unsupported replay header: " +
-        JSON.stringify(header) +
-        "\nSupported schemas: " +
-        SUPPORTED_SCHEMAS.join(", "),
+      JSON.stringify(header) +
+      "\nSupported schemas: " +
+      SUPPORTED_SCHEMAS.join(", "),
     );
   }
 
@@ -369,6 +370,15 @@ export function useReplayPlayer() {
 
     return () => clearInterval(interval);
   }, [replay?.isPlaying, syncState]);
+
+  useKeybinds({
+    "space": () => togglePlay(),
+    "arrowleft": () => stepBackward(),
+    "arrowright": () => stepForward(),
+    "escape": () => close(),
+    "shift+arrowright": () => setSpeed(playRef.current.speed * 2),
+    "shift+arrowleft": () => setSpeed(playRef.current.speed / 2),
+  }, { enabled: replay !== null });
 
   return {
     replay,
