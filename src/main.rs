@@ -1,7 +1,7 @@
 use axum::{
     Json, Router,
     extract::{
-        Query, State,
+        ConnectInfo, Query, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
@@ -13,8 +13,11 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::json;
 use shared_memory::ShmemConf;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    net::SocketAddr,
+    sync::atomic::{AtomicU64, Ordering},
+};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 use waggle::replay::ReplayManager;
@@ -169,6 +172,12 @@ struct ConfigurableDoubleReq {
     default: f64,
 }
 
+#[derive(Deserialize)]
+struct ConfigurableStringReq {
+    name: String,
+    default: String,
+}
+
 async fn list_configurable_vars_handler(
     State(server): State<ServerState>,
 ) -> Json<serde_json::Value> {
@@ -176,6 +185,7 @@ async fn list_configurable_vars_handler(
     Json(json!({
         "configurable_ints": vars.configurable_ints,
         "configurable_doubles": vars.configurable_doubles,
+        "configurable_strings": vars.configurable_strings,
     }))
 }
 
@@ -225,7 +235,42 @@ async fn update_configurable_double_handler(
     StatusCode::OK
 }
 
-async fn ws_handler(ws: WebSocketUpgrade, State(server): State<ServerState>) -> impl IntoResponse {
+async fn send_configurable_string_handler(
+    State(server): State<ServerState>,
+    Query(data): Query<ConfigurableStringReq>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let mut vars = server.configurable_vars.lock();
+
+    match vars.configurable_strings.get(&data.name) {
+        Some(value) => (StatusCode::OK, Json(json!({ "name": data.name, "default": value}))),
+        None => {
+            vars.configurable_strings.insert(data.name.clone(), data.default.clone());
+            (StatusCode::OK, Json(json!({ "name": data.name, "default": data.default})))
+        },
+    }
+}
+
+async fn update_configurable_string_handler(
+    State(server): State<ServerState>,
+    Json(data): Json<ConfigurableStringReq>,
+) -> StatusCode {
+    server.configurable_vars.lock().configurable_strings.insert(data.name, data.default);
+    StatusCode::OK
+}
+
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    State(server): State<ServerState>,
+    ConnectInfo(address): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
+    println!("Raw socket address: {}", address.ip());
+
+    server
+        .configurable_vars
+        .lock()
+        .configurable_strings
+        .insert("client ip".into(), address.ip().to_string());
+
     ws.on_upgrade(|socket| ws_connected(socket, server))
 }
 
@@ -238,6 +283,7 @@ async fn ws_connected(mut socket: WebSocket, server: ServerState) {
         let mut ready = server.clients_ready.lock();
         *ready = true;
     }
+
     loop {
         tokio::select! {
             Some(Ok(msg)) = socket.next() => {
@@ -460,10 +506,18 @@ async fn main() {
         .route("/batch", post(batch_handler))
         .route("/image", post(image_handler))
         .route("/ws", get(ws_handler))
-        .route("/configurable-int", get(send_configurable_int_handler))
-        .route("/configurable-int", post(update_configurable_int_handler))
-        .route("/configurable-double", get(send_configurable_double_handler))
-        .route("/configurable-double", post(update_configurable_double_handler))
+        .route(
+            "/configurable-int",
+            get(send_configurable_int_handler).post(update_configurable_int_handler),
+        )
+        .route(
+            "/configurable-double",
+            get(send_configurable_double_handler).post(update_configurable_double_handler),
+        )
+        .route(
+            "/configurable-string",
+            get(send_configurable_string_handler).post(update_configurable_string_handler),
+        )
         .route("/configurable-vars", get(list_configurable_vars_handler))
         .fallback_service(tower_http::services::ServeDir::new("./client/dist"))
         .with_state(server);
@@ -472,5 +526,5 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
-    axum::serve(listener, app.into_make_service()).await.unwrap();
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
 }

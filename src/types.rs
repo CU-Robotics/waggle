@@ -38,6 +38,7 @@ impl Into<StringData> for String {
 pub struct ConfigurableVarData {
     pub configurable_ints: HashMap<String, i64>,
     pub configurable_doubles: HashMap<String, f64>,
+    pub configurable_strings: HashMap<String, String>,
 }
 
 impl ConfigurableVarData {
@@ -55,6 +56,12 @@ impl ConfigurableVarData {
                 configurable_doubles.insert(k.clone(), *v);
             }
         }
-        ConfigurableVarData { configurable_ints, configurable_doubles }
+        let mut configurable_strings = HashMap::new();
+        for (k, v) in &self.configurable_strings {
+            if prev.configurable_strings.get(k) != Some(v) {
+                configurable_strings.insert(k.clone(), v.clone());
+            }
+        }
+        ConfigurableVarData { configurable_ints, configurable_doubles, configurable_strings }
     }
 }
