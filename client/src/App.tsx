@@ -87,11 +87,11 @@ function normalizeSvgForImage(svg: string) {
     return svg.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
 }
 
-function SvgOverlayImage({svg}: { svg: string }) {
+function SvgOverlayImage({ svg }: { svg: string }) {
     const url = useMemo(
         () =>
             URL.createObjectURL(
-                new Blob([normalizeSvgForImage(svg)], {type: "image/svg+xml"}),
+                new Blob([normalizeSvgForImage(svg)], { type: "image/svg+xml" }),
             ),
         [svg],
     );
@@ -291,6 +291,9 @@ function App() {
     const configurableIntData = inReplayMode
         ? (replayCurrentVars?.configurable_ints ?? {})
         : ws.configurableIntData;
+    const configurableStringData = inReplayMode
+        ? (replayCurrentVars?.configurable_strings ?? {})
+        : ws.configurableStringData;
     const isConnected = inReplayMode ? false : ws.isConnected;
     const maxDataPoints = ws.maxDataPoints;
     const setMaxDataPoints = ws.setMaxDataPoints;
@@ -852,7 +855,7 @@ function App() {
                                                                 className="block h-auto w-full"
                                                                 alt="no source"
                                                             />
-                                                            <SvgOverlayImage svg={overlaySvg}/>
+                                                            <SvgOverlayImage svg={overlaySvg} />
                                                         </div>
                                                     </div>
                                                 ))}
@@ -886,6 +889,7 @@ function App() {
                                 <ConfigurableVarsEditor
                                     configurableDoubleData={configurableDoubleData}
                                     configurableIntData={configurableIntData}
+                                    configurableStringData={configurableStringData}
                                 />
                             </div>
                         </div>

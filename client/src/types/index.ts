@@ -32,6 +32,7 @@ interface LogData {
 interface ConfigurableVarData {
   configurable_ints: { [key: string]: number };
   configurable_doubles: { [key: string]: number };
+  configurable_strings: { [key: string]: string };
 }
 
 interface WaggleNonImageData {

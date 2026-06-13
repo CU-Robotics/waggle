@@ -3,14 +3,15 @@ import { useState, useCallback } from "react";
 interface ConfigurableVarsEditorProps {
   configurableDoubleData: { [key: string]: number };
   configurableIntData: { [key: string]: number };
+  configurableStringData: { [key: string]: string };
 }
 
-type VarType = "double" | "int";
+type VarType = "double" | "int" | "string";
 
 interface PendingChange {
   type: VarType;
   key: string;
-  value: number;
+  value: number | string;
 }
 
 async function postInt(name: string, value: number): Promise<boolean> {
@@ -39,43 +40,71 @@ async function postDouble(name: string, value: number): Promise<boolean> {
   }
 }
 
+async function postString(name: string, value: string): Promise<boolean> {
+  try {
+    const res = await fetch("/configurable-string", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, default: value }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function ConfigurableVarsEditor({
   configurableDoubleData,
   configurableIntData,
+  configurableStringData,
 }: ConfigurableVarsEditorProps) {
-  const [edits, setEdits] = useState<{ [key: string]: number }>({});
+  const [edits, setEdits] = useState<{ [key: string]: number | string }>({});
   const [statuses, setStatuses] = useState<{ [key: string]: "saved" | "edited" | "sending" | "sent" | "error" }>({});
 
   const compositeKey = (type: VarType, key: string) => `${type}::${key}`;
 
-  const getEditedValue = (type: VarType, key: string): number => {
+  const getEditedValue = (type: VarType, key: string): number | string => {
     const ck = compositeKey(type, key);
     return ck in edits
       ? edits[ck]
       : type === "double"
         ? configurableDoubleData[key]
-        : configurableIntData[key];
+        : type === "int"
+          ? configurableIntData[key]
+          : configurableStringData[key];
   };
 
   const isDirty = (type: VarType, key: string): boolean => {
     const ck = compositeKey(type, key);
     if (!(ck in edits)) return false;
-    const original = type === "double" ? configurableDoubleData[key] : configurableIntData[key];
+    const original =
+      type === "double" ? configurableDoubleData[key] : type === "int" ? configurableIntData[key] : configurableStringData[key];
     return edits[ck] !== original;
   };
 
   const allDirty: PendingChange[] = [
     ...Object.keys(configurableDoubleData)
       .filter((k) => isDirty("double", k))
-      .map((k) => ({ type: "double" as VarType, key: k, value: edits[compositeKey("double", k)] })),
+      .map((k) => ({ type: "double" as VarType, key: k, value: edits[compositeKey("double", k)] as number })),
     ...Object.keys(configurableIntData)
       .filter((k) => isDirty("int", k))
-      .map((k) => ({ type: "int" as VarType, key: k, value: edits[compositeKey("int", k)] })),
+      .map((k) => ({ type: "int" as VarType, key: k, value: edits[compositeKey("int", k)] as number })),
+    ...Object.keys(configurableStringData)
+      .filter((k) => isDirty("string", k))
+      .map((k) => ({ type: "string" as VarType, key: k, value: edits[compositeKey("string", k)] as string })),
   ];
 
   const handleChange = useCallback((type: VarType, key: string, raw: string) => {
-    const value = type === "double" ? parseFloat(raw) : parseInt(raw, 10);
-    if (isNaN(value)) return;
+    let value: number | string;
+    if (type === "double") {
+      value = parseFloat(raw);
+      if (isNaN(value)) return;
+    } else if (type === "int") {
+      value = parseInt(raw, 10);
+      if (isNaN(value)) return;
+    } else {
+      value = raw;
+    }
     const ck = compositeKey(type, key);
     setEdits((prev) => ({ ...prev, [ck]: value }));
     setStatuses((prev) => ({ ...prev, [ck]: "edited" }));
@@ -85,7 +114,14 @@ export default function ConfigurableVarsEditor({
     const ck = compositeKey(type, key);
     const value = edits[ck];
     setStatuses((prev) => ({ ...prev, [ck]: "sending" }));
-    const ok = type === "double" ? await postDouble(key, value) : await postInt(key, value);
+    let ok: boolean;
+    if (type === "double") {
+      ok = await postDouble(key, value as number);
+    } else if (type === "int") {
+      ok = await postInt(key, value as number);
+    } else {
+      ok = await postString(key, value as string);
+    }
     setStatuses((prev) => ({ ...prev, [ck]: ok ? "sent" : "error" }));
   }, [edits]);
 
@@ -99,11 +135,11 @@ export default function ConfigurableVarsEditor({
   }, []);
 
   const statusColor: Record<string, string> = {
-    saved:   "text-neutral-400",
-    edited:  "text-yellow-500",
+    saved: "text-neutral-400",
+    edited: "text-yellow-500",
     sending: "text-blue-400",
-    sent:    "text-green-500",
-    error:   "text-red-500",
+    sent: "text-green-500",
+    error: "text-red-500",
   };
 
   const renderRow = (type: VarType, key: string) => {
@@ -112,13 +148,17 @@ export default function ConfigurableVarsEditor({
     const status = statuses[ck] ?? "saved";
     const value = getEditedValue(type, key);
 
+    const isString = type === "string";
+    const inputProps = isString
+      ? { type: "text" }
+      : { type: "number", step: type === "double" ? "any" : "1" };
+
     return (
       <div key={key} className="grid items-center gap-3 rounded-md border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-600 dark:bg-neutral-700 mb-1.5"
         style={{ gridTemplateColumns: "minmax(0,1.2fr) minmax(0,2fr) 64px 56px" }}>
         <span className="truncate text-sm" title={key}>{key}</span>
         <input
-          type="number"
-          step={type === "double" ? "any" : "1"}
+          {...inputProps}
           value={value}
           onChange={(e) => handleChange(type, key, e.target.value)}
           className="h-8 w-full rounded border border-neutral-200 bg-neutral-50 px-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
@@ -137,6 +177,7 @@ export default function ConfigurableVarsEditor({
 
   const hasDoubles = Object.keys(configurableDoubleData).length > 0;
   const hasInts = Object.keys(configurableIntData).length > 0;
+  const hasStrings = Object.keys(configurableStringData).length > 0;
 
   return (
     <div className="w-full p-4">
@@ -149,7 +190,7 @@ export default function ConfigurableVarsEditor({
         )}
       </div>
 
-      {!hasDoubles && !hasInts && (
+      {!hasDoubles && !hasInts && !hasStrings && (
         <p className="rounded-md border border-dashed border-neutral-300 p-4 text-center text-sm text-neutral-400">
           No configurable variables received yet
         </p>
@@ -166,6 +207,13 @@ export default function ConfigurableVarsEditor({
         <div className="mb-6">
           <p className="mb-2 text-xs font-medium uppercase tracking-wider text-neutral-400">Integer</p>
           {Object.keys(configurableIntData).map((k) => renderRow("int", k))}
+        </div>
+      )}
+
+      {hasStrings && (
+        <div className="mb-6">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-neutral-400">String</p>
+          {Object.keys(configurableStringData).map((k) => renderRow("string", k))}
         </div>
       )}
 

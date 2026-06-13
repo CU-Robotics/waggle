@@ -84,6 +84,7 @@ export function parseEntry(reader: BinaryReader): WaggleData {
     configurable_vars: meta.configurable_vars ?? {
       configurable_ints: {},
       configurable_doubles: {},
+      configurable_strings: {},
     },
   };
 }

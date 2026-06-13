@@ -23,6 +23,9 @@ export function useWebSocket() {
   const [configurableIntData, setConfigurableIntData] = useState<
     ConfigurableVarData["configurable_ints"]
   >({});
+  const [configurableStringData, setConfigurableStringData] = useState<
+    ConfigurableVarData["configurable_strings"]
+  >({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const imageDataRef = useRef<WaggleData["images"]>({});
@@ -287,6 +290,7 @@ export function useWebSocket() {
         if (cancelled) return;
         setConfigurableDoubleData(data.configurable_doubles ?? {});
         setConfigurableIntData(data.configurable_ints ?? {});
+        setConfigurableStringData(data.configurable_strings ?? {});
       } catch {
         // Ignore transient polling failures; reconnect via WebSocket handles real errors.
       }
@@ -312,5 +316,6 @@ export function useWebSocket() {
     setMaxLogLines,
     configurableDoubleData,
     configurableIntData,
+    configurableStringData,
   };
 }

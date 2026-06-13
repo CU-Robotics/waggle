@@ -114,9 +114,11 @@ async function parseReplayFile(
   // every frame also fold correctly — re-applying the same keys is a no-op.
   let runningInts: { [k: string]: number } = {};
   let runningDoubles: { [k: string]: number } = {};
+  let runningStrings: { [k: string]: string } = {};
   let runningVars = {
     configurable_ints: runningInts,
     configurable_doubles: runningDoubles,
+    configurable_strings: runningStrings,
   };
 
   while (pos + RECORD_LEN_BYTES <= buffer.byteLength) {
@@ -133,12 +135,15 @@ async function parseReplayFile(
       const updates = frame.configurable_vars;
       const intKeys = Object.keys(updates.configurable_ints);
       const doubleKeys = Object.keys(updates.configurable_doubles);
-      if (intKeys.length > 0 || doubleKeys.length > 0) {
+      const stringKeys = Object.keys(updates.configurable_strings);
+      if (intKeys.length > 0 || doubleKeys.length > 0 || stringKeys.length > 0) {
         runningInts = { ...runningInts, ...updates.configurable_ints };
         runningDoubles = { ...runningDoubles, ...updates.configurable_doubles };
+        runningStrings = { ...runningStrings, ...updates.configurable_strings };
         runningVars = {
           configurable_ints: runningInts,
           configurable_doubles: runningDoubles,
+          configurable_strings: runningStrings,
         };
       }
       frame.configurable_vars = runningVars;
